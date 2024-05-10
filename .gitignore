@@ -1,0 +1,6 @@
+.idea
+**/target
+dev.db
+dev.db-wal
+scan.toml
+dev

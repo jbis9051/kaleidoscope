@@ -1,0 +1,17 @@
+[package]
+name = "scan"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+common = { path = "../common" }
+toml = "0.8"
+serde = "1.0"
+walkdir = "2.5"
+tokio = { version = "1.37", features = ["full"] }
+sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "migrate", "uuid", "chrono"] }
+image = "0.25"
+thiserror = "1.0"
+libheif-rs = "1.0"
