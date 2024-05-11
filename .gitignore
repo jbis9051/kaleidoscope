@@ -4,3 +4,5 @@ dev.db
 dev.db-wal
 scan.toml
 dev
+**/node_modules
+**/.next

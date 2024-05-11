@@ -1,36 +1,47 @@
 mod config;
 
 
-use axum::{Extension, Json, Router, routing::get};
+use axum::{Extension, Json, Router, routing::get, serve};
+use axum::body::Body;
 use axum::extract::{Path, Query};
-use axum::http::StatusCode;
+use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
+use axum::response::IntoResponse;
 use axum::routing::post;
 use serde::Serialize;
 use sqlx::sqlite::SqlitePool;
+use tower::ServiceBuilder;
+use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 use common::models::album::Album;
 use common::models::media::Media;
 use crate::config::CONFIG;
 use common::types::DbPool;
+use tokio_util::io::ReaderStream;
 
 #[tokio::main]
 async fn main() {
     println!("Listening on: {}", &CONFIG.listen_addr);
     println!("Config: {:?}", &CONFIG);
-    let pool = SqlitePool::connect(&format!("sqlite:../{}", CONFIG.db_path)).await.unwrap();
+    let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any);
 
     let app = Router::new()
         .route("/media", get(media_index))
         .route("/media/:uuid", get(media))
+        .route("/media/:uuid/raw", get(media_raw))
+        .route("/media/:uuid/full", get(media_full))
+        .route("/media/:uuid/thumb", get(media_thumb))
         .route("/albums", get(album_index))
         .route("/albums/:uuid", get(album))
         .route("/albums/:uuid/media", post(album_add).delete(album_delete))
-        .layer(Extension(pool));
+        .layer(Extension(pool))
+        .layer(cors);
 
-    axum::Server::bind(&CONFIG.listen_addr.parse().unwrap())
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&CONFIG.listen_addr).await.unwrap();
+
+    axum::serve(listener, app).await.unwrap();
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -58,6 +69,35 @@ async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> J
     let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
     Json(media)
 }
+
+async fn media_raw(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> (HeaderMap, Body) {
+    let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
+    serve_file(std::path::Path::new(&media.path), "application/octet-stream".to_string()).await
+}
+
+async fn media_full(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> (HeaderMap, Body) {
+    let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
+    let path = std::path::Path::new(&CONFIG.data_dir).join(format!("{}-full.jpg", media.uuid));
+    serve_file(&path, "image/jpeg".to_string()).await
+}
+
+async fn media_thumb(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> (HeaderMap, Body) {
+    let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
+    let path = std::path::Path::new(&CONFIG.data_dir).join(format!("{}-thumb.jpg", media.uuid));
+    serve_file(&path, "image/jpeg".to_string()).await
+}
+
+
+async fn serve_file(path: &std::path::Path, content_type: String) -> (HeaderMap, Body) {
+    let file = tokio::fs::File::open(path).await.unwrap();
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_str(&content_type).unwrap());
+
+    (headers, body)
+}
+
 
 
 #[derive(Debug, serde::Deserialize)]
