@@ -697,6 +697,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "ffmpeg-next"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7f46a28a7161e8066ebe0d854cd9e30fcee4b64059660ef8580db7084b25b5e4"
+dependencies = [
+ "bitflags 2.5.0",
+ "ffmpeg-sys-next",
+ "libc",
+]
+
+[[package]]
+name = "ffmpeg-sys-next"
+version = "7.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "972a460dd8e901b737ce0482bf71a837e1751e3dd7c8f8b0a4ead808e7f174a5"
+dependencies = [
+ "bindgen",
+ "cc",
+ "libc",
+ "num_cpus",
+ "pkg-config",
+ "vcpkg",
+]
+
+[[package]]
 name = "finl_unicode"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2101,6 +2126,7 @@ name = "scan"
 version = "0.1.0"
 dependencies = [
  "common",
+ "ffmpeg-next",
  "image",
  "libheif-rs",
  "serde",

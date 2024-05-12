@@ -10,7 +10,8 @@ CREATE TABLE media (
     path TEXT NOT NULL,
     liked BOOLEAN NOT NULL,
     is_photo BOOLEAN NOT NULL,
-    added_at INTEGER NOT NULL
+    added_at INTEGER NOT NULL,
+    duration INTEGER NULl
 );
 
 

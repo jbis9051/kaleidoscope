@@ -1,16 +1,20 @@
 pub mod standard;
 pub mod heif;
+pub mod video;
 
-use image::{RgbaImage, RgbImage};
+use std::time::Duration;
+use image::{RgbImage};
 use sqlx::types::chrono;
 use walkdir::DirEntry;
 
+#[derive(Debug)]
 pub struct MediaMetadata {
     pub name: String,
     pub width: u32,
     pub height: u32,
     pub size: u32,
     pub created_at: chrono::NaiveDateTime,
+    pub duration: Option<Duration>,
 }
 
 pub trait Format<T> {

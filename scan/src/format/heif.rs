@@ -37,6 +37,7 @@ impl Format<HeifError> for Heif {
             height: handle.height(),
             size: file_meta.len() as u32,
             created_at: system_time_to_naive_datetime(native),
+            duration: None,
         })
     }
 

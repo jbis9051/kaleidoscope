@@ -26,6 +26,7 @@ impl Format<StandardError> for Standard {
             height: image.height(),
             size: file_meta.len() as u32,
             created_at: system_time_to_naive_datetime(file_meta.created().unwrap()),
+            duration: None,
         })
     }
 

@@ -17,12 +17,14 @@ pub struct Media {
     pub created_at: NaiveDateTime,
     pub width: u32,
     pub height: u32,
-    pub size: u32, // in bytes
+    pub size: u32,
+    // in bytes
     pub path: String,
     pub liked: bool,
     pub is_photo: bool,
     #[serde(with = "date")]
     pub added_at: NaiveDateTime,
+    pub duration: Option<u32>,
 }
 
 impl From<&SqliteRow> for Media {
@@ -39,6 +41,7 @@ impl From<&SqliteRow> for Media {
             liked: row.get("liked"),
             is_photo: row.get("is_photo"),
             added_at: row.get("added_at"),
+            duration: row.get("duration"),
         }
     }
 }
@@ -46,29 +49,30 @@ impl From<&SqliteRow> for Media {
 impl Media {
     pub async fn create<'a, T: SqliteExecutor<'a>>(&mut self, db: T) -> Result<(), sqlx::Error> {
         *self = sqlx::query(
-            "INSERT INTO media (uuid, name, created_at, width, height, size, path, liked, is_photo, added_at) \
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;",
+            "INSERT INTO media (uuid, name, created_at, width, height, size, path, liked, is_photo, added_at, duration) \
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;",
         )
-        .bind(self.uuid)
-        .bind(&self.name)
-        .bind(self.created_at)
-        .bind(self.width)
-        .bind(self.height)
-        .bind(self.size)
-        .bind(&self.path)
-        .bind(self.liked)
-        .bind(self.is_photo)
-        .bind(self.added_at)
-        .fetch_one(db)
-        .await?
-        .borrow()
-        .into();
+            .bind(self.uuid)
+            .bind(&self.name)
+            .bind(self.created_at)
+            .bind(self.width)
+            .bind(self.height)
+            .bind(self.size)
+            .bind(&self.path)
+            .bind(self.liked)
+            .bind(self.is_photo)
+            .bind(self.added_at)
+            .bind(self.duration)
+            .fetch_one(db)
+            .await?
+            .borrow()
+            .into();
         Ok(())
     }
 
     pub fn safe_column(name: &str) -> Result<(), sqlx::Error> {
         match name {
-            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" => return Ok(()),
+            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" | "duration" => return Ok(()),
             _ => Err(sqlx::Error::ColumnNotFound(name.to_string()))
         }
     }
@@ -85,7 +89,7 @@ impl Media {
             .map(|row| row.into())
             .collect())
     }
-    
+
     pub async fn all<'a>(db: impl SqliteExecutor<'a>) -> Result<Vec<Self>, sqlx::Error> {
         Ok(sqlx::query("SELECT * FROM media;")
             .fetch_all(db)

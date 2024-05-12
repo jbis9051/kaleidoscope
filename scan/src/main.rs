@@ -9,7 +9,7 @@ use sqlx::types::Uuid;
 use sqlx::types::uuid::uuid;
 use walkdir::{DirEntry, WalkDir};
 use common::models::media::Media;
-use crate::format::{Format, heif, MediaMetadata, standard};
+use crate::format::{Format, heif, MediaMetadata, standard, video};
 
 #[derive(Deserialize)]
 struct ScanConfig {
@@ -35,7 +35,8 @@ async fn main() {
         println!("scanning path: {:?}", path);
         scan_dir(path, &config, &mut db).await;
     }
-
+    
+    return;
     println!("--- scanning complete, verifying database ---");
 
     let mut media = Media::all(&mut db).await.unwrap();
@@ -171,9 +172,12 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
         liked: false,
         is_photo,
         added_at: Utc::now().naive_utc(),
+        duration: metadata.duration.map(|d| d.as_secs() as u32),
     };
+    
+    println!("          adding media to database: {:?}", media);
 
-    media.create(&mut *db).await.unwrap();
+   // media.create(&mut *db).await.unwrap();
 }
 
 
@@ -213,13 +217,13 @@ macro_rules! get_metadata_from_media_formats {
     };
 }
 fn generate_media_caches(entry: &DirEntry, twidth: u32, theight: u32) -> Result<Option<(RgbImage, RgbImage)>, MetadataError> {
-    generate_media_caches_formats!(entry, (standard::Standard, heif::Heif), twidth, theight);
+    generate_media_caches_formats!(entry, (standard::Standard, heif::Heif, video::Video), twidth, theight);
 
     Ok(None)
 }
 
 fn get_media_metadata(entry: &DirEntry) -> Result<Option<(MediaMetadata, bool)>, MetadataError> {
-    get_metadata_from_media_formats!(entry, (standard::Standard, heif::Heif));
+    get_metadata_from_media_formats!(entry, (standard::Standard, heif::Heif, video::Video));
 
     Ok(None)
 }
@@ -230,4 +234,6 @@ enum MetadataError {
     Standard(#[from] standard::StandardError),
     #[error("heif format error: {0}")]
     Heif(#[from] heif::HeifError),
+    #[error("video format error: {0}")]
+    Video(#[from] video::VideoError),
 }
