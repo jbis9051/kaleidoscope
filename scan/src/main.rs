@@ -36,7 +36,6 @@ async fn main() {
         scan_dir(path, &config, &mut db).await;
     }
     
-    return;
     println!("--- scanning complete, verifying database ---");
 
     let mut media = Media::all(&mut db).await.unwrap();
@@ -175,9 +174,7 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
         duration: metadata.duration.map(|d| d.as_secs() as u32),
     };
     
-    println!("          adding media to database: {:?}", media);
-
-   // media.create(&mut *db).await.unwrap();
+    media.create(&mut *db).await.unwrap();
 }
 
 
