@@ -1,6 +1,7 @@
 pub mod standard;
 pub mod heif;
 pub mod video;
+pub mod raw;
 
 use std::time::Duration;
 use image::{RgbImage};

@@ -6,10 +6,9 @@ use serde::Deserialize;
 use sqlx::{Connection, Executor, SqliteConnection};
 use sqlx::types::chrono::{Utc};
 use sqlx::types::Uuid;
-use sqlx::types::uuid::uuid;
 use walkdir::{DirEntry, WalkDir};
 use common::models::media::Media;
-use crate::format::{Format, heif, MediaMetadata, standard, video};
+use crate::format::{Format, heif, MediaMetadata, standard, video, raw};
 
 #[derive(Deserialize)]
 struct ScanConfig {
@@ -214,13 +213,13 @@ macro_rules! get_metadata_from_media_formats {
     };
 }
 fn generate_media_caches(entry: &DirEntry, twidth: u32, theight: u32) -> Result<Option<(RgbImage, RgbImage)>, MetadataError> {
-    generate_media_caches_formats!(entry, (standard::Standard, heif::Heif, video::Video), twidth, theight);
+    generate_media_caches_formats!(entry, (standard::Standard, heif::Heif, video::Video, raw::Raw), twidth, theight);
 
     Ok(None)
 }
 
 fn get_media_metadata(entry: &DirEntry) -> Result<Option<(MediaMetadata, bool)>, MetadataError> {
-    get_metadata_from_media_formats!(entry, (standard::Standard, heif::Heif, video::Video));
+    get_metadata_from_media_formats!(entry, (standard::Standard, heif::Heif, video::Video, raw::Raw));
 
     Ok(None)
 }
@@ -233,4 +232,6 @@ enum MetadataError {
     Heif(#[from] heif::HeifError),
     #[error("video format error: {0}")]
     Video(#[from] video::VideoError),
+    #[error("raw format error: {0}")]
+    Raw(#[from] raw::RawError),
 }
