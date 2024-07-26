@@ -3,12 +3,15 @@ import {useEffect, useState} from "react";
 import {API_URL} from "@/global";
 import {Api, Media, MediaQueryColumns} from "@/api/api";
 import Gallery from "@/components/Gallery";
+import MetadataTable from "@/components/MetadataTable";
+import mediaToMetadata from "@/utility/mediaMetadata";
 
 export default function Index() {
 
     const [photos, setPhotos] = useState<Media[] | null>(null);
 
     const [page, setPage] = useState(1);
+    const [count, setCount] = useState(0);
     const [orderby, setOrderby] = useState<MediaQueryColumns>('id');
     const [asc, setAsc] = useState(true);
     const [limit, setLimit] = useState(10);
@@ -17,13 +20,15 @@ export default function Index() {
 
     const [preview, setPreview] = useState<Media | null>(null);
 
+    const [selected, setSelected] = useState<number | null>(null);
+
     useEffect(() => {
         const api = new Api(API_URL);
         api.getMedia(page, limit, orderby, asc).then((photos) => {
-            setPhotos(photos)
+            setPhotos(photos.media)
+            setCount(photos.count)
         });
     }, [page, orderby, asc, limit]);
-
 
     return (
         <div className={styles.topLevel}>
@@ -33,31 +38,51 @@ export default function Index() {
                 }
             }}>
                 <div className={styles.previewWrapper}>
-                    <img src={`http://localhost:3001/media/${preview.uuid}/full`}/>
-                    <div className={styles.previewInfo}>
-                        <div>{preview.name}</div>
-                        <div>{preview.size} bytes</div>
-                        <div>{preview.created_at}</div>
-                    </div>
-                    <button onClick={() => setPreview(null)}>Close</button>
+                    <img src={`${API_URL}/media/${preview.uuid}/full`}/>
+                    <button onClick={() => setPreview(null)}>X</button>
                 </div>
             </div>}
             <div className={styles.statusBar}>
                 <span className={styles.title}>Kaleidoscope</span>
             </div>
             <div className={styles.mainFrame}>
-                <div className={styles.leftPanel}></div>
+                <div className={styles.leftPanel}>
+                    <div className={styles.leftTop}>
+
+                    </div>
+                    <div className={styles.leftPreview} style={{flex: selected ? 2 : 0}}>
+                        {(() => {
+                                if (!selected || !photos) {
+                                    return <span>No Photo Selected</span>
+                                }
+                                const media = photos.find(m => m.id === selected);
+
+                                if (!media) {
+                                    return <span>Selected Photo not found</span>
+                                }
+
+                                return <>
+                                    <img src={`${API_URL}/media/${media.uuid}/full`}/>
+                                <div className={styles.previewInfoWrapper}>
+                                    <div className={styles.previewInfo}>
+                                        <MetadataTable metadata={mediaToMetadata(media)}/>
+                                    </div>
+                                </div>
+                                </>
+                            }
+                        )()}
+                    </div>
+                </div>
                 <div className={styles.mainSection}>
                     <div className={styles.mainSectionHeader}>
                         <div className={styles.pageSelector}>
-                            <button onClick={() => setPage(page => Math.max(page - 1, 1))}>Prev</button>
+                            <button disabled={page <= 1} onClick={() => setPage(page => Math.max(page - 1, 1))}>-</button>
                             <span>{page}</span>
-                            <button onClick={() => setPage(page => page + 1)}>Next</button>
+                            <button disabled={limit*page >= count} onClick={() => setPage(page => page + 1)}>+</button>
                         </div>
                         <div className={styles.thumbsizeRange}>
-                            <input type="range" min="50" max="500" step={20} value={size}
+                            <input type="range" min="50" max="500" value={size}
                                    onChange={(e) => setSize(parseInt(e.target.value))}/>
-                            <span>{size}</span>
                         </div>
                         <div className={styles.limitSelector}>
                             <select value={limit} onChange={(e) => setLimit(parseInt(e.target.value, 10))}>
@@ -79,7 +104,20 @@ export default function Index() {
                         </div>
                     </div>
                     <div className={styles.mainSectionContent}>
-                        {photos && <Gallery media={photos} size={size} open={media => setPreview(media)}/> || <span>Loading...</span>}
+                        {photos &&
+                            <Gallery
+                                media={photos}
+                                selected={selected}
+                                size={size} open={media => setPreview(media)}
+                                select={(m) => setSelected(m.id)}
+                                clearSelection={() => setSelected(null)}
+                            />
+                            || <span>Loading...</span>}
+                    </div>
+                    <div className={styles.mainFooter}>
+                        <span>{count} items</span>
+                        <span>, {selected ? 1 : 0} selected</span>
+                        <span>, Page {page} of {Math.ceil(count / limit)}</span>
                     </div>
                 </div>
             </div>

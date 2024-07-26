@@ -90,6 +90,12 @@ impl Media {
             .collect())
     }
 
+    pub async fn count(db: &DbPool) -> Result<u32, sqlx::Error> {
+        Ok(sqlx::query("SELECT COUNT(*) FROM media;")
+            .fetch_one(db)
+            .await?
+            .get(0))
+    }
     pub async fn all<'a>(db: impl SqliteExecutor<'a>) -> Result<Vec<Self>, sqlx::Error> {
         Ok(sqlx::query("SELECT * FROM media;")
             .fetch_all(db)

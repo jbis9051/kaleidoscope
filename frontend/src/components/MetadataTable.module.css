@@ -1,0 +1,12 @@
+.container {
+    font-size: 11px;
+    padding: 10px;
+    width: 100%;
+}
+
+.key {
+    color: #bbbbbb;
+    padding-right: 5px;
+    width: 30px;
+    white-space: nowrap;
+}

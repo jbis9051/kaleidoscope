@@ -51,13 +51,20 @@ struct MediaIndexParams {
     asc: bool,
     order_by: String,
 }
-async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaIndexParams>) -> Result<Json<Vec<Media>>, (StatusCode, String)> {
+
+#[derive(Debug, Serialize)]
+struct MediaIndexResponse {
+    media: Vec<Media>,
+    count: u32,
+}
+async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaIndexParams>) -> Result<Json<MediaIndexResponse>, (StatusCode, String)> {
     if Media::safe_column(&query.order_by).is_err() {
         return Err((StatusCode::BAD_REQUEST, format!("Invalid column: {}", &query.order_by)));
     }
     
     let media = Media::get_all(&conn, &query.order_by, query.asc, query.limit, query.page - 1).await.unwrap();
-    Ok(Json(media))
+    let count = Media::count(&conn).await.unwrap();
+    Ok(Json(MediaIndexResponse { media, count }))
 }
 
 #[derive(Debug, serde::Deserialize)]
