@@ -1,6 +1,8 @@
 mod format;
 
+use std::hash::Hasher;
 use std::path::Path;
+use fxhash::FxHasher;
 use image::{RgbImage};
 use serde::Deserialize;
 use sqlx::{Connection, Executor, SqliteConnection};
@@ -118,7 +120,7 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
     let data_dir = Path::new(&config.data_dir);
     let thumb_path = data_dir.join(format!("{:?}-thumb.jpg", uuid));
     let full_path = data_dir.join(format!("{:?}-full.jpg", uuid));
-
+    
     let (metadata, is_photo) = match get_media_metadata(entry) {
         Ok(Some(data)) => data,
         Ok(None) => {
@@ -130,6 +132,8 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
             return;
         }
     };
+
+    let hash = hash(entry.path());
 
     // write metadata to database
 
@@ -171,13 +175,19 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
         is_photo,
         added_at: Utc::now().naive_utc(),
         duration: metadata.duration.map(|d| d.as_secs() as u32),
+        hash,
     };
     
     media.create(&mut *db).await.unwrap();
 }
 
 
-
+fn hash(path: &Path) -> String {
+    let mut hasher = FxHasher::default();
+    let data = std::fs::read(path).unwrap();
+    hasher.write(&data);
+    format!("{:x}", hasher.finish())
+}
 
 
 

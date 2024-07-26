@@ -10,3 +10,6 @@
     width: 30px;
     white-space: nowrap;
 }
+.value {
+    user-select: text;
+}

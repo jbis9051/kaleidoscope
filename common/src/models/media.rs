@@ -25,6 +25,7 @@ pub struct Media {
     #[serde(with = "date")]
     pub added_at: NaiveDateTime,
     pub duration: Option<u32>,
+    pub hash: String
 }
 
 impl From<&SqliteRow> for Media {
@@ -42,6 +43,7 @@ impl From<&SqliteRow> for Media {
             is_photo: row.get("is_photo"),
             added_at: row.get("added_at"),
             duration: row.get("duration"),
+            hash: row.get("hash")
         }
     }
 }
@@ -49,8 +51,8 @@ impl From<&SqliteRow> for Media {
 impl Media {
     pub async fn create<'a, T: SqliteExecutor<'a>>(&mut self, db: T) -> Result<(), sqlx::Error> {
         *self = sqlx::query(
-            "INSERT INTO media (uuid, name, created_at, width, height, size, path, liked, is_photo, added_at, duration) \
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;",
+            "INSERT INTO media (uuid, name, created_at, width, height, size, path, liked, is_photo, added_at, duration, hash) \
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;",
         )
             .bind(self.uuid)
             .bind(&self.name)
@@ -63,6 +65,7 @@ impl Media {
             .bind(self.is_photo)
             .bind(self.added_at)
             .bind(self.duration)
+            .bind(&self.hash)
             .fetch_one(db)
             .await?
             .borrow()
@@ -72,7 +75,7 @@ impl Media {
 
     pub fn safe_column(name: &str) -> Result<(), sqlx::Error> {
         match name {
-            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" | "duration" => return Ok(()),
+            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" | "duration" => Ok(()),
             _ => Err(sqlx::Error::ColumnNotFound(name.to_string()))
         }
     }

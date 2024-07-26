@@ -111,6 +111,15 @@ impl Album {
             .await?;
         Ok(())
     }
+    
+    pub async fn has_media<'a>(&self, db: impl SqliteExecutor<'a>, media_id: i32) -> Result<bool, sqlx::Error> {
+        Ok(sqlx::query("SELECT EXISTS(SELECT 1 FROM album_media WHERE album_id = $1 AND media_id = $2);")
+            .bind(self.id)
+            .bind(media_id)
+            .fetch_one(db)
+            .await?
+            .get(0))
+    }
 
     pub async fn remove_media<'a>(&self, db: impl SqliteExecutor<'a>, media_id: i32) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM album_media WHERE album_id = $1 AND media_id = $2;")

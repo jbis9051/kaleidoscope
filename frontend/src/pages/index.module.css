@@ -209,12 +209,25 @@
 
 /* --- */
 
+.albumHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.albumTitle {
+    display: block;
+    padding-left: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #434343;
+}
+
 .albumControls {
     height: 25px;
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    border-bottom: 1px solid #434343;
 }
 
 .albumContainer {

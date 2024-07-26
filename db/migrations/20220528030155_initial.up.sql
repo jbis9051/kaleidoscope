@@ -11,7 +11,9 @@ CREATE TABLE media (
     liked BOOLEAN NOT NULL,
     is_photo BOOLEAN NOT NULL,
     added_at INTEGER NOT NULL,
-    duration INTEGER NULl
+    duration INTEGER NULl,
+    hash TEXT NOT NULL,
+    UNIQUE (hash)
 );
 
 

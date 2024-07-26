@@ -101,10 +101,12 @@ export default function Index() {
             <div className={styles.mainFrame}>
                 <div className={styles.leftPanel}>
                     <div className={styles.leftTop}>
-                        <span>Albums</span>
+                        <div className={styles.albumHeader}>
+                        <div className={styles.albumTitle}>Albums</div>
                         <div className={styles.albumControls}>
                             <button onClick={createAlbum}>New</button>
                             <button onClick={deleteAlbum} disabled={!selectedAlbum}>Trash</button>
+                        </div>
                         </div>
                         <div className={styles.albumContainer}>
                             <div className={styles.albums}>
@@ -125,7 +127,14 @@ export default function Index() {
                                             e.dataTransfer.dropEffect = 'link';
                                         }}
                                         onDragEnter={() => setAlbumHover(album.uuid)}
-                                        onDragLeave={() => setAlbumHover(null)}
+                                        onDragLeave={() => {
+                                            setAlbumHover(crnt => {
+                                                if (crnt === album.uuid) {
+                                                    return null;
+                                                }
+                                                return crnt;
+                                            })
+                                        }}
                                         className={`${styles.album} ${selectedAlbum == album.uuid && styles.selected} ${albumHover == album.uuid && styles.hover}`}
                                          key={album.uuid}
                                          onClick={() => {

@@ -186,7 +186,9 @@ async fn album_add_media(Extension(conn): Extension<DbPool>, path: Path<AlbumPar
     let mut transaction = conn.begin().await.unwrap();
 
     for media in medias.iter() {
-        album.add_media(&mut transaction, media.id).await.unwrap();
+        if !album.has_media(&mut transaction, media.id).await.unwrap() {
+            album.add_media(&mut transaction, media.id).await.unwrap();
+        }
     }
 
     transaction.commit().await.unwrap();
