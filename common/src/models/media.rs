@@ -25,7 +25,7 @@ pub struct Media {
     #[serde(with = "date")]
     pub added_at: NaiveDateTime,
     pub duration: Option<u32>,
-    pub hash: String
+    pub hash: String,
 }
 
 impl From<&SqliteRow> for Media {
@@ -43,7 +43,7 @@ impl From<&SqliteRow> for Media {
             is_photo: row.get("is_photo"),
             added_at: row.get("added_at"),
             duration: row.get("duration"),
-            hash: row.get("hash")
+            hash: row.get("hash"),
         }
     }
 }
@@ -80,12 +80,29 @@ impl Media {
         }
     }
 
-    pub async fn get_all(db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32) -> Result<Vec<Self>, sqlx::Error> {
+    pub async fn get_all(db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32, filter_path: Option<String>) -> Result<Vec<Self>, sqlx::Error> {
         Self::safe_column(order_by)?;
-        Ok(sqlx::query(&format!("SELECT * FROM media ORDER BY {} {} LIMIT $2 OFFSET $3;", order_by, if asc { "ASC" } else { "DESC" }))
-            .bind(order_by)
-            .bind(limit)
-            .bind(page * limit)
+        
+        let mut query = sqlx::QueryBuilder::new("SELECT * FROM media ");
+        
+        if let Some(filter_path) = filter_path {
+            query
+                .push("WHERE path LIKE ")
+                .push_bind(filter_path);
+        }
+        
+        query
+            .push(" ORDER BY ")
+            .push(order_by)
+            .push(if asc { " ASC" } else { " DESC" })
+            .push(" LIMIT ")
+            .push_bind(limit)
+            .push(" OFFSET ")
+            .push_bind(page * limit);
+        
+        let query = query.build();
+
+        Ok(query
             .fetch_all(db)
             .await?
             .iter()

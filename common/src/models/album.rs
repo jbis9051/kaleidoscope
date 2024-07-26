@@ -87,15 +87,33 @@ impl Album {
             .get(0))
     }
 
-    pub async fn get_media(&self, db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32) -> Result<Vec<Media>, sqlx::Error> {
+    pub async fn get_media(&self, db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32, filter_path: Option<String>) -> Result<Vec<Media>, sqlx::Error> {
         Media::safe_column(order_by)?;
-        Ok(sqlx::query(&format!("SELECT media.* FROM media \
+
+        let mut query = sqlx::QueryBuilder::new("SELECT media.* FROM media \
             INNER JOIN album_media ON media.id = album_media.media_id \
-            WHERE album_media.album_id = $1 \
-            ORDER BY {} {} LIMIT $2 OFFSET $3;", order_by, if asc { "ASC" } else { "DESC" }))
-            .bind(self.id)
-            .bind(limit)
-            .bind(page * limit)
+            WHERE album_media.album_id = ");
+        
+        query
+            .push_bind(self.id);
+
+        if let Some(filter_path) = filter_path {
+            query
+                .push(" AND path LIKE ")
+                .push_bind(filter_path);
+        }
+
+        query
+            .push(" ORDER BY ")
+            .push(order_by)
+            .push(if asc { " ASC" } else { " DESC" })
+            .push(" LIMIT ")
+            .push_bind(limit)
+            .push(" OFFSET ")
+            .push_bind(page * limit);
+
+        let query = query.build();
+        Ok(query
             .fetch_all(db)
             .await?
             .iter()
@@ -111,7 +129,7 @@ impl Album {
             .await?;
         Ok(())
     }
-    
+
     pub async fn has_media<'a>(&self, db: impl SqliteExecutor<'a>, media_id: i32) -> Result<bool, sqlx::Error> {
         Ok(sqlx::query("SELECT EXISTS(SELECT 1 FROM album_media WHERE album_id = $1 AND media_id = $2);")
             .bind(self.id)

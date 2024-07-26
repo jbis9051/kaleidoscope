@@ -10,7 +10,6 @@ use axum::routing::post;
 use chrono::Utc;
 use serde::Serialize;
 use sqlx::sqlite::SqlitePool;
-use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 use common::models::album::Album;
@@ -53,6 +52,7 @@ struct MediaIndexParams {
     limit: i32,
     asc: bool,
     order_by: String,
+    filter_path: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -65,7 +65,7 @@ async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaIndex
         return Err((StatusCode::BAD_REQUEST, format!("Invalid column: {}", &query.order_by)));
     }
     
-    let media = Media::get_all(&conn, &query.order_by, query.asc, query.limit, query.page - 1).await.unwrap();
+    let media = Media::get_all(&conn, &query.order_by, query.asc, query.limit, query.page - 1, query.filter_path.clone()).await.unwrap();
     let count = Media::count(&conn).await.unwrap();
     Ok(Json(MediaIndexResponse { media, count }))
 }
@@ -141,7 +141,7 @@ struct AlbumResponse {
 
 async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaIndexParams>) -> Json<AlbumResponse> {
     let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
-    let media = album.get_media(&conn, &query.order_by, query.asc, query.limit, query.page - 1).await.unwrap();
+    let media = album.get_media(&conn, &query.order_by, query.asc, query.limit, query.page - 1, query.filter_path.clone()).await.unwrap();
     let count = album.count_media(&conn).await.unwrap();
     Json(AlbumResponse { album, media: MediaIndexResponse { media, count } })
 }

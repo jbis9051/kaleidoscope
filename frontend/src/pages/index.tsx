@@ -15,6 +15,7 @@ export default function Index() {
     const [orderby, setOrderby] = useState<MediaQueryColumns>('id');
     const [asc, setAsc] = useState(true);
     const [limit, setLimit] = useState(10);
+    const [pathFilter, setPathFilter] = useState<string>("");
 
     const [size, setSize] = useState(200);
 
@@ -29,20 +30,17 @@ export default function Index() {
     const api = new Api(API_URL);
 
     useEffect(() => {
+        loadGallery();
+    }, [page, orderby, asc, limit, selectedAlbum]);
+
+    function loadGallery() {
         if (!selectedAlbum) {
-            api.getMedia(page, limit, orderby, asc).then((photos) => {
+            api.getMedia(page, limit, orderby, asc, pathFilter).then((photos) => {
                 setPhotos(photos.media)
                 setCount(photos.count)
             });
         } else {
-           loadAlbumPhotos();
-        }
-
-    }, [page, orderby, asc, limit, selectedAlbum]);
-
-    function loadAlbumPhotos(){
-        if(selectedAlbum){
-            api.album(selectedAlbum, page, limit, orderby, asc).then((album) => {
+            api.album(selectedAlbum, page, limit, orderby, asc, pathFilter).then((album) => {
                 setPhotos(album.media.media)
                 setCount(album.media.count)
             });
@@ -97,9 +95,15 @@ export default function Index() {
             </div>}
             <div className={styles.statusBar}>
                 <span className={styles.title}>Kaleidoscope</span>
+                <div className={styles.filter}>
+                    <input value={pathFilter} onChange={e => {
+                        setPathFilter(e.target.value)
+                    }} type="text" placeholder="Path Filter"/>
+                    <button onClick={loadGallery}>Filter</button>
+                </div>
             </div>
             <div className={styles.mainFrame}>
-                <div className={styles.leftPanel}>
+            <div className={styles.leftPanel}>
                     <div className={styles.leftTop}>
                         <div className={styles.albumHeader}>
                         <div className={styles.albumTitle}>Albums</div>
@@ -203,7 +207,7 @@ export default function Index() {
                                     await api.album_remove_media(selectedAlbum, [selected]);
                                     loadAlbums();
                                     setSelected(null);
-                                    loadAlbumPhotos();
+                                    loadGallery();
                                 }
                             }}>Remove</button>
                         </div>
