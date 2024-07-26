@@ -10,7 +10,7 @@ use crate::models::date;
 
 use crate::types::DbPool;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Album {
     pub id: i32,
     pub uuid: Uuid,
@@ -63,12 +63,8 @@ impl Album {
         Ok(())
     }
 
-    pub async fn get_all(db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32) -> Result<Vec<Album>, sqlx::Error> {
-        Ok(sqlx::query("SELECT * FROM album ORDER BY $1 $2 LIMIT $3 OFFSET $4;")
-            .bind(order_by)
-            .bind(asc)
-            .bind(limit)
-            .bind(page)
+    pub async fn get_all(db: &DbPool, ) -> Result<Vec<Album>, sqlx::Error> {
+        Ok(sqlx::query("SELECT * FROM album")
             .fetch_all(db)
             .await?
             .iter()
@@ -76,9 +72,30 @@ impl Album {
             .collect())
     }
 
-    pub async fn get_media(&self, db: &DbPool) -> Result<Vec<Media>, sqlx::Error> {
-        Ok(sqlx::query("SELECT FROM album_media WHERE album_id = $1 INNER JOIN media ON album_media.media_id = media.id;")
+    pub async fn count(db: &DbPool) -> Result<i32, sqlx::Error> {
+        Ok(sqlx::query("SELECT COUNT(*) FROM album;")
+            .fetch_one(db)
+            .await?
+            .get(0))
+    }
+
+    pub async fn count_media(&self, db: &DbPool) -> Result<u32, sqlx::Error> {
+        Ok(sqlx::query("SELECT COUNT(*) FROM album_media WHERE album_id = $1;")
             .bind(self.id)
+            .fetch_one(db)
+            .await?
+            .get(0))
+    }
+
+    pub async fn get_media(&self, db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32) -> Result<Vec<Media>, sqlx::Error> {
+        Media::safe_column(order_by)?;
+        Ok(sqlx::query(&format!("SELECT media.* FROM media \
+            INNER JOIN album_media ON media.id = album_media.media_id \
+            WHERE album_media.album_id = $1 \
+            ORDER BY {} {} LIMIT $2 OFFSET $3;", order_by, if asc { "ASC" } else { "DESC" }))
+            .bind(self.id)
+            .bind(limit)
+            .bind(page * limit)
             .fetch_all(db)
             .await?
             .iter()

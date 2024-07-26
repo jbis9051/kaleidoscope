@@ -15,7 +15,7 @@ CREATE TABLE media (
 );
 
 
-CREATE TABLE albums (
+CREATE TABLE album (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     uuid TEXT NOT NULL,
     name TEXT NOT NULL,
@@ -25,7 +25,8 @@ CREATE TABLE albums (
 CREATE TABLE album_media (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     album_id INT NOT NULL,
-    photo_id INT NOT NULL,
-    FOREIGN KEY (album_id) REFERENCES albums (id) ON DELETE CASCADE,
-    FOREIGN KEY (photo_id) REFERENCES media (id) ON DELETE CASCADE
+    media_id INT NOT NULL,
+    FOREIGN KEY (album_id) REFERENCES album (id) ON DELETE CASCADE,
+    FOREIGN KEY (media_id) REFERENCES media (id) ON DELETE CASCADE
+    UNIQUE (album_id, media_id)
 );

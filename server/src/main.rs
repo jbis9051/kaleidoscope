@@ -7,6 +7,7 @@ use axum::extract::{Path, Query};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::post;
+use chrono::Utc;
 use serde::Serialize;
 use sqlx::sqlite::SqlitePool;
 use tower::ServiceBuilder;
@@ -25,7 +26,9 @@ async fn main() {
     let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
 
     let cors = CorsLayer::new()
-        .allow_origin(Any);
+        .allow_methods(vec![Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])
+        .allow_origin(Any)
+        .allow_headers(vec![header::CONTENT_TYPE]);
 
     let app = Router::new()
         .route("/media", get(media_index))
@@ -33,9 +36,9 @@ async fn main() {
         .route("/media/:uuid/raw", get(media_raw))
         .route("/media/:uuid/full", get(media_full))
         .route("/media/:uuid/thumb", get(media_thumb))
-        .route("/albums", get(album_index))
-        .route("/albums/:uuid", get(album))
-        .route("/albums/:uuid/media", post(album_add).delete(album_delete))
+        .route("/album", get(album_index).post(album_create))
+        .route("/album/:uuid", get(album).delete(album_delete))
+        .route("/album/:uuid/media", post(album_add_media).delete(album_delete_media))
         .layer(Extension(pool))
         .layer(cors);
 
@@ -115,9 +118,14 @@ struct AlbumIndexParams {
     order_by: String,
 }
 
-async fn album_index(Extension(conn): Extension<DbPool>, query: Query<AlbumIndexParams>) -> Json<Vec<Album>> {
-    let albums = Album::get_all(&conn, &query.order_by, query.asc, query.limit, query.page).await.unwrap();
-    Json(albums)
+async fn album_index(Extension(conn): Extension<DbPool>) -> Json<Vec<(Album, u32)>> {
+    let albums = Album::get_all(&conn).await.unwrap();
+    let mut out = Vec::with_capacity(albums.len());
+    for album in albums.into_iter() {
+        let count = album.count_media(&conn).await.unwrap();
+        out.push((album, count));
+    }
+    Json(out)
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -125,22 +133,53 @@ struct AlbumParams {
     uuid: Uuid
 }
 
-async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>) -> Json<Album> {
+#[derive(Debug, Serialize)]
+struct AlbumResponse {
+    album: Album,
+    media: MediaIndexResponse
+}
+
+async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaIndexParams>) -> Json<AlbumResponse> {
     let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
-    Json(album)
+    let media = album.get_media(&conn, &query.order_by, query.asc, query.limit, query.page - 1).await.unwrap();
+    let count = album.count_media(&conn).await.unwrap();
+    Json(AlbumResponse { album, media: MediaIndexResponse { media, count } })
 }
 
 #[derive(Debug, serde::Deserialize)]
-struct AlbumAddParam {
+struct AlbumCreateParams {
+    name: String,
+}
+
+async fn album_create(Extension(conn): Extension<DbPool>, payload: Json<AlbumCreateParams>) -> Json<Album> {
+    let mut album = Album {
+        uuid: Uuid::new_v4(),
+        name: payload.name.clone(),
+        created_at: Utc::now().naive_utc(),
+        id: 0,
+    };
+    album.create(&conn).await.unwrap();
+    Json(album)
+}
+
+async fn album_delete(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>) {
+    let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
+    album.delete(&conn).await.unwrap();
+}
+
+
+
+#[derive(Debug, serde::Deserialize)]
+struct AlbumMediaParam {
     medias: Vec<Uuid>,
 }
 
-async fn album_add(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<AlbumAddParam>) -> Json<Album> {
+async fn album_add_media(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, payload: Json<AlbumMediaParam>) -> Json<Album> {
     let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
 
-    let mut medias = Vec::with_capacity(query.medias.len());
+    let mut medias = Vec::with_capacity(payload.medias.len());
 
-    for media_uuid in query.medias.iter() {
+    for media_uuid in payload.medias.iter() {
         medias.push(Media::from_uuid(&conn, media_uuid).await.unwrap());
     }
 
@@ -155,12 +194,25 @@ async fn album_add(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, 
     Json(album)
 }
 
-async fn album_delete(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>) -> Json<()> {
+async fn album_delete_media(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, payload: Json<AlbumMediaParam>) -> Json<Album> {
     let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
-    album.delete(&conn).await.unwrap();
-    Json(())
-}
 
+    let mut medias = Vec::with_capacity(payload.medias.len());
+
+    for media_uuid in payload.medias.iter() {
+        medias.push(Media::from_uuid(&conn, media_uuid).await.unwrap());
+    }
+
+    let mut transaction = conn.begin().await.unwrap();
+
+    for media in medias.iter() {
+        album.remove_media(&mut transaction, media.id).await.unwrap();
+    }
+
+    transaction.commit().await.unwrap();
+
+    Json(album)
+}
 
 
 

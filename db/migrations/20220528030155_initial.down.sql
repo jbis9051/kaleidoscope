@@ -1,3 +1,3 @@
 DROP TABLE album_media;
-DROP TABLE albums;
+DROP TABLE album;
 DROP TABLE media;

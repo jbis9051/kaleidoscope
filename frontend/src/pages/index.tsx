@@ -1,7 +1,7 @@
 import styles from "./index.module.css";
 import {useEffect, useState} from "react";
 import {API_URL} from "@/global";
-import {Api, Media, MediaQueryColumns} from "@/api/api";
+import {Album, AlbumIndex, Api, Media, MediaQueryColumns} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata from "@/utility/mediaMetadata";
@@ -20,15 +20,68 @@ export default function Index() {
 
     const [preview, setPreview] = useState<Media | null>(null);
 
-    const [selected, setSelected] = useState<number | null>(null);
+    const [selected, setSelected] = useState<string | null>(null);
+
+    const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
+    const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
+    const [albumHover, setAlbumHover] = useState<string | null>(null);
+
+    const api = new Api(API_URL);
 
     useEffect(() => {
-        const api = new Api(API_URL);
-        api.getMedia(page, limit, orderby, asc).then((photos) => {
-            setPhotos(photos.media)
-            setCount(photos.count)
+        if (!selectedAlbum) {
+            api.getMedia(page, limit, orderby, asc).then((photos) => {
+                setPhotos(photos.media)
+                setCount(photos.count)
+            });
+        } else {
+           loadAlbumPhotos();
+        }
+
+    }, [page, orderby, asc, limit, selectedAlbum]);
+
+    function loadAlbumPhotos(){
+        if(selectedAlbum){
+            api.album(selectedAlbum, page, limit, orderby, asc).then((album) => {
+                setPhotos(album.media.media)
+                setCount(album.media.count)
+            });
+        }
+    }
+
+    function createAlbum() {
+        const name = prompt('Album Name');
+        if(albums?.find(a => a.name === name)) {
+            alert('Album with that name already exists');
+            return;
+        }
+        if (name) {
+            api.album_create(name).then(() => loadAlbums());
+        }
+    }
+
+    function deleteAlbum() {
+        if (!selectedAlbum) {
+            return;
+        }
+        const name = albums?.find(a => a.uuid === selectedAlbum)?.name;
+        if (confirm(`Are you sure you want to delete ${name}?`)) {
+            api.album_delete(selectedAlbum).then(() => {
+                setSelectedAlbum(null);
+                loadAlbums();
+            });
+        }
+    }
+
+    function loadAlbums() {
+        api.album_index().then((albums) => {
+            setAlbums(albums);
         });
-    }, [page, orderby, asc, limit]);
+    }
+
+    useEffect(() => {
+        loadAlbums();
+    }, []);
 
     return (
         <div className={styles.topLevel}>
@@ -48,26 +101,59 @@ export default function Index() {
             <div className={styles.mainFrame}>
                 <div className={styles.leftPanel}>
                     <div className={styles.leftTop}>
-
+                        <span>Albums</span>
+                        <div className={styles.albumControls}>
+                            <button onClick={createAlbum}>New</button>
+                            <button onClick={deleteAlbum} disabled={!selectedAlbum}>Trash</button>
+                        </div>
+                        <div className={styles.albumContainer}>
+                            <div className={styles.albums}>
+                                <div className={`${styles.album} ${!selectedAlbum && styles.selected}`}
+                                     onClick={() => setSelectedAlbum(null)}>All Photos
+                                </div>
+                                {albums && albums.map((album) => (
+                                    <div
+                                        onDrop={async (e) => {
+                                            const dragged = e.dataTransfer.getData('text/json');
+                                            const {selected} = JSON.parse(dragged);
+                                            await api.album_add_media(album.uuid, selected);
+                                            loadAlbums();
+                                            setAlbumHover(null);
+                                        }}
+                                        onDragOver={(e) => {
+                                            e.preventDefault()
+                                            e.dataTransfer.dropEffect = 'link';
+                                        }}
+                                        onDragEnter={() => setAlbumHover(album.uuid)}
+                                        onDragLeave={() => setAlbumHover(null)}
+                                        className={`${styles.album} ${selectedAlbum == album.uuid && styles.selected} ${albumHover == album.uuid && styles.hover}`}
+                                         key={album.uuid}
+                                         onClick={() => {
+                                             setSelectedAlbum(album.uuid);
+                                             setSelected(null);
+                                         }}>{album.name} ({album.media_count})</div>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                     <div className={styles.leftPreview} style={{flex: selected ? 2 : 0}}>
                         {(() => {
                                 if (!selected || !photos) {
                                     return <span>No Photo Selected</span>
                                 }
-                                const media = photos.find(m => m.id === selected);
+                                const media = photos.find(m => m.uuid === selected);
 
                                 if (!media) {
                                     return <span>Selected Photo not found</span>
                                 }
 
                                 return <>
-                                    <img src={`${API_URL}/media/${media.uuid}/full`}/>
-                                <div className={styles.previewInfoWrapper}>
-                                    <div className={styles.previewInfo}>
-                                        <MetadataTable metadata={mediaToMetadata(media)}/>
+                                    <img draggable={false} src={`${API_URL}/media/${media.uuid}/full`}/>
+                                    <div className={styles.previewInfoWrapper}>
+                                        <div className={styles.previewInfo}>
+                                            <MetadataTable metadata={mediaToMetadata(media)}/>
+                                        </div>
                                     </div>
-                                </div>
                                 </>
                             }
                         )()}
@@ -76,9 +162,11 @@ export default function Index() {
                 <div className={styles.mainSection}>
                     <div className={styles.mainSectionHeader}>
                         <div className={styles.pageSelector}>
-                            <button disabled={page <= 1} onClick={() => setPage(page => Math.max(page - 1, 1))}>-</button>
+                            <button disabled={page <= 1} onClick={() => setPage(page => Math.max(page - 1, 1))}>-
+                            </button>
                             <span>{page}</span>
-                            <button disabled={limit*page >= count} onClick={() => setPage(page => page + 1)}>+</button>
+                            <button disabled={limit * page >= count} onClick={() => setPage(page => page + 1)}>+
+                            </button>
                         </div>
                         <div className={styles.thumbsizeRange}>
                             <input type="range" min="50" max="500" value={size}
@@ -101,6 +189,14 @@ export default function Index() {
                                 <option value="uuid">UUID</option>
                             </select>
                             <button onClick={() => setAsc(asc => !asc)}>{asc ? 'ASC' : 'DESC'}</button>
+                            <button disabled={!(selected && selectedAlbum)} onClick={async () => {
+                                if (selected && selectedAlbum) {
+                                    await api.album_remove_media(selectedAlbum, [selected]);
+                                    loadAlbums();
+                                    setSelected(null);
+                                    loadAlbumPhotos();
+                                }
+                            }}>Remove</button>
                         </div>
                     </div>
                     <div className={styles.mainSectionContent}>
@@ -109,7 +205,7 @@ export default function Index() {
                                 media={photos}
                                 selected={selected}
                                 size={size} open={media => setPreview(media)}
-                                select={(m) => setSelected(m.id)}
+                                select={(m) => setSelected(m.uuid)}
                                 clearSelection={() => setSelected(null)}
                             />
                             || <span>Loading...</span>}

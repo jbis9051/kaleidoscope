@@ -5,7 +5,7 @@ import {API_URL} from "@/global";
 export default function Gallery({media, size, open, selected, select, clearSelection}: {
     media: Media[],
     size: number,
-    selected: number | null,
+    selected: string | null,
     open: (media: Media) => void,
     select: (media: Media) => void
     clearSelection: () => void
@@ -22,11 +22,15 @@ export default function Gallery({media, size, open, selected, select, clearSelec
         }
         }>
             {media.map((m) => (
-                <div onDoubleClick={() => open(m)} onClick={() => select(m)}
-                     className={`${styles.imageContainer} ${selected == m.id && styles.selected}`}
+                <div
+                    onDragStart={(e) => {
+                        e.dataTransfer.setData('text/json', JSON.stringify({selected:[m.uuid]}));
+                    }}
+                    draggable={true} onDoubleClick={() => open(m)} onMouseDown={() => select(m)}
+                     className={`${styles.imageContainer} ${selected == m.uuid && styles.selected}`}
                      style={{width: `${width}px`, height: `${height}px`}} key={m.id}>
                     <div className={styles.imageWrapper}>
-                        <img className={styles.image} src={`${API_URL}/media/${m.uuid}/thumb`}/>
+                        <img draggable={false} className={styles.image} src={`${API_URL}/media/${m.uuid}/thumb`}/>
                     </div>
                     <div className={styles.fileName}>{m.name}</div>
                 </div>
