@@ -73,26 +73,26 @@ struct MediaParams {
     uuid: Uuid
 }
 
-async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Json<Media> {
-    let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
-    Json(media)
+async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<Json<Media>, (StatusCode, String)> {
+    let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
+    Ok(Json(media))
 }
 
-async fn media_raw(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> (HeaderMap, Body) {
-    let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
-    serve_file(std::path::Path::new(&media.path), "application/octet-stream".to_string()).await
+async fn media_raw(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {
+    let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
+    Ok(serve_file(std::path::Path::new(&media.path), "application/octet-stream".to_string()).await)
 }
 
-async fn media_full(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> (HeaderMap, Body) {
-    let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
+async fn media_full(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {
+    let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
     let path = std::path::Path::new(&CONFIG.data_dir).join(format!("{}-full.jpg", media.uuid));
-    serve_file(&path, "image/jpeg".to_string()).await
+    Ok(serve_file(&path, "image/jpeg".to_string()).await)
 }
 
-async fn media_thumb(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> (HeaderMap, Body) {
-    let media = Media::from_uuid(&conn, &path.uuid).await.unwrap();
+async fn media_thumb(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {
+    let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
     let path = std::path::Path::new(&CONFIG.data_dir).join(format!("{}-thumb.jpg", media.uuid));
-    serve_file(&path, "image/jpeg".to_string()).await
+    Ok(serve_file(&path, "image/jpeg".to_string()).await)
 }
 
 
@@ -126,11 +126,11 @@ struct AlbumResponse {
     media: MediaIndexResponse
 }
 
-async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaQuery>) -> Json<AlbumResponse> {
-    let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
+async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaQuery>) -> Result<Json<AlbumResponse>, (StatusCode, String)> {
+    let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
     let media = album.get_media(&conn, &query).await.unwrap();
     let count = album.count_media(&conn, &query).await.unwrap();
-    Json(AlbumResponse { album, media: MediaIndexResponse { media, count } })
+    Ok(Json(AlbumResponse { album, media: MediaIndexResponse { media, count } }))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -149,9 +149,10 @@ async fn album_create(Extension(conn): Extension<DbPool>, payload: Json<AlbumCre
     Json(album)
 }
 
-async fn album_delete(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>) {
-    let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
+async fn album_delete(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>) -> Result<(), (StatusCode, String)> {
+    let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
     album.delete(&conn).await.unwrap();
+    Ok(())
 }
 
 
@@ -161,13 +162,13 @@ struct AlbumMediaParam {
     medias: Vec<Uuid>,
 }
 
-async fn album_add_media(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, payload: Json<AlbumMediaParam>) -> Json<Album> {
-    let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
+async fn album_add_media(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, payload: Json<AlbumMediaParam>) -> Result<Json<Album>, (StatusCode, String)> {
+    let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
 
     let mut medias = Vec::with_capacity(payload.medias.len());
 
     for media_uuid in payload.medias.iter() {
-        medias.push(Media::from_uuid(&conn, media_uuid).await.unwrap());
+        medias.push(Media::from_uuid(&conn, media_uuid).await.map_err(|_| (StatusCode::NOT_FOUND, format!("Media not found: {}", media_uuid)))?);
     }
 
     let mut transaction = conn.begin().await.unwrap();
@@ -180,16 +181,16 @@ async fn album_add_media(Extension(conn): Extension<DbPool>, path: Path<AlbumPar
 
     transaction.commit().await.unwrap();
 
-    Json(album)
+    Ok(Json(album))
 }
 
-async fn album_delete_media(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, payload: Json<AlbumMediaParam>) -> Json<Album> {
-    let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
+async fn album_delete_media(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, payload: Json<AlbumMediaParam>) -> Result<Json<Album>, (StatusCode, String)> {
+    let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
 
     let mut medias = Vec::with_capacity(payload.medias.len());
 
     for media_uuid in payload.medias.iter() {
-        medias.push(Media::from_uuid(&conn, media_uuid).await.unwrap());
+        medias.push(Media::from_uuid(&conn, media_uuid).await.map_err(|_| (StatusCode::NOT_FOUND, format!("Media not found: {}", media_uuid)))?);
     }
 
     let mut transaction = conn.begin().await.unwrap();
@@ -200,7 +201,7 @@ async fn album_delete_media(Extension(conn): Extension<DbPool>, path: Path<Album
 
     transaction.commit().await.unwrap();
 
-    Json(album)
+    Ok(Json(album))
 }
 
 async fn media_view_index(Extension(conn): Extension<DbPool>) -> Json<Vec<MediaView>> {

@@ -18,8 +18,6 @@ pub struct Media {
     pub created_at: NaiveDateTime,
     pub width: u32,
     pub height: u32,
-    pub size: u32,
-    // in bytes
     pub path: String,
     pub liked: bool,
     pub is_photo: bool,
@@ -27,6 +25,10 @@ pub struct Media {
     pub added_at: NaiveDateTime,
     pub duration: Option<u32>,
     pub hash: String,
+    // in bytes
+    pub size: u32,
+    #[serde(with = "date")]
+    pub file_created_at: NaiveDateTime
 }
 
 impl From<&SqliteRow> for Media {
@@ -45,6 +47,7 @@ impl From<&SqliteRow> for Media {
             added_at: row.get("added_at"),
             duration: row.get("duration"),
             hash: row.get("hash"),
+            file_created_at: row.get("file_created_at")
         }
     }
 }
@@ -52,8 +55,8 @@ impl From<&SqliteRow> for Media {
 impl Media {
     pub async fn create<'a, T: SqliteExecutor<'a>>(&mut self, db: T) -> Result<(), sqlx::Error> {
         *self = sqlx::query(
-            "INSERT INTO media (uuid, name, created_at, width, height, size, path, liked, is_photo, added_at, duration, hash) \
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;",
+            "INSERT INTO media (uuid, name, created_at, width, height, size, path, liked, is_photo, added_at, duration, hash, file_created_at) \
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;",
         )
             .bind(self.uuid)
             .bind(&self.name)
@@ -67,6 +70,7 @@ impl Media {
             .bind(self.added_at)
             .bind(self.duration)
             .bind(&self.hash)
+            .bind(self.file_created_at)
             .fetch_one(db)
             .await?
             .borrow()
@@ -100,9 +104,9 @@ impl Media {
         let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media WHERE 1=1");
 
         media_query.sqlize(&mut query)?;
-        
+
         let query = query.build();
-        
+
         Ok(query
             .fetch_one(db)
             .await?

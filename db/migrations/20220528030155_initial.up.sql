@@ -6,13 +6,14 @@ CREATE TABLE media (
     created_at INTEGER NOT NULL,
     width INT NOT NULL,
     height INT NOT NULL,
-    size INT NOT NULL,
     path TEXT NOT NULL,
     liked BOOLEAN NOT NULL,
     is_photo BOOLEAN NOT NULL,
     added_at INTEGER NOT NULL,
     duration INTEGER NULl,
-    hash TEXT NOT NULL
+    hash TEXT NOT NULL,
+    size INT NOT NULL,
+    file_created_at INTEGER NOT NULL
    -- UNIQUE (hash)
 );
 

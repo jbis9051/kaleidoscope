@@ -10,6 +10,7 @@ use sqlx::types::chrono::{Utc};
 use sqlx::types::Uuid;
 use walkdir::{DirEntry, WalkDir};
 use common::models::media::Media;
+use common::models::system_time_to_naive_datetime;
 use crate::format::{Format, heif, MediaMetadata, standard, video, raw};
 
 #[derive(Deserialize)]
@@ -116,11 +117,24 @@ async fn scan_dir(path: &str, config: &ScanConfig, db: &mut SqliteConnection) {
 }
 
 async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnection) {
+    // do a cheap check immediately to see if the media already exists
+    let file_created_at = system_time_to_naive_datetime(entry.metadata().unwrap().created().unwrap());
+
+    if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
+        let file_size = entry.metadata().unwrap().len() as u32;
+        if media.file_created_at == file_created_at && media.size == file_size {
+            println!("          media already exists: {:?}", entry.path());
+            return;
+        }
+        remove_media(&mut media, db, config).await;
+    }
+
+
     let uuid = Uuid::new_v4();
     let data_dir = Path::new(&config.data_dir);
     let thumb_path = data_dir.join(format!("{:?}-thumb.jpg", uuid));
     let full_path = data_dir.join(format!("{:?}-full.jpg", uuid));
-    
+
     let (metadata, is_photo) = match get_media_metadata(entry) {
         Ok(Some(data)) => data,
         Ok(None) => {
@@ -132,19 +146,20 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
             return;
         }
     };
-
-    let hash = hash(entry.path());
     
     // write metadata to database
 
     if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
         if media.created_at == metadata.created_at && media.size == metadata.size {
-            println!("          media already exists: {:?}", entry.path());
+            // this shouldn't really happen, but it could if (1) there's a different date in the media metadata as opposed to the file metadata and (2) the file was modified while keeping the file metadata the same (including the size)
+            println!("          media already exists (second check): {:?}", entry.path()); 
             return;
         }
         remove_media(&mut media, db, config).await;
     }
-    
+
+    let hash = hash(entry.path());
+
     // we want to generate a thumbnail while maintaining the aspect ratio, using thumb_size as the max size
     
     let mut twidth = config.thumb_size;
@@ -187,6 +202,7 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
         added_at: Utc::now().naive_utc(),
         duration: metadata.duration.map(|d| d.as_secs() as u32),
         hash,
+        file_created_at,
     };
     
     media.create(&mut *db).await.unwrap();

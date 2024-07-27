@@ -18,12 +18,12 @@ impl Format<StandardError> for Standard {
 
     fn get_metadata(path: &DirEntry) -> Result<MediaMetadata, StandardError> {
         let file_meta = path.metadata()?;
-        let image = image::open(path.path())?;
+        let (width, height) = image::image_dimensions(path.path())?;
 
         Ok(MediaMetadata {
             name: path.file_name().to_string_lossy().to_string(),
-            width: image.width(),
-            height: image.height(),
+            width,
+            height,
             size: file_meta.len() as u32,
             created_at: system_time_to_naive_datetime(file_meta.created().unwrap()),
             duration: None,

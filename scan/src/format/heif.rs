@@ -1,10 +1,7 @@
 use std::path::{PathBuf};
-use std::time::UNIX_EPOCH;
-use image::{DynamicImage, RgbaImage, RgbImage};
+use image::{RgbImage};
 use image::imageops::thumbnail;
-use libheif_rs::{ColorSpace, DecodingOptions, HeifContext, LibHeif, RgbChroma};
-use sqlx::types::chrono;
-use sqlx::types::chrono::{DateTime, NaiveDateTime};
+use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
 use walkdir::DirEntry;
 use common::models::system_time_to_naive_datetime;
 use crate::format::{Format, MediaMetadata, resize_dimensions};

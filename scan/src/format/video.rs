@@ -1,7 +1,7 @@
 use std::time::Duration;
 use ffmpeg_next::codec::Context;
 use ffmpeg_next::format::Pixel;
-use image::{ImageFormat, RgbImage};
+use image::{RgbImage};
 use walkdir::DirEntry;
 use common::models::system_time_to_naive_datetime;
 use crate::format::{Format, MediaMetadata, resize_dimensions};
