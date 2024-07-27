@@ -4,6 +4,7 @@ use sqlx::{Row, SqliteExecutor};
 use std::borrow::Borrow;
 use serde::Serialize;
 use uuid::{Uuid};
+use crate::media_query::MediaQuery;
 use crate::models::date;
 
 use crate::types::DbPool;
@@ -80,26 +81,11 @@ impl Media {
         }
     }
 
-    pub async fn get_all(db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32, filter_path: Option<String>) -> Result<Vec<Self>, sqlx::Error> {
-        Self::safe_column(order_by)?;
-        
-        let mut query = sqlx::QueryBuilder::new("SELECT * FROM media ");
-        
-        if let Some(filter_path) = filter_path {
-            query
-                .push("WHERE path LIKE ")
-                .push_bind(filter_path);
-        }
-        
-        query
-            .push(" ORDER BY ")
-            .push(order_by)
-            .push(if asc { " ASC" } else { " DESC" })
-            .push(" LIMIT ")
-            .push_bind(limit)
-            .push(" OFFSET ")
-            .push_bind(page * limit);
-        
+    pub async fn get_all(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Self>, sqlx::Error> {
+        let mut query = sqlx::QueryBuilder::new("SELECT * FROM media WHERE 1=1");
+
+        media_query.sqlize(&mut query)?;
+
         let query = query.build();
 
         Ok(query
@@ -110,8 +96,14 @@ impl Media {
             .collect())
     }
 
-    pub async fn count(db: &DbPool) -> Result<u32, sqlx::Error> {
-        Ok(sqlx::query("SELECT COUNT(*) FROM media;")
+    pub async fn count(db: &DbPool, media_query: &MediaQuery) -> Result<u32, sqlx::Error> {
+        let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media WHERE 1=1");
+
+        media_query.sqlize(&mut query)?;
+        
+        let query = query.build();
+        
+        Ok(query
             .fetch_one(db)
             .await?
             .get(0))

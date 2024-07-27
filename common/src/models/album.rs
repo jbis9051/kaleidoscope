@@ -4,6 +4,7 @@ use sqlx::{Row, SqliteExecutor};
 use std::borrow::Borrow;
 use serde::Serialize;
 use uuid::{Uuid};
+use crate::media_query::MediaQuery;
 use crate::models::media::Media;
 use crate::models::date;
 
@@ -79,16 +80,25 @@ impl Album {
             .get(0))
     }
 
-    pub async fn count_media(&self, db: &DbPool) -> Result<u32, sqlx::Error> {
-        Ok(sqlx::query("SELECT COUNT(*) FROM album_media WHERE album_id = $1;")
-            .bind(self.id)
+    pub async fn count_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<u32, sqlx::Error> {
+        let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media \
+            INNER JOIN album_media ON media.id = album_media.media_id \
+            WHERE album_media.album_id = ");
+        
+        query
+            .push_bind(self.id);
+
+        media_query.sqlize(&mut query)?;
+
+        let query = query.build();
+
+        Ok(query
             .fetch_one(db)
             .await?
             .get(0))
     }
 
-    pub async fn get_media(&self, db: &DbPool, order_by: &str, asc: bool, limit: i32, page: i32, filter_path: Option<String>) -> Result<Vec<Media>, sqlx::Error> {
-        Media::safe_column(order_by)?;
+    pub async fn get_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Media>, sqlx::Error> {
 
         let mut query = sqlx::QueryBuilder::new("SELECT media.* FROM media \
             INNER JOIN album_media ON media.id = album_media.media_id \
@@ -96,21 +106,8 @@ impl Album {
         
         query
             .push_bind(self.id);
-
-        if let Some(filter_path) = filter_path {
-            query
-                .push(" AND path LIKE ")
-                .push_bind(filter_path);
-        }
-
-        query
-            .push(" ORDER BY ")
-            .push(order_by)
-            .push(if asc { " ASC" } else { " DESC" })
-            .push(" LIMIT ")
-            .push_bind(limit)
-            .push(" OFFSET ")
-            .push_bind(page * limit);
+        
+        media_query.sqlize(&mut query)?;
 
         let query = query.build();
         Ok(query

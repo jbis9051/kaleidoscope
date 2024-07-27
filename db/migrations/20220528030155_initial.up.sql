@@ -12,8 +12,8 @@ CREATE TABLE media (
     is_photo BOOLEAN NOT NULL,
     added_at INTEGER NOT NULL,
     duration INTEGER NULl,
-    hash TEXT NOT NULL,
-    UNIQUE (hash)
+    hash TEXT NOT NULL
+   -- UNIQUE (hash)
 );
 
 

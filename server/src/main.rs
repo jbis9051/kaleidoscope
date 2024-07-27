@@ -1,11 +1,10 @@
 mod config;
 
 
-use axum::{Extension, Json, Router, routing::get, serve};
+use axum::{Extension, Json, Router, routing::get};
 use axum::body::Body;
 use axum::extract::{Path, Query};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
-use axum::response::IntoResponse;
 use axum::routing::post;
 use chrono::Utc;
 use serde::Serialize;
@@ -17,6 +16,7 @@ use common::models::media::Media;
 use crate::config::CONFIG;
 use common::types::DbPool;
 use tokio_util::io::ReaderStream;
+use common::media_query::MediaQuery;
 
 #[tokio::main]
 async fn main() {
@@ -46,27 +46,23 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-#[derive(Debug, serde::Deserialize)]
-struct MediaIndexParams {
-    page: i32,
-    limit: i32,
-    asc: bool,
-    order_by: String,
-    filter_path: Option<String>,
-}
-
 #[derive(Debug, Serialize)]
 struct MediaIndexResponse {
     media: Vec<Media>,
     count: u32,
 }
-async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaIndexParams>) -> Result<Json<MediaIndexResponse>, (StatusCode, String)> {
-    if Media::safe_column(&query.order_by).is_err() {
-        return Err((StatusCode::BAD_REQUEST, format!("Invalid column: {}", &query.order_by)));
+async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaQuery>) -> Result<Json<MediaIndexResponse>, (StatusCode, String)> {
+    if let Some(order_by) = &query.order_by {
+        if Media::safe_column(order_by).is_err() {
+            return Err((StatusCode::BAD_REQUEST, format!("Invalid column: {}", order_by)));
+        }
     }
-    
-    let media = Media::get_all(&conn, &query.order_by, query.asc, query.limit, query.page - 1, query.filter_path.clone()).await.unwrap();
-    let count = Media::count(&conn).await.unwrap();
+
+    let media = Media::get_all(&conn, &query).await.unwrap();
+    let mut count_query = (*query).clone();
+    count_query.limit = None;
+    count_query.page = None;
+    let count = Media::count(&conn, &count_query).await.unwrap();
     Ok(Json(MediaIndexResponse { media, count }))
 }
 
@@ -107,22 +103,11 @@ async fn serve_file(path: &std::path::Path, content_type: String) -> (HeaderMap,
 
     (headers, body)
 }
-
-
-
-#[derive(Debug, serde::Deserialize)]
-struct AlbumIndexParams {
-    page: i32,
-    limit: i32,
-    asc: bool,
-    order_by: String,
-}
-
 async fn album_index(Extension(conn): Extension<DbPool>) -> Json<Vec<(Album, u32)>> {
     let albums = Album::get_all(&conn).await.unwrap();
     let mut out = Vec::with_capacity(albums.len());
     for album in albums.into_iter() {
-        let count = album.count_media(&conn).await.unwrap();
+        let count = album.count_media(&conn, &MediaQuery::new()).await.unwrap();
         out.push((album, count));
     }
     Json(out)
@@ -139,10 +124,10 @@ struct AlbumResponse {
     media: MediaIndexResponse
 }
 
-async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaIndexParams>) -> Json<AlbumResponse> {
+async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaQuery>) -> Json<AlbumResponse> {
     let album = Album::from_uuid(&conn, &path.uuid).await.unwrap();
-    let media = album.get_media(&conn, &query.order_by, query.asc, query.limit, query.page - 1, query.filter_path.clone()).await.unwrap();
-    let count = album.count_media(&conn).await.unwrap();
+    let media = album.get_media(&conn, &query).await.unwrap();
+    let count = album.count_media(&conn, &query).await.unwrap();
     Json(AlbumResponse { album, media: MediaIndexResponse { media, count } })
 }
 

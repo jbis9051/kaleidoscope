@@ -7,7 +7,7 @@ use sqlx::types::chrono;
 use sqlx::types::chrono::{DateTime, NaiveDateTime};
 use walkdir::DirEntry;
 use common::models::system_time_to_naive_datetime;
-use crate::format::{Format, MediaMetadata};
+use crate::format::{Format, MediaMetadata, resize_dimensions};
 
 pub struct Heif;
 
@@ -64,7 +64,8 @@ impl Format<HeifError> for Heif {
 
 
         let rgb_image = RgbImage::from_raw(image.width(), image.height(), rgb).unwrap();
-        let thumbnail = thumbnail(&rgb_image, width, height);
+        let (nw, nh) = resize_dimensions(image.width(), image.height(), width, height, false);
+        let thumbnail = thumbnail(&rgb_image, nw, nh);
 
         Ok(thumbnail)
     }

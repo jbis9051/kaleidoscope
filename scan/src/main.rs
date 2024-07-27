@@ -2,9 +2,9 @@ mod format;
 
 use std::hash::Hasher;
 use std::path::Path;
-use fxhash::FxHasher;
 use image::{RgbImage};
 use serde::Deserialize;
+use sha1::Digest;
 use sqlx::{Connection, Executor, SqliteConnection};
 use sqlx::types::chrono::{Utc};
 use sqlx::types::Uuid;
@@ -134,7 +134,7 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
     };
 
     let hash = hash(entry.path());
-
+    
     // write metadata to database
 
     if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
@@ -144,8 +144,19 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
         }
         remove_media(&mut media, db, config).await;
     }
+    
+    // we want to generate a thumbnail while maintaining the aspect ratio, using thumb_size as the max size
+    
+    let mut twidth = config.thumb_size;
+    let mut theight = config.thumb_size;
+    
+    if metadata.width > metadata.height {
+        theight = (metadata.height as f32 / metadata.width as f32 * twidth as f32) as u32;
+    } else {
+        twidth = (metadata.width as f32 / metadata.height as f32 * theight as f32) as u32;
+    }
 
-    let (thumbnail, full) = match generate_media_caches(entry, config.thumb_size, config.thumb_size) {
+    let (thumbnail, full) = match generate_media_caches(entry, twidth, theight) {
         Ok(t) => t.unwrap(),
         Err(e) => {
             println!("          error generating thumbnail: {:?}", e);
@@ -183,10 +194,10 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
 
 
 fn hash(path: &Path) -> String {
-    let mut hasher = FxHasher::default();
-    let data = std::fs::read(path).unwrap();
-    hasher.write(&data);
-    format!("{:x}", hasher.finish())
+    let mut hasher = sha1::Sha1::new();
+    let mut file = std::fs::File::open(path).unwrap();
+    std::io::copy(&mut file, &mut hasher).unwrap();
+    format!("{:x}", hasher.finalize())
 }
 
 

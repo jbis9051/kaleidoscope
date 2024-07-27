@@ -1,10 +1,9 @@
 use image::imageops::thumbnail;
 use image::RgbImage;
 use imagepipe::Pipeline;
-use rawloader::RawImageData;
 use walkdir::DirEntry;
 use common::models::system_time_to_naive_datetime;
-use crate::format::{Format, MediaMetadata};
+use crate::format::{Format, MediaMetadata, resize_dimensions};
 
 pub struct Raw;
 
@@ -43,7 +42,8 @@ impl Format<RawError> for Raw {
 
 
         let rgb_image = RgbImage::from_raw(srgb.width as u32, srgb.height as u32, srgb.data).unwrap();
-        let thumbnail = thumbnail(&rgb_image, width, height);
+        let (nw, nh) = resize_dimensions(srgb.width as u32, srgb.height as u32, width, height, false);
+        let thumbnail = thumbnail(&rgb_image, nw, nh);
 
         Ok(thumbnail)
     }

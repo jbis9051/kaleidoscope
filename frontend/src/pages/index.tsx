@@ -10,7 +10,7 @@ export default function Index() {
 
     const [photos, setPhotos] = useState<Media[] | null>(null);
 
-    const [page, setPage] = useState(1);
+    const [page, setPage] = useState(0);
     const [count, setCount] = useState(0);
     const [orderby, setOrderby] = useState<MediaQueryColumns>('id');
     const [asc, setAsc] = useState(true);
@@ -175,10 +175,10 @@ export default function Index() {
                 <div className={styles.mainSection}>
                     <div className={styles.mainSectionHeader}>
                         <div className={styles.pageSelector}>
-                            <button disabled={page <= 1} onClick={() => setPage(page => Math.max(page - 1, 1))}>-
+                            <button disabled={page <= 0} onClick={() => setPage(page => Math.max(page - 1, 0))}>-
                             </button>
-                            <span>{page}</span>
-                            <button disabled={limit * page >= count} onClick={() => setPage(page => page + 1)}>+
+                            <span>{page + 1}</span>
+                            <button disabled={limit * (page+1) >= count} onClick={() => setPage(page => page + 1)}>+
                             </button>
                         </div>
                         <div className={styles.thumbsizeRange}>
