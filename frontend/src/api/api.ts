@@ -20,6 +20,14 @@ export interface Album {
     created_at: number;
 }
 
+export interface MediaView {
+    id: number;
+    uuid: string;
+    name: string;
+    view_query: string;
+    created_at: number,
+}
+
 export type MediaQueryColumns = 'id' | 'uuid' | 'name' | 'created_at' | 'width' | 'height' | 'size' | 'path' | 'liked' | 'is_photo' | 'added_at';
 
 export interface MediaIndexResponse {
@@ -92,4 +100,29 @@ export class Api {
             body: JSON.stringify({medias})
         }).then(response => response.json())
     }
+    
+    media_view_index(): Promise<MediaView[]> {
+        return fetch(`${this.url}/media_view`).then(response => response.json())
+    }
+    
+    media_view_create(name: string, view_query: string): Promise<MediaView> {
+        return fetch(`${this.url}/media_view`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({name, view_query})
+        }).then(response => response.json())
+    }
+    
+    media_view_delete(uuid: string): Promise<void> {
+        return fetch(`${this.url}/media_view`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({uuid})
+        }).then(response => {})
+    }
+    
 }

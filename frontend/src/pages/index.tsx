@@ -1,21 +1,26 @@
 import styles from "./index.module.css";
 import {useEffect, useState} from "react";
 import {API_URL} from "@/global";
-import {Album, AlbumIndex, Api, Media, MediaQueryColumns} from "@/api/api";
+import {AlbumIndex, Api, Media, MediaQueryColumns, MediaView} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata from "@/utility/mediaMetadata";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import {faFilter, faFolder} from "@fortawesome/free-solid-svg-icons";
 
 export default function Index() {
+    const [loaded, setLoaded] = useState(false);
 
     const [photos, setPhotos] = useState<Media[] | null>(null);
 
     const [page, setPage] = useState(0);
-    const [count, setCount] = useState(0);
     const [orderby, setOrderby] = useState<MediaQueryColumns>('id');
     const [asc, setAsc] = useState(true);
     const [limit, setLimit] = useState(10);
     const [pathFilter, setPathFilter] = useState<string>("");
+
+    const [count, setCount] = useState(0);
+
 
     const [size, setSize] = useState(200);
 
@@ -27,11 +32,78 @@ export default function Index() {
     const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
     const [albumHover, setAlbumHover] = useState<string | null>(null);
 
+    const [mediaViews, setMediaViews] = useState<MediaView[] | null>(null);
+
     const api = new Api(API_URL);
 
+    function queryToState() {
+        let query = new URLSearchParams(window.location.search);
+
+        const page = query.get('page');
+        const orderby = query.get('orderby');
+        const asc = query.get('asc');
+        const limit = query.get('limit');
+        const selectedAlbum = query.get('album');
+        const filter_path = query.get('filter_path');
+
+        if (page) {
+            setPage(parseInt(page, 10));
+        }
+
+        if (orderby) {
+            setOrderby(orderby as MediaQueryColumns);
+        }
+
+        if (asc) {
+            setAsc(asc === 'true');
+        }
+
+        if (limit) {
+            setLimit(parseInt(limit, 10));
+        }
+
+        if (selectedAlbum) {
+            setSelectedAlbum(selectedAlbum);
+        }
+
+        if (filter_path) {
+            setPathFilter(filter_path);
+        }
+
+    }
+
     useEffect(() => {
+        queryToState();
+        setLoaded(true);
+    }, [])
+
+    useEffect(() => {
+        if (!loaded) {
+            return;
+        }
         loadGallery();
-    }, [page, orderby, asc, limit, selectedAlbum]);
+    }, [page, orderby, asc, limit, selectedAlbum, loaded]);
+
+    useEffect(() => {
+        if (!loaded) {
+            return;
+        }
+        // update the URL
+        const query = new URLSearchParams();
+        query.set('page', page.toString());
+        query.set('orderby', orderby);
+        query.set('asc', asc.toString());
+        query.set('limit', limit.toString());
+        if (selectedAlbum) {
+            query.set('album', selectedAlbum);
+        }
+        if (pathFilter) {
+            query.set('filter_path', pathFilter);
+        }
+        window.history.replaceState({}, '', `${window.location.pathname}?${query.toString()}`);
+
+    }, [page, orderby, asc, limit, selectedAlbum, pathFilter]);
+
 
     function loadGallery() {
         if (!selectedAlbum) {
@@ -49,7 +121,7 @@ export default function Index() {
 
     function createAlbum() {
         const name = prompt('Album Name');
-        if(albums?.find(a => a.name === name)) {
+        if (albums?.find(a => a.name === name)) {
             alert('Album with that name already exists');
             return;
         }
@@ -77,9 +149,26 @@ export default function Index() {
         });
     }
 
+    function loadMediaViews() {
+        api.media_view_index().then((mediaViews) => {
+            setMediaViews(mediaViews);
+        });
+    }
+
     useEffect(() => {
         loadAlbums();
+        loadMediaViews();
     }, []);
+
+    function mediaViewMatchesCurrentURL(view: MediaView) {
+        const view_query = new URLSearchParams(view.view_query);
+        view_query.sort();
+
+        const current_query = new URLSearchParams(window.location.search);
+        current_query.sort();
+
+        return view_query.toString() === current_query.toString();
+    }
 
     return (
         <div className={styles.topLevel}>
@@ -95,27 +184,23 @@ export default function Index() {
             </div>}
             <div className={styles.statusBar}>
                 <span className={styles.title}>Kaleidoscope</span>
-                <div className={styles.filter}>
-                    <input value={pathFilter} onChange={e => {
-                        setPathFilter(e.target.value)
-                    }} type="text" placeholder="Path Filter"/>
-                    <button onClick={loadGallery}>Filter</button>
-                </div>
             </div>
             <div className={styles.mainFrame}>
-            <div className={styles.leftPanel}>
-                    <div className={styles.leftTop}>
+                <div className={styles.leftPanel}>
+                    <div className={styles.albumSelector}>
                         <div className={styles.albumHeader}>
-                        <div className={styles.albumTitle}>Albums</div>
-                        <div className={styles.albumControls}>
-                            <button onClick={createAlbum}>New</button>
-                            <button onClick={deleteAlbum} disabled={!selectedAlbum}>Trash</button>
-                        </div>
+                            <div className={styles.albumTitle}>Albums</div>
+                            <div className={styles.albumControls}>
+                                <button onClick={createAlbum}>New</button>
+                                <button onClick={deleteAlbum} disabled={!selectedAlbum}>Trash</button>
+                            </div>
                         </div>
                         <div className={styles.albumContainer}>
                             <div className={styles.albums}>
-                                <div className={`${styles.album} ${!selectedAlbum && styles.selected}`}
-                                     onClick={() => setSelectedAlbum(null)}>All Photos
+                                <div className={`${styles.album} ${(!selectedAlbum && mediaViews?.every(m => !mediaViewMatchesCurrentURL(m)))&& styles.selected}`}
+                                     onClick={() => setSelectedAlbum(null)}>
+                                    <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
+                                    All Photos
                                 </div>
                                 {albums && albums.map((album) => (
                                     <div
@@ -140,36 +225,73 @@ export default function Index() {
                                             })
                                         }}
                                         className={`${styles.album} ${selectedAlbum == album.uuid && styles.selected} ${albumHover == album.uuid && styles.hover}`}
-                                         key={album.uuid}
-                                         onClick={() => {
-                                             setSelectedAlbum(album.uuid);
-                                             setSelected(null);
-                                         }}>{album.name} ({album.media_count})</div>
+                                        key={album.uuid}
+                                        onClick={() => {
+                                            setSelectedAlbum(album.uuid);
+                                            setSelected(null);
+                                        }}>
+                                        <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
+                                        {album.name} ({album.media_count})
+                                    </div>
                                 ))}
+                                {mediaViews && mediaViews.map((view) => {
+                                        const selected = mediaViewMatchesCurrentURL(view);
+                                        return <div
+                                            className={`${styles.mediaView} ${selected && styles.selected}`}
+                                            key={view.uuid}
+                                            onClick={() => {
+                                                setSelected(null);
+                                                setSelectedAlbum(null);
+                                                window.history.replaceState({}, '', `${window.location.pathname}?${view.view_query}`);
+                                                queryToState();
+                                            }}>
+                                            <FontAwesomeIcon className={styles.albumIcon} icon={faFilter}/>
+                                            {view.name}
+                                        </div>
+                                    }
+                                )}
                             </div>
                         </div>
                     </div>
-                    <div className={styles.leftPreview} style={{flex: selected ? 2 : 0}}>
-                        {(() => {
-                                if (!selected || !photos) {
-                                    return <span>No Photo Selected</span>
-                                }
-                                const media = photos.find(m => m.uuid === selected);
+                    <div className={styles.filterPanel}>
+                        <div className={styles.filterHeader}>
+                            <div className={styles.filterTitle}>Filters</div>
+                            <div>
+                                <button onClick={() => {
+                                    const name = prompt('Filter Name');
+                                    if (name) {
+                                        api.media_view_create(name, window.location.search.substring(1)).then(() => loadMediaViews());
+                                    }
+                                }}>Save
+                                </button>
+                                <button
+                                    disabled={!mediaViews?.some(m => mediaViewMatchesCurrentURL(m))}
+                                    onClick={() => {
+                                        if (!mediaViews) {
+                                            return;
+                                        }
+                                        const selected = mediaViews.find(m => mediaViewMatchesCurrentURL(m));
+                                        if (!selected) {
+                                            return;
+                                        }
+                                        if (confirm(`Are you sure you want to delete ${selected.name}?`)) {
+                                            api.media_view_delete(selected.uuid).then(() => {
+                                                loadMediaViews()
+                                            });
+                                        }
+                                    }}>Trash
+                                </button>
+                                <button onClick={loadGallery}>Filter</button>
+                            </div>
+                        </div>
+                        <div className={styles.filter}>
+                            <label>
+                                <span>Path </span> <input value={pathFilter} onChange={e => {
+                                setPathFilter(e.target.value)
+                            }} type="text" placeholder="Path Filter"/>
+                            </label>
 
-                                if (!media) {
-                                    return <span>Selected Photo not found</span>
-                                }
-
-                                return <>
-                                    <img draggable={false} src={`${API_URL}/media/${media.uuid}/full`}/>
-                                    <div className={styles.previewInfoWrapper}>
-                                        <div className={styles.previewInfo}>
-                                            <MetadataTable metadata={mediaToMetadata(media)}/>
-                                        </div>
-                                    </div>
-                                </>
-                            }
-                        )()}
+                        </div>
                     </div>
                 </div>
                 <div className={styles.mainSection}>
@@ -178,7 +300,7 @@ export default function Index() {
                             <button disabled={page <= 0} onClick={() => setPage(page => Math.max(page - 1, 0))}>-
                             </button>
                             <span>{page + 1}</span>
-                            <button disabled={limit * (page+1) >= count} onClick={() => setPage(page => page + 1)}>+
+                            <button disabled={limit * (page + 1) >= count} onClick={() => setPage(page => page + 1)}>+
                             </button>
                         </div>
                         <div className={styles.thumbsizeRange}>
@@ -209,7 +331,8 @@ export default function Index() {
                                     setSelected(null);
                                     loadGallery();
                                 }
-                            }}>Remove</button>
+                            }}>Remove
+                            </button>
                         </div>
                     </div>
                     <div className={styles.mainSectionContent}>
@@ -226,8 +349,32 @@ export default function Index() {
                     <div className={styles.mainFooter}>
                         <span>{count} items</span>
                         <span>, {selected ? 1 : 0} selected</span>
-                        <span>, Page {page} of {Math.ceil(count / limit)}</span>
+                        <span>, Page {page + 1} of {Math.ceil(count / limit)}</span>
                     </div>
+                </div>
+                <div className={styles.rightPanel}>
+                    {(() => {
+                            if (!selected || !photos) {
+                                return <span>No Photo Selected</span>
+                            }
+                            const media = photos.find(m => m.uuid === selected);
+
+                            if (!media) {
+                                return <span>Selected Photo not found</span>
+                            }
+
+                            return <>
+                                <div className={styles.previewImageContainer}>
+                                    <img draggable={false} src={`${API_URL}/media/${media.uuid}/full`}/>
+                                </div>
+                                <div className={styles.previewInfoWrapper}>
+                                    <div className={styles.previewInfo}>
+                                        <MetadataTable metadata={mediaToMetadata(media)}/>
+                                    </div>
+                                </div>
+                            </>
+                        }
+                    )()}
                 </div>
             </div>
         </div>

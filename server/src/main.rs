@@ -17,6 +17,7 @@ use crate::config::CONFIG;
 use common::types::DbPool;
 use tokio_util::io::ReaderStream;
 use common::media_query::MediaQuery;
+use common::models::media_view::MediaView;
 
 #[tokio::main]
 async fn main() {
@@ -38,6 +39,7 @@ async fn main() {
         .route("/album", get(album_index).post(album_create))
         .route("/album/:uuid", get(album).delete(album_delete))
         .route("/album/:uuid/media", post(album_add_media).delete(album_delete_media))
+        .route("/media_view", get(media_view_index).post(media_view_create).delete(media_view_delete))
         .layer(Extension(pool))
         .layer(cors);
 
@@ -201,6 +203,38 @@ async fn album_delete_media(Extension(conn): Extension<DbPool>, path: Path<Album
     Json(album)
 }
 
+async fn media_view_index(Extension(conn): Extension<DbPool>) -> Json<Vec<MediaView>> {
+    let media = MediaView::get_all(&conn).await.unwrap();
+    Json(media)
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct MediaViewCreateParams {
+    name: String,
+    view_query: String,
+}
+
+async fn media_view_create(Extension(conn): Extension<DbPool>, payload: Json<MediaViewCreateParams>) -> Json<MediaView> {
+    let mut media_view = MediaView {
+        uuid: Uuid::new_v4(),
+        name: payload.name.clone(),
+        view_query: payload.view_query.clone(),
+        created_at: Utc::now().naive_utc(),
+        id: 0,
+    };
+    media_view.create(&conn).await.unwrap();
+    Json(media_view)
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct MediaViewParams {
+    uuid: Uuid
+}
+
+async fn media_view_delete(Extension(conn): Extension<DbPool>, payload: Json<MediaViewParams>) {
+    let media_view = MediaView::from_uuid(&conn, &payload.uuid).await.unwrap();
+    media_view.delete(&conn).await.unwrap();
+}
 
 
 

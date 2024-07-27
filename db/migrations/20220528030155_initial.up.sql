@@ -32,3 +32,11 @@ CREATE TABLE album_media (
     FOREIGN KEY (media_id) REFERENCES media (id) ON DELETE CASCADE
     UNIQUE (album_id, media_id)
 );
+
+CREATE TABLE media_view (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    uuid TEXT NOT NULL,
+    name TEXT NOT NULL,
+    view_query TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
