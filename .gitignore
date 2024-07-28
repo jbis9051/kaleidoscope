@@ -6,3 +6,4 @@ scan.toml
 dev
 **/node_modules
 **/.next
+frontend/out
