@@ -108,6 +108,10 @@ async fn scan_dir(path: &str, config: &ScanConfig, db: &mut SqliteConnection) {
                 println!("  discovered directory: {:?}", entry.path());
                 continue;
             }
+            if entry.file_type().is_symlink() {
+                println!("      skipping symlink: {:?}", entry.path());
+                continue;
+            }
             println!("      found file: {:?}", entry.path());
             add_file(&entry, config, db).await;
         } else {
