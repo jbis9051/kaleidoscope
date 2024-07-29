@@ -12,10 +12,10 @@ serde = "1.0"
 walkdir = "2.5"
 tokio = { version = "1.37", features = ["full"] }
 sqlx = { version = "0.6", features = ["runtime-tokio-rustls", "sqlite", "migrate", "uuid", "chrono"] }
-image = "0.25"
 thiserror = "1.0"
 libheif-rs = "1.0"
 ffmpeg-next = "7.0"
 rawloader = "0.37.1"
 imagepipe = "0.5.0"
 sha1 = "0.10.6"
+image = "0.25.2"
