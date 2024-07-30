@@ -3,6 +3,7 @@ mod format;
 use std::env;
 use std::hash::Hasher;
 use std::path::Path;
+use env_logger::Env;
 use image::{RgbImage};
 use serde::Deserialize;
 use sha1::Digest;
@@ -25,12 +26,21 @@ struct ScanConfig {
 
 #[tokio::main]
 async fn main() {
-    if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "none,scan=info")
-    }
+    let rust_log = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
     
-    simple_logger::SimpleLogger::new().env().init().unwrap();
-        
+    let filter = match rust_log.as_str() {
+        "trace" => log::LevelFilter::Trace,
+        "debug" => log::LevelFilter::Debug,
+        "info" => log::LevelFilter::Info,
+        "warn" => log::LevelFilter::Warn,
+        "error" => log::LevelFilter::Error,
+        _ => log::LevelFilter::Info,
+    };
+    
+    env_logger::Builder::new()
+        .filter_module("scan", filter)
+        .init();
+    
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
         eprintln!("usage: {} <config file>", args[0]);
@@ -93,7 +103,7 @@ async fn main() {
             let name = path.file_stem().unwrap().to_string_lossy();
             let uuid = &name[0..36];
             if !media.iter().any(|m| m.uuid.to_string() == uuid) {
-                println!("removing orphaned file: {:?}", path);
+                warn!("removing orphaned file: {:?}", path);
                 std::fs::remove_file(path).unwrap();
             }
         }
@@ -125,8 +135,8 @@ async fn scan_dir(path: &str, config: &ScanConfig, db: &mut SqliteConnection) ->
                 debug!("      skipping symlink: {:?}", entry.path());
                 continue;
             }
-            debug!("      found file: {:?}", entry.path());
             if add_file(&entry, config, db).await {
+                info!("      found new file: {:?}", entry.path());
                 count += 1;
             }
         } else {
