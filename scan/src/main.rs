@@ -26,11 +26,11 @@ struct ScanConfig {
 #[tokio::main]
 async fn main() {
     if env::var("RUST_LOG").is_err() {
-        env::set_var("RUST_LOG", "info")
+        env::set_var("RUST_LOG", "none,scan=info")
     }
-    simple_logger::SimpleLogger::new().env()
-        .with_module_level("sqlx::query", log::LevelFilter::Off).init().unwrap();
-
+    
+    simple_logger::SimpleLogger::new().env().init().unwrap();
+        
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
         eprintln!("usage: {} <config file>", args[0]);
