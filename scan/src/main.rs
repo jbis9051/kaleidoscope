@@ -1,5 +1,6 @@
 mod format;
 
+use std::env;
 use std::hash::Hasher;
 use std::path::Path;
 use image::{RgbImage};
@@ -12,6 +13,7 @@ use walkdir::{DirEntry, WalkDir};
 use common::models::media::Media;
 use common::models::system_time_to_naive_datetime;
 use crate::format::{Format, heif, MediaMetadata, standard, video, raw};
+use log::{log, debug, warn, error, info};
 
 #[derive(Deserialize)]
 struct ScanConfig {
@@ -23,6 +25,12 @@ struct ScanConfig {
 
 #[tokio::main]
 async fn main() {
+    if env::var("RUST_LOG").is_err() {
+        env::set_var("RUST_LOG", "info")
+    }
+    simple_logger::SimpleLogger::new().env()
+        .with_module_level("sqlx::query", log::LevelFilter::Off).init().unwrap();
+
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 2 {
         eprintln!("usage: {} <config file>", args[0]);
@@ -33,12 +41,16 @@ async fn main() {
     let config: ScanConfig = toml::from_str(&file).unwrap();
     let mut db = SqliteConnection::connect(&format!("sqlite:{}", config.db)).await.unwrap();
 
+    let mut total = 0;
     for path in config.paths.iter() {
-        println!("scanning path: {:?}", path);
-        scan_dir(path, &config, &mut db).await;
+        info!("scanning path: {:?}", path);
+        let count = scan_dir(path, &config, &mut db).await;
+        info!("  found {} new media", count);
+        total += count;
     }
     
-    println!("--- scanning complete, verifying database ---");
+    info!("--- scanning complete, found {} new media ---", total);
+    info!("--- verifying database ---");
 
     let mut media = Media::all(&mut db).await.unwrap();
 
@@ -51,27 +63,27 @@ async fn main() {
         let path = Path::new(&media_path);
 
         if !canoc_paths.iter().any(|p| media_path.starts_with(p)) {
-            println!("media path not in scan paths: {:?}", m.path);
+            warn!("media path not in scan paths: {:?}", m.path);
             remove_media(m, &mut db, &config).await;
         }
 
         if !path.exists() {
-            println!("missing media: {:?}", m.path);
+            warn!("missing media: {:?}", m.path);
             remove_media(m, &mut db, &config).await;
         }
 
         let path = Path::new(&config.data_dir).join(format!("{:?}-thumb.jpg", m.uuid));
         if !path.exists() {
-            println!("missing thumbnail: {:?}", path);
+            warn!("missing thumbnail: {:?}", path);
         }
 
         let path = Path::new(&config.data_dir).join(format!("{:?}-full.jpg", m.uuid));
         if !path.exists() {
-            println!("missing full: {:?}", path);
+            warn!("missing full: {:?}", path);
         }
     }
 
-    println!("--- verification complete, cleaning up data ---");
+    info!("--- verification complete, cleaning up data ---");
 
     let files = std::fs::read_dir(&config.data_dir).unwrap();
     for file in files {
@@ -87,7 +99,7 @@ async fn main() {
         }
     }
     
-    println!("--- cleanup complete ---");
+    info!("--- cleanup complete ---");
 
 
 }
@@ -101,34 +113,38 @@ async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &Sca
 }
 
 
-async fn scan_dir(path: &str, config: &ScanConfig, db: &mut SqliteConnection) {
+async fn scan_dir(path: &str, config: &ScanConfig, db: &mut SqliteConnection) -> u32 {
+    let mut count = 0;
     for entry in WalkDir::new(path) {
         if let Ok(entry) = entry {
             if entry.file_type().is_dir() {
-                println!("  discovered directory: {:?}", entry.path());
+                debug!("  discovered directory: {:?}", entry.path());
                 continue;
             }
             if entry.file_type().is_symlink() {
-                println!("      skipping symlink: {:?}", entry.path());
+                debug!("      skipping symlink: {:?}", entry.path());
                 continue;
             }
-            println!("      found file: {:?}", entry.path());
-            add_file(&entry, config, db).await;
+            debug!("      found file: {:?}", entry.path());
+            if add_file(&entry, config, db).await {
+                count += 1;
+            }
         } else {
-            println!("      unable to access: {:?}", entry.err().unwrap());
+            error!("      unable to access: {:?}", entry.err().unwrap());
         }
     }
+    count
 }
 
-async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnection) {
+async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnection) -> bool {
     // do a cheap check immediately to see if the media already exists
     let file_created_at = system_time_to_naive_datetime(entry.metadata().unwrap().created().unwrap());
 
     if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
         let file_size = entry.metadata().unwrap().len() as u32;
         if media.file_created_at == file_created_at && media.size == file_size {
-            println!("          media already exists: {:?}", entry.path());
-            return;
+            debug!("          media already exists: {:?}", entry.path());
+            return false;
         }
         remove_media(&mut media, db, config).await;
     }
@@ -142,12 +158,12 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
     let (metadata, is_photo) = match get_media_metadata(entry) {
         Ok(Some(data)) => data,
         Ok(None) => {
-            println!("          unsupported format: {:?}", entry.path());
-            return;
+            debug!("          unsupported format: {:?}", entry.path());
+            return false;
         },
         Err(e) => {
-            println!("          error getting metadata: {:?}", e);
-            return;
+            error!("          error getting metadata: {:?}", e);
+            return false;
         }
     };
     
@@ -156,8 +172,8 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
     if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
         if media.created_at == metadata.created_at && media.size == metadata.size {
             // this shouldn't really happen, but it could if (1) there's a different date in the media metadata as opposed to the file metadata and (2) the file was modified while keeping the file metadata the same (including the size)
-            println!("          media already exists (second check): {:?}", entry.path()); 
-            return;
+            debug!("          media already exists (second check): {:?}", entry.path());
+            return false;
         }
         remove_media(&mut media, db, config).await;
     }
@@ -178,18 +194,18 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
     let (thumbnail, full) = match generate_media_caches(entry, twidth, theight) {
         Ok(t) => t.unwrap(),
         Err(e) => {
-            println!("          error generating thumbnail: {:?}", e);
-            return;
+            error!("          error generating thumbnail: {:?}", e);
+            return false;
         }
     };
 
 
     // write thumbnail to disk
-    println!("          writing thumbnail: {:?}", thumb_path);
+    debug!("          writing thumbnail: {:?}", thumb_path);
     thumbnail.save(thumb_path).unwrap();
 
     // write full to disk
-    println!("          writing full: {:?}", full_path);
+    debug!("          writing full: {:?}", full_path);
     full.save(full_path).unwrap();
 
     let mut media = Media {
@@ -210,6 +226,7 @@ async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnecti
     };
     
     media.create(&mut *db).await.unwrap();
+    true
 }
 
 
