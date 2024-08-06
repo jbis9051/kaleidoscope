@@ -78,6 +78,45 @@ export default function Index() {
     }, [])
 
     useEffect(() => {
+        function keydown(ev: KeyboardEvent ){
+            if(ev.key === "Escape"){
+                setSelected(null);
+                setPreview(null);
+            }
+
+            if(!photos || !selected){
+                return;
+            }
+            if(ev.key === "ArrowRight" || ev.key === "ArrowDown"){
+                const selectedIndex = photos.findIndex(photo => photo.uuid === selected);
+                if(photos.length > selectedIndex + 1){
+                    setSelected(photos[selectedIndex + 1].uuid);
+                    if(preview){
+                        setPreview(photos[selectedIndex + 1]);
+                    }
+                }
+            }
+
+            if(ev.key === "ArrowLeft" || ev.key === "ArrowUp"){
+                const selectedIndex = photos.findIndex(photo => photo.uuid === selected);
+                if(selectedIndex - 1 > 0){
+                    setSelected(photos[selectedIndex - 1].uuid);
+                    if(preview){
+                        setPreview(photos[selectedIndex - 1]);
+                    }
+                }
+            }
+        }
+
+
+
+        window.addEventListener("keydown", keydown);
+        return () => {
+            window.removeEventListener("keydown", keydown);
+        }
+    },[selected, photos, preview])
+
+    useEffect(() => {
         if (!loaded) {
             return;
         }
@@ -106,17 +145,32 @@ export default function Index() {
 
 
     function loadGallery() {
+        let update_promise;
         if (!selectedAlbum) {
-            api.getMedia(page, limit, orderby, asc, pathFilter).then((photos) => {
+            update_promise = api.getMedia(page, limit, orderby, asc, pathFilter).then((photos) => {
                 setPhotos(photos.media)
                 setCount(photos.count)
             });
         } else {
-            api.album(selectedAlbum, page, limit, orderby, asc, pathFilter).then((album) => {
+            update_promise = api.album(selectedAlbum, page, limit, orderby, asc, pathFilter).then((album) => {
                 setPhotos(album.media.media)
                 setCount(album.media.count)
             });
         }
+
+        update_promise.then(() => {
+            if(selected && photos && !photos.some(photo => photo.uuid === selected)){ // if we've selected a photo but it doesn't exist, set it to first
+                if(photos.length > 0){
+                    setSelected(photos[0].uuid)
+                    if(preview){
+                        setPreview(photos[0]);
+                    }
+                } else {
+                    setSelected(null)
+                    setPreview(null);
+                }
+            }
+        })
     }
 
     function createAlbum() {
@@ -162,9 +216,11 @@ export default function Index() {
 
     function mediaViewMatchesCurrentURL(view: MediaView) {
         const view_query = new URLSearchParams(view.view_query);
+        view_query.delete("page");
         view_query.sort();
 
         const current_query = new URLSearchParams(window.location.search);
+        current_query.delete("page");
         current_query.sort();
 
         return view_query.toString() === current_query.toString();
@@ -198,7 +254,14 @@ export default function Index() {
                         <div className={styles.albumContainer}>
                             <div className={styles.albums}>
                                 <div className={`${styles.album} ${(!selectedAlbum && mediaViews?.every(m => !mediaViewMatchesCurrentURL(m)))&& styles.selected}`}
-                                     onClick={() => setSelectedAlbum(null)}>
+                                     onClick={() => {
+                                         if(selectedAlbum || mediaViews?.some(m => mediaViewMatchesCurrentURL(m))){
+                                             setPage(0);
+                                         }
+                                         setSelectedAlbum(null);
+                                         setPathFilter("");
+                                         loadGallery();
+                                     }}>
                                     <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
                                     All Photos
                                 </div>
@@ -244,6 +307,7 @@ export default function Index() {
                                                 setSelectedAlbum(null);
                                                 window.history.replaceState({}, '', `${window.location.pathname}?${view.view_query}`);
                                                 queryToState();
+                                                loadGallery();
                                             }}>
                                             <FontAwesomeIcon className={styles.albumIcon} icon={faFilter}/>
                                             {view.name}
