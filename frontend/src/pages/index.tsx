@@ -8,6 +8,11 @@ import mediaToMetadata from "@/utility/mediaMetadata";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faFilter, faFolder} from "@fortawesome/free-solid-svg-icons";
 
+enum SelectForward {
+    Forward,
+    Backward
+}
+
 export default function Index() {
     const [loaded, setLoaded] = useState(false);
 
@@ -19,6 +24,8 @@ export default function Index() {
     const [limit, setLimit] = useState(10);
     const [pathFilter, setPathFilter] = useState<string>("");
 
+    const [pathFilterPreview, setPathFilterPreview] = useState<string>("");
+
     const [count, setCount] = useState(0);
 
 
@@ -27,6 +34,7 @@ export default function Index() {
     const [preview, setPreview] = useState<Media | null>(null);
 
     const [selected, setSelected] = useState<string | null>(null);
+    const [selectedForward, setSelectedForward] = useState<SelectForward | null>(null);
 
     const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
     const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
@@ -68,6 +76,7 @@ export default function Index() {
 
         if (filter_path) {
             setPathFilter(filter_path);
+            setPathFilterPreview(filter_path);
         }
 
     }
@@ -94,16 +103,26 @@ export default function Index() {
                     if(preview){
                         setPreview(photos[selectedIndex + 1]);
                     }
+                } else {
+                    let totalPages = Math.ceil(count / limit);
+                    if (page + 1 < totalPages) {
+                        setPage(page + 1);
+                        setSelectedForward(SelectForward.Forward);
+                    }
                 }
+
             }
 
             if(ev.key === "ArrowLeft" || ev.key === "ArrowUp"){
                 const selectedIndex = photos.findIndex(photo => photo.uuid === selected);
-                if(selectedIndex - 1 > 0){
+                if(selectedIndex - 1 >= 0){
                     setSelected(photos[selectedIndex - 1].uuid);
                     if(preview){
                         setPreview(photos[selectedIndex - 1]);
                     }
+                } else if(page > 0) {
+                    setPage(page - 1);
+                    setSelectedForward(SelectForward.Backward);
                 }
             }
         }
@@ -121,7 +140,40 @@ export default function Index() {
             return;
         }
         loadGallery();
-    }, [page, orderby, asc, limit, selectedAlbum, loaded]);
+    }, [page, orderby, asc, limit, selectedAlbum, loaded, pathFilter]);
+
+    useEffect(() => {
+        if (!photos){
+            return;
+        }
+        switch (selectedForward) {
+            case SelectForward.Forward:
+                setSelected(photos[0].uuid);
+                if(preview){
+                    setPreview(photos[0]);
+                }
+                break;
+            case SelectForward.Backward:
+                setSelected(photos[photos.length - 1].uuid);
+                if(preview) {
+                    setPreview(photos[photos.length - 1]);
+                }
+                break;
+            default:
+                if(selected && !photos.some(photo => photo.uuid === selected)){ // if we've selected a photo but it doesn't exist, set it to first
+                    if(photos.length > 0){
+                        setSelected(photos[0].uuid)
+                        if(preview){
+                            setPreview(photos[0]);
+                        }
+                    } else {
+                        setSelected(null)
+                        setPreview(null);
+                    }
+                }
+        }
+        setSelectedForward(null);
+    }, [photos]);
 
     useEffect(() => {
         if (!loaded) {
@@ -145,32 +197,17 @@ export default function Index() {
 
 
     function loadGallery() {
-        let update_promise;
         if (!selectedAlbum) {
-            update_promise = api.getMedia(page, limit, orderby, asc, pathFilter).then((photos) => {
+            api.getMedia(page, limit, orderby, asc, pathFilter).then((photos) => {
                 setPhotos(photos.media)
                 setCount(photos.count)
             });
         } else {
-            update_promise = api.album(selectedAlbum, page, limit, orderby, asc, pathFilter).then((album) => {
+            api.album(selectedAlbum, page, limit, orderby, asc, pathFilter).then((album) => {
                 setPhotos(album.media.media)
                 setCount(album.media.count)
             });
         }
-
-        update_promise.then(() => {
-            if(selected && photos && !photos.some(photo => photo.uuid === selected)){ // if we've selected a photo but it doesn't exist, set it to first
-                if(photos.length > 0){
-                    setSelected(photos[0].uuid)
-                    if(preview){
-                        setPreview(photos[0]);
-                    }
-                } else {
-                    setSelected(null)
-                    setPreview(null);
-                }
-            }
-        })
     }
 
     function createAlbum() {
@@ -259,8 +296,8 @@ export default function Index() {
                                              setPage(0);
                                          }
                                          setSelectedAlbum(null);
+                                         setPathFilterPreview("");
                                          setPathFilter("");
-                                         loadGallery();
                                      }}>
                                     <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
                                     All Photos
@@ -307,7 +344,6 @@ export default function Index() {
                                                 setSelectedAlbum(null);
                                                 window.history.replaceState({}, '', `${window.location.pathname}?${view.view_query}`);
                                                 queryToState();
-                                                loadGallery();
                                             }}>
                                             <FontAwesomeIcon className={styles.albumIcon} icon={faFilter}/>
                                             {view.name}
@@ -345,13 +381,15 @@ export default function Index() {
                                         }
                                     }}>Trash
                                 </button>
-                                <button onClick={loadGallery}>Filter</button>
+                                <button onClick={() => {
+                                    setPathFilter(pathFilterPreview);
+                                }}>Filter</button>
                             </div>
                         </div>
                         <div className={styles.filter}>
                             <label>
-                                <span>Path </span> <input value={pathFilter} onChange={e => {
-                                setPathFilter(e.target.value)
+                                <span>Path </span> <input value={pathFilterPreview} onChange={e => {
+                                setPathFilterPreview(e.target.value)
                             }} type="text" placeholder="Path Filter"/>
                             </label>
 
@@ -393,7 +431,6 @@ export default function Index() {
                                     await api.album_remove_media(selectedAlbum, [selected]);
                                     loadAlbums();
                                     setSelected(null);
-                                    loadGallery();
                                 }
                             }}>Remove
                             </button>
