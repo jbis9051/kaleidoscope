@@ -8,5 +8,5 @@ dev:
 	cd server && cargo run
 
 prod:
-	cd server && cargo build --release && cd ..
+	cargo build --release
 	cd frontend && yarn && yarn build && cd ..
