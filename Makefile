@@ -6,3 +6,7 @@ db:
 
 dev:
 	cd server && cargo run
+
+prod:
+	cd server && cargo build --release && cd ..
+	cd frontend && yarn && yarn build && cd ..
