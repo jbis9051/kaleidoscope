@@ -4,7 +4,7 @@ import {API_URL} from "@/global";
 import {AlbumIndex, Api, Media, MediaQueryColumns, MediaView} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
-import mediaToMetadata from "@/utility/mediaMetadata";
+import mediaToMetadata, {timestampToDateShort} from "@/utility/mediaMetadata";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faFilter, faFolder} from "@fortawesome/free-solid-svg-icons";
 
@@ -12,6 +12,16 @@ enum SelectForward {
     Forward,
     Backward
 }
+
+interface FilterOps {
+    path: string | null;
+    before: Date | null;
+    after: Date | null;
+}
+
+type FilterOpsPreview = {
+    [P in keyof FilterOps]: string | null;
+};
 
 export default function Index() {
     const [loaded, setLoaded] = useState(false);
@@ -22,9 +32,9 @@ export default function Index() {
     const [orderby, setOrderby] = useState<MediaQueryColumns>('id');
     const [asc, setAsc] = useState(true);
     const [limit, setLimit] = useState(10);
-    const [pathFilter, setPathFilter] = useState<string>("");
+    const [filter, setFilter] = useState<FilterOps>({path: null, before: null, after: null});
 
-    const [pathFilterPreview, setPathFilterPreview] = useState<string>("");
+    const [filterPreview, setFilterPreview] = useState<FilterOpsPreview>({path: null, before: null, after: null});
 
     const [count, setCount] = useState(0);
 
@@ -53,6 +63,8 @@ export default function Index() {
         const limit = query.get('limit');
         const selectedAlbum = query.get('album');
         const filter_path = query.get('filter_path');
+        const before = query.get('before');
+        const after = query.get('after');
 
         if (page) {
             setPage(parseInt(page, 10));
@@ -74,10 +86,24 @@ export default function Index() {
             setSelectedAlbum(selectedAlbum);
         }
 
+        const newFilter: FilterOps = {path: null, before: null, after: null};
+
         if (filter_path) {
-            setPathFilter(filter_path);
-            setPathFilterPreview(filter_path);
+            newFilter.path = filter_path;
         }
+        if (before) {
+            newFilter.before = new Date(parseInt(before, 10));
+        }
+        if (after) {
+            newFilter.after = new Date(parseInt(after, 10));
+        }
+
+        setFilter(newFilter);
+        setFilterPreview({
+            path: newFilter.path,
+            before: newFilter.before?.toISOString().split('T')[0] || null,
+            after: newFilter.after?.toISOString().split('T')[0] || null
+        });
 
     }
 
@@ -87,20 +113,20 @@ export default function Index() {
     }, [])
 
     useEffect(() => {
-        function keydown(ev: KeyboardEvent ){
-            if(ev.key === "Escape"){
+        function keydown(ev: KeyboardEvent) {
+            if (ev.key === "Escape") {
                 setSelected(null);
                 setPreview(null);
             }
 
-            if(!photos || !selected){
+            if (!photos || !selected) {
                 return;
             }
-            if(ev.key === "ArrowRight" || ev.key === "ArrowDown"){
+            if (ev.key === "ArrowRight" || ev.key === "ArrowDown") {
                 const selectedIndex = photos.findIndex(photo => photo.uuid === selected);
-                if(photos.length > selectedIndex + 1){
+                if (photos.length > selectedIndex + 1) {
                     setSelected(photos[selectedIndex + 1].uuid);
-                    if(preview){
+                    if (preview) {
                         setPreview(photos[selectedIndex + 1]);
                     }
                 } else {
@@ -113,14 +139,14 @@ export default function Index() {
 
             }
 
-            if(ev.key === "ArrowLeft" || ev.key === "ArrowUp"){
+            if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") {
                 const selectedIndex = photos.findIndex(photo => photo.uuid === selected);
-                if(selectedIndex - 1 >= 0){
+                if (selectedIndex - 1 >= 0) {
                     setSelected(photos[selectedIndex - 1].uuid);
-                    if(preview){
+                    if (preview) {
                         setPreview(photos[selectedIndex - 1]);
                     }
-                } else if(page > 0) {
+                } else if (page > 0) {
                     setPage(page - 1);
                     setSelectedForward(SelectForward.Backward);
                 }
@@ -128,42 +154,41 @@ export default function Index() {
         }
 
 
-
         window.addEventListener("keydown", keydown);
         return () => {
             window.removeEventListener("keydown", keydown);
         }
-    },[selected, photos, preview])
+    }, [selected, photos, preview])
 
     useEffect(() => {
         if (!loaded) {
             return;
         }
         loadGallery();
-    }, [page, orderby, asc, limit, selectedAlbum, loaded, pathFilter]);
+    }, [page, orderby, asc, limit, selectedAlbum, loaded, filter]);
 
     useEffect(() => {
-        if (!photos){
+        if (!photos) {
             return;
         }
         switch (selectedForward) {
             case SelectForward.Forward:
                 setSelected(photos[0].uuid);
-                if(preview){
+                if (preview) {
                     setPreview(photos[0]);
                 }
                 break;
             case SelectForward.Backward:
                 setSelected(photos[photos.length - 1].uuid);
-                if(preview) {
+                if (preview) {
                     setPreview(photos[photos.length - 1]);
                 }
                 break;
             default:
-                if(selected && !photos.some(photo => photo.uuid === selected)){ // if we've selected a photo but it doesn't exist, set it to first
-                    if(photos.length > 0){
+                if (selected && !photos.some(photo => photo.uuid === selected)) { // if we've selected a photo but it doesn't exist, set it to first
+                    if (photos.length > 0) {
                         setSelected(photos[0].uuid)
-                        if(preview){
+                        if (preview) {
                             setPreview(photos[0]);
                         }
                     } else {
@@ -188,22 +213,29 @@ export default function Index() {
         if (selectedAlbum) {
             query.set('album', selectedAlbum);
         }
-        if (pathFilter) {
-            query.set('filter_path', pathFilter);
+        if (filter.path) {
+            query.set('filter_path', filter.path);
         }
+        if (filter.before) {
+            query.set('before', filter.before.getTime().toString(10));
+        }
+        if (filter.after) {
+            query.set('after', filter.after.getTime().toString(10));
+        }
+
         window.history.replaceState({}, '', `${window.location.pathname}?${query.toString()}`);
 
-    }, [page, orderby, asc, limit, selectedAlbum, pathFilter]);
+    }, [page, orderby, asc, limit, selectedAlbum, filter]);
 
 
     function loadGallery() {
         if (!selectedAlbum) {
-            api.getMedia(page, limit, orderby, asc, pathFilter).then((photos) => {
+            api.getMedia(page, limit, orderby, asc, filter.path, filter.before, filter.after).then((photos) => {
                 setPhotos(photos.media)
                 setCount(photos.count)
             });
         } else {
-            api.album(selectedAlbum, page, limit, orderby, asc, pathFilter).then((album) => {
+            api.album(selectedAlbum, page, limit, orderby, asc, filter.path, filter.before, filter.after).then((album) => {
                 setPhotos(album.media.media)
                 setCount(album.media.count)
             });
@@ -263,6 +295,9 @@ export default function Index() {
         return view_query.toString() === current_query.toString();
     }
 
+    const oldest = photos && photos.length > 1 && photos.reduce((prev, current) => (prev.created_at < current.created_at) ? prev : current) || null;
+    const newest = photos && photos.length > 1 && photos.reduce((prev, current) => (prev.created_at > current.created_at) ? prev : current) || null;
+
     return (
         <div className={styles.topLevel}>
             {preview && <div className={styles.preview} onClick={e => {
@@ -290,15 +325,16 @@ export default function Index() {
                         </div>
                         <div className={styles.albumContainer}>
                             <div className={styles.albums}>
-                                <div className={`${styles.album} ${(!selectedAlbum && mediaViews?.every(m => !mediaViewMatchesCurrentURL(m)))&& styles.selected}`}
-                                     onClick={() => {
-                                         if(selectedAlbum || mediaViews?.some(m => mediaViewMatchesCurrentURL(m))){
-                                             setPage(0);
-                                         }
-                                         setSelectedAlbum(null);
-                                         setPathFilterPreview("");
-                                         setPathFilter("");
-                                     }}>
+                                <div
+                                    className={`${styles.album} ${(!selectedAlbum && mediaViews?.every(m => !mediaViewMatchesCurrentURL(m))) && styles.selected}`}
+                                    onClick={() => {
+                                        if (selectedAlbum || mediaViews?.some(m => mediaViewMatchesCurrentURL(m))) {
+                                            setPage(0);
+                                        }
+                                        setSelectedAlbum(null);
+                                        setFilterPreview({path: null, before: null, after: null});
+                                        setFilter({path: null, before: null, after: null});
+                                    }}>
                                     <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
                                     All Photos
                                 </div>
@@ -382,15 +418,38 @@ export default function Index() {
                                     }}>Trash
                                 </button>
                                 <button onClick={() => {
-                                    setPathFilter(pathFilterPreview);
-                                }}>Filter</button>
+                                    setFilter({
+                                        path: filterPreview.path,
+                                        before: filterPreview.before ? new Date(filterPreview.before) : null,
+                                        after: filterPreview.after ? new Date(filterPreview.after) : null,
+                                    });
+                                }}>Filter
+                                </button>
                             </div>
                         </div>
                         <div className={styles.filter}>
                             <label>
-                                <span>Path </span> <input value={pathFilterPreview} onChange={e => {
-                                setPathFilterPreview(e.target.value)
+                                <span>Path </span> <input value={filterPreview.path || ''} onChange={e => {
+                                setFilterPreview({...filterPreview, path: e.target.value})
                             }} type="text" placeholder="Path Filter"/>
+                            </label>
+                            <label className={styles.filterDate}>
+                                <span>Before </span> <input value={filterPreview.before || ''}
+                                                            onChange={e => {
+                                                                setFilterPreview({
+                                                                    ...filterPreview,
+                                                                    before: e.target.value
+                                                                })
+                                                            }} type="date"/>
+                            </label>
+                            <label className={styles.filterDate}>
+                                <span>After </span> <input value={filterPreview.after || ''}
+                                                           onChange={e => {
+                                                               setFilterPreview({
+                                                                   ...filterPreview,
+                                                                   after: e.target.value
+                                                               })
+                                                           }} type="date"/>
                             </label>
 
                         </div>
@@ -434,6 +493,10 @@ export default function Index() {
                                 }
                             }}>Remove
                             </button>
+                        </div>
+                        <div className={styles.dateRange}>
+                            <span>{oldest && timestampToDateShort(oldest.created_at)}</span>-
+                            <span>{newest && timestampToDateShort(newest.created_at)}</span>
                         </div>
                     </div>
                     <div className={styles.mainSectionContent}>

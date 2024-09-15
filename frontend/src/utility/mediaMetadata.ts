@@ -6,6 +6,12 @@ export function timestampToDate(timestamp: number) {
     return date.toLocaleString();
 }
 
+export function timestampToDateShort(timestamp: number) {
+    // timestamp is in seconds
+    const date = new Date(timestamp * 1000);
+    return date.toDateString().split(" ").slice(1).join(" ");
+}
+
 
 export default function mediaToMetadata(media: Media): Record<string, string> {
     return {

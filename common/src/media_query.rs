@@ -1,6 +1,8 @@
 use serde::Deserialize;
 use sqlx::{QueryBuilder, Sqlite};
+use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
 use crate::models::media::Media;
+use chrono::serde::ts_milliseconds_option;
 
 #[derive(Default, Debug, Deserialize, Clone)]
 pub struct MediaQuery {
@@ -8,7 +10,11 @@ pub struct MediaQuery {
     pub asc: Option<bool>,
     pub limit: Option<i32>,
     pub page: Option<i32>,
-    pub filter_path: Option<String>
+    pub filter_path: Option<String>,
+    #[serde(default, with = "ts_milliseconds_option")]
+    pub before: Option<DateTime<Utc>>,
+    #[serde(default, with = "ts_milliseconds_option")]
+    pub after: Option<DateTime<Utc>>
 }
 
 impl MediaQuery {
@@ -18,7 +24,9 @@ impl MediaQuery {
             asc: None,
             limit: None,
             page: None,
-            filter_path: None
+            filter_path: None,
+            before: None,
+            after: None,
         }
     }
     
@@ -27,6 +35,18 @@ impl MediaQuery {
             query
                 .push(" AND path LIKE ")
                 .push_bind(filter_path.clone());
+        }
+        
+        if let Some(before) = &self.before {
+            query
+                .push(" AND created_at < ")
+                .push_bind(*before);
+        }
+        
+        if let Some(after) = &self.after {
+            query
+                .push(" AND created_at > ")
+                .push_bind(*after);
         }
         
         if let Some(order_by) = &self.order_by {

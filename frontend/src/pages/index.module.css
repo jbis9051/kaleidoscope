@@ -94,7 +94,11 @@
     border: 1px solid #434343;
     background: #2e2e2e;
     color: white;
-    width: 100%;
+    min-width: 0;
+}
+
+.filterDate input {
+
 }
 
 
@@ -114,10 +118,10 @@
     justify-content: center;
     align-items: center;
     border-bottom: 5px solid #1d1d1d;
+    font-size: 20px;
 }
 
 .mainSectionHeader div {
-    font-size: 20px;
     margin: 0 10px;
 }
 
@@ -155,6 +159,17 @@
 }
 .thumbsizeRange span {
     padding: 0 10px;
+}
+
+.dateRange {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 13px;
+}
+
+.dateRange span {
+    padding: 0 5px;
 }
 
 .mainSectionContent {

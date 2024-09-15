@@ -52,8 +52,8 @@ export class Api {
         this.url = url;
     }
 
-    getMedia(page: number, limit: number, order_by: MediaQueryColumns, asc: boolean, filter_path: string | null): Promise<MediaIndexResponse> {
-        return fetch(`${this.url}/media?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}`).then(response => response.json())
+    getMedia(page: number, limit: number, order_by: MediaQueryColumns, asc: boolean, filter_path: string | null, before: Date | null, after: Date | null): Promise<MediaIndexResponse> {
+        return fetch(`${this.url}/media?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
     }
 
     async album_index(): Promise<AlbumIndex[]> {
@@ -61,8 +61,8 @@ export class Api {
         return indexes.map(([album, media_count]) => ({...album, media_count}));
     }
 
-    album(uuid: string, page: number, limit: number, order_by: MediaQueryColumns, asc: boolean, filter_path: string | null): Promise<AlbumResponse> {
-        return fetch(`${this.url}/album/${uuid}?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}`).then(response => response.json())
+    album(uuid: string, page: number, limit: number, order_by: MediaQueryColumns, asc: boolean, filter_path: string | null, before: Date | null, after: Date | null): Promise<AlbumResponse> {
+        return fetch(`${this.url}/album/${uuid}?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
     }
 
     album_create(name: string): Promise<Album> {
