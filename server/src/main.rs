@@ -1,28 +1,45 @@
-mod config;
+mod ipc;
 
-
+use std::io::{BufRead, Read, Write};
+use std::os::unix::net::UnixStream;
+use std::sync::{Arc, Mutex, RwLock};
 use axum::{Extension, Json, Router, routing::get};
 use axum::body::Body;
-use axum::extract::{Path, Query};
+use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
 use axum::routing::post;
 use chrono::Utc;
+use nix::unistd::Uid;
+use once_cell::sync::Lazy;
 use serde::Serialize;
 use sqlx::sqlite::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 use common::models::album::Album;
 use common::models::media::Media;
-use crate::config::CONFIG;
 use common::types::DbPool;
 use tokio_util::io::ReaderStream;
 use common::media_query::MediaQuery;
 use common::models::media_view::MediaView;
+use common::scan_config::AppConfig;
+use crate::ipc::request_ipc_file;
+
+static CONFIG: Lazy<AppConfig> = Lazy::new(|| {
+    let config: AppConfig = serde_json::from_str(std::env::var("CONFIG").unwrap().as_str()).unwrap();
+    config
+});
 
 #[tokio::main]
 async fn main() {
+    // ensure we aren't running as root
+    if Uid::current().is_root() {
+        eprintln!("Server must not be run as root!");
+        std::process::exit(1);
+    }
+
     println!("Listening on: {}", &CONFIG.listen_addr);
     println!("Config: {:?}", &CONFIG);
+
     let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
 
     let cors = CorsLayer::new()
@@ -80,7 +97,15 @@ async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> R
 
 async fn media_raw(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
-    Ok(serve_file(std::path::Path::new(&media.path), "application/octet-stream".to_string()).await)
+    
+    let stream = request_ipc_file(&CONFIG, &media).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("ipc error requesting file: {:?}", e)))?;
+    let body = Body::from_stream(ReaderStream::new(stream));
+
+
+    let mut headers = HeaderMap::new();
+    headers.insert(header::CONTENT_TYPE, HeaderValue::from_str("application/octet-stream").unwrap());
+
+    Ok((headers, body))
 }
 
 async fn media_full(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {

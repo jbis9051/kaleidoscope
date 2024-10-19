@@ -130,6 +130,15 @@ impl Media {
             .into())
     }
 
+    pub async fn from_id(db: &DbPool, id: &i32) -> Result<Self, sqlx::Error> {
+        Ok(sqlx::query("SELECT * FROM media WHERE id = $1;")
+            .bind(id)
+            .fetch_one(db)
+            .await?
+            .borrow()
+            .into())
+    }
+
     pub async fn from_path<'a>(db: impl SqliteExecutor<'a>, path: &str) -> Result<Option<Self>, sqlx::Error> {
         Ok(sqlx::query("SELECT * FROM media WHERE path = $1;")
             .bind(path)

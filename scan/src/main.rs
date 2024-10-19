@@ -1,28 +1,21 @@
 mod format;
 
+use crate::format::{heif, raw, standard, video, Format, MediaMetadata};
+use common::models::media::Media;
+use common::models::system_time_to_naive_datetime;
+use common::scan_config::AppConfig;
+use env_logger::Env;
+use image::RgbImage;
+use log::{debug, error, info, log, warn};
+use serde::Deserialize;
+use sha1::Digest;
+use sqlx::types::chrono::Utc;
+use sqlx::types::Uuid;
+use sqlx::{Connection, Executor, SqliteConnection};
 use std::env;
 use std::hash::Hasher;
 use std::path::Path;
-use env_logger::Env;
-use image::{RgbImage};
-use serde::Deserialize;
-use sha1::Digest;
-use sqlx::{Connection, Executor, SqliteConnection};
-use sqlx::types::chrono::{Utc};
-use sqlx::types::Uuid;
 use walkdir::{DirEntry, WalkDir};
-use common::models::media::Media;
-use common::models::system_time_to_naive_datetime;
-use crate::format::{Format, heif, MediaMetadata, standard, video, raw};
-use log::{log, debug, warn, error, info};
-
-#[derive(Deserialize)]
-struct ScanConfig {
-    paths: Vec<String>,
-    data_dir: String,
-    thumb_size: u32,
-    db: String,
-}
 
 #[tokio::main]
 async fn main() {
@@ -41,18 +34,19 @@ async fn main() {
         .filter_module("scan", filter)
         .init();
     
-    let args: Vec<String> = std::env::args().collect();
+    let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         eprintln!("usage: {} <config file>", args[0]);
         std::process::exit(1);
     }
     let config_file = &args[1];
-    let file = std::fs::read_to_string(config_file).unwrap();
-    let config: ScanConfig = toml::from_str(&file).unwrap();
-    let mut db = SqliteConnection::connect(&format!("sqlite:{}", config.db)).await.unwrap();
+    let config: AppConfig = AppConfig::from_path(config_file);
+    let mut db = SqliteConnection::connect(&format!("sqlite:{}", config.db_path))
+        .await
+        .unwrap();
 
     let mut total = 0;
-    for path in config.paths.iter() {
+    for path in config.scan_paths.iter() {
         info!("scanning path: {:?}", path);
         let count = scan_dir(path, &config, &mut db).await;
         info!("  found {} new media", count);
@@ -64,7 +58,7 @@ async fn main() {
 
     let mut media = Media::all(&mut db).await.unwrap();
 
-    let canoc_paths: Vec<String> = config.paths.iter().map(|p| Path::new(p).canonicalize().unwrap().to_string_lossy().to_string()).collect();
+    let canoc_paths: Vec<String> = config.scan_paths.iter().map(|p| Path::new(p).canonicalize().unwrap().to_string_lossy().to_string()).collect();
 
     for m in media.iter_mut() {
         // ensure this is within scope
@@ -114,7 +108,7 @@ async fn main() {
 
 }
 
-async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &ScanConfig) {
+async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &AppConfig) {
     media.delete(&mut *db).await.unwrap();
     let thumb = Path::new(&config.data_dir).join(format!("{:?}-thumb.jpg", media.uuid));
     let full = Path::new(&config.data_dir).join(format!("{:?}-full.jpg", media.uuid));
@@ -123,7 +117,7 @@ async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &Sca
 }
 
 
-async fn scan_dir(path: &str, config: &ScanConfig, db: &mut SqliteConnection) -> u32 {
+async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> u32 {
     let mut count = 0;
     for entry in WalkDir::new(path) {
         if let Ok(entry) = entry {
@@ -146,7 +140,7 @@ async fn scan_dir(path: &str, config: &ScanConfig, db: &mut SqliteConnection) ->
     count
 }
 
-async fn add_file(entry: &DirEntry, config: &ScanConfig, db: &mut SqliteConnection) -> bool {
+async fn add_file(entry: &DirEntry, config: &AppConfig, db: &mut SqliteConnection) -> bool {
     // do a cheap check immediately to see if the media already exists
     let file_created_at = system_time_to_naive_datetime(entry.metadata().unwrap().created().unwrap());
 
