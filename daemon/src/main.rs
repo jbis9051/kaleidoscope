@@ -6,15 +6,16 @@ use std::path::Path;
 use std::process::Command;
 use sqlx::{SqlitePool};
 use tokio::fs::File;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::oneshot::Receiver;
-use tokio_util::io::ReaderStream;
 use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest};
 use common::models::media::Media;
 
 #[tokio::main]
 async fn main() {
+    let dev_mode = std::env::var("dev_mode").is_ok();
+    
     let config_path = std::env::args().nth(1).expect("No config file provided");
     let path = Path::new(&config_path);
     if !path.exists() {
@@ -23,16 +24,16 @@ async fn main() {
     // ensure the config file is owned by root
     let metadata = path.metadata().unwrap();
     let uid = metadata.uid();
-    if uid != 0 {
-        // panic!("config file must be owned by root!");
+    if uid != 0 && !dev_mode {
+        panic!("config file must be owned by root!");
     }
 
     // ensure the config file is not writable by others
-    if !metadata.permissions().readonly() {
-        //   panic!("config file must not be writable by others!");
+    if !metadata.permissions().readonly() && !dev_mode {
+        panic!("config file must not be writable by others!");
     }
 
-    let config = AppConfig::from_path(&config_path);
+    let mut config = AppConfig::from_path(&config_path);
 
     let user = nix::unistd::User::from_name(&config.client_user)
         .expect("Unable to get user")
@@ -46,6 +47,8 @@ async fn main() {
     }
 
     let pool = SqlitePool::connect(&format!("sqlite://{}", config.db_path)).await.unwrap();
+
+    config.canonicalize();
 
     let server_binary = "kaleidoscope";
 
@@ -77,7 +80,7 @@ async fn main() {
 }
 
 pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>) {
-    let socket = UnixListener::bind(config.socket_path).unwrap();
+    let socket = UnixListener::bind(config.socket_path.clone()).unwrap();
     let slave_pid = rx.await.unwrap();
     println!("slave pid: {}", slave_pid);
     
@@ -92,11 +95,11 @@ pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>
             );
         }
 
-        tokio::spawn(handle_slave(pool.clone(), stream));
+        tokio::spawn(handle_slave(config.clone(), pool.clone(), stream));
     }
 }
 
-pub async fn handle_slave(pool: SqlitePool, mut stream: UnixStream) {
+pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixStream) {
     let (reader, mut writer) = stream.split();
     let mut reader = BufReader::new(reader);
     let mut buf = String::new();
@@ -107,7 +110,7 @@ pub async fn handle_slave(pool: SqlitePool, mut stream: UnixStream) {
     }
     let req: IpcRequest = serde_json::from_str(&buf).unwrap();
     let IpcRequest::File(req) = req;
-    let (res, file) = match handle_file_request(&pool, &req).await {
+    let (res, file) = match handle_file_request(config, &pool, &req).await {
         Ok((res, file)) => (res, Some(file)),
         Err(res) => (res, None)
     };
@@ -118,7 +121,14 @@ pub async fn handle_slave(pool: SqlitePool, mut stream: UnixStream) {
     }
 }
 
-pub async fn handle_file_request(pool: &SqlitePool, req: &IpcFileRequest) -> Result<(IpcFileResponse, File), IpcFileResponse> {
+pub async fn handle_file_request(app_config: AppConfig, pool: &SqlitePool, req: &IpcFileRequest) -> Result<(IpcFileResponse, File), IpcFileResponse> {
+    if !app_config.path_matches(&req.path) {
+        return Err(IpcFileResponse::Error {
+            error: "path not in config, the fuck u tryin do -_-".to_string(),
+        });
+    }
+
+
     let media = Media::from_id(pool, &req.db_id).await.unwrap();
 
     if media.path != req.path {

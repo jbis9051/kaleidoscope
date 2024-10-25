@@ -40,11 +40,13 @@ async fn main() {
         std::process::exit(1);
     }
     let config_file = &args[1];
-    let config: AppConfig = AppConfig::from_path(config_file);
+    let mut config: AppConfig = AppConfig::from_path(config_file);
     let mut db = SqliteConnection::connect(&format!("sqlite:{}", config.db_path))
         .await
         .unwrap();
 
+    config.canonicalize();
+    
     let mut total = 0;
     for path in config.scan_paths.iter() {
         info!("scanning path: {:?}", path);
@@ -57,16 +59,14 @@ async fn main() {
     info!("--- verifying database ---");
 
     let mut media = Media::all(&mut db).await.unwrap();
-
-    let canoc_paths: Vec<String> = config.scan_paths.iter().map(|p| Path::new(p).canonicalize().unwrap().to_string_lossy().to_string()).collect();
-
+    
     for m in media.iter_mut() {
         // ensure this is within scope
 
         let media_path = m.path.clone();
         let path = Path::new(&media_path);
 
-        if !canoc_paths.iter().any(|p| media_path.starts_with(p)) {
+        if !config.path_matches(&path) {
             warn!("media path not in scan paths: {:?}", m.path);
             remove_media(m, &mut db, &config).await;
         }
@@ -121,6 +121,11 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
     let mut count = 0;
     for entry in WalkDir::new(path) {
         if let Ok(entry) = entry {
+            if !config.path_matches(&entry.path()) {
+                debug!("      skipping path (based on config): {:?}", entry.path());
+                continue;
+            }
+            
             if entry.file_type().is_dir() {
                 debug!("  discovered directory: {:?}", entry.path());
                 continue;

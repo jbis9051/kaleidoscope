@@ -1,8 +1,6 @@
 mod ipc;
 
 use std::io::{BufRead, Read, Write};
-use std::os::unix::net::UnixStream;
-use std::sync::{Arc, Mutex, RwLock};
 use axum::{Extension, Json, Router, routing::get};
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
@@ -104,6 +102,8 @@ async fn media_raw(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) 
 
     let mut headers = HeaderMap::new();
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_str("application/octet-stream").unwrap());
+    headers.insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{}\"", media.name)).unwrap());
+    headers.insert(header::CONTENT_LENGTH, HeaderValue::from_str(&media.size.to_string()).unwrap());
 
     Ok((headers, body))
 }
