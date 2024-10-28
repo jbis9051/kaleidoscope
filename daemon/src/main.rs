@@ -18,7 +18,7 @@ use common::models::media::Media;
 async fn main() {
     let dev_mode = std::env::var("dev_mode").is_ok();
     let config_path = std::env::args().nth(1).expect("No config file provided");
-    
+
     let path = Path::new(&config_path);
     if !path.exists() {
         panic!("config file does not exist: {}", config_path);
@@ -96,11 +96,11 @@ pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>
         std::fs::remove_file(&config.socket_path).unwrap();
     }
     let socket = UnixListener::bind(config.socket_path.clone()).unwrap();
-    
+
     // set permissions on the socket
     tokio::fs::set_permissions(&config.socket_path, Permissions::from_mode(0o666)).await.unwrap();
-    
-    
+
+
     let slave_pid = rx.await.unwrap();
     println!("slave pid: {}", slave_pid);
     
@@ -128,7 +128,9 @@ pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixS
     if size == 0 {
         return;
     }
-    let req: IpcRequest = serde_json::from_str(&buf).unwrap();
+    let req: IpcRequest = serde_json::from_str(&buf).map_err(|e| {
+        format!("unable to deserialize IpcRequest: {} | {}", e, buf)
+    }).unwrap();
     let IpcRequest::File(req) = req;
     let (res, file) = match handle_file_request(config, &pool, &req).await {
         Ok((res, file)) => (res, Some(file)),

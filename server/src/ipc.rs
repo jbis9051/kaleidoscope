@@ -22,7 +22,7 @@ pub async fn request_ipc_file(config: &AppConfig, media: &Media) -> Result<Take<
     
     let mut res = String::new();
     reader.read_line(&mut res).await.expect("Unable to read from socket");
-    let res: IpcFileResponse = serde_json::from_str(&res).expect("Unable to deserialize IpcFileResponse");
+    let res: IpcFileResponse = serde_json::from_str(&res).map_err(|e| format!("Unable to deserialize IpcFileResponse: {} | {}", e, res)).unwrap();
     
     let (path, db_id, length) = match res {
         IpcFileResponse::Error { error } => return Err( error ),
