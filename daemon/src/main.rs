@@ -1,13 +1,15 @@
+use std::fmt::Debug;
+use std::fs::Permissions;
 use common::scan_config::AppConfig;
 use nix::libc::{pid_t};
-use std::os::unix::fs::MetadataExt;
+use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
-use std::process::Command;
 use sqlx::{SqlitePool};
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
+use tokio::process::Command;
 use tokio::sync::oneshot::Receiver;
 use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest};
 use common::models::media::Media;
@@ -15,8 +17,8 @@ use common::models::media::Media;
 #[tokio::main]
 async fn main() {
     let dev_mode = std::env::var("dev_mode").is_ok();
-    
     let config_path = std::env::args().nth(1).expect("No config file provided");
+    
     let path = Path::new(&config_path);
     if !path.exists() {
         panic!("config file does not exist: {}", config_path);
@@ -56,7 +58,7 @@ async fn main() {
 
     let config2 = config.clone();
     println!("starting unix socket server");
-    let handle = tokio::spawn(start_server(pool, config2, rx));
+    let mut handle = tokio::spawn(start_server(pool, config2, rx));
 
     let my_path = std::env::current_exe().unwrap();
     let my_dir = my_path.parent().unwrap();
@@ -73,14 +75,32 @@ async fn main() {
         .spawn()
         .expect("failed to start server");
 
-    tx.send(slave.id()).unwrap();
+    tx.send(slave.id().expect("unable to obtain slave id")).unwrap();
 
-    handle.await.unwrap();
-    slave.kill().unwrap()
+    // wait until the child dies or the server dies
+    tokio::select! {
+        _ = &mut handle => {
+            println!("unix socket server died, killing kaleidoscope server");
+            slave.kill().await.unwrap();
+        },
+        exit_code = slave.wait() => {
+            println!("kaleidoscope server died with code {:?}, exiting...", exit_code);
+            handle.abort();
+        }
+    }
 }
 
 pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>) {
+    // delete the socket if it already exists
+    if Path::new(&config.socket_path).exists() {
+        std::fs::remove_file(&config.socket_path).unwrap();
+    }
     let socket = UnixListener::bind(config.socket_path.clone()).unwrap();
+    
+    // set permissions on the socket
+    tokio::fs::set_permissions(&config.socket_path, Permissions::from_mode(0o666)).await.unwrap();
+    
+    
     let slave_pid = rx.await.unwrap();
     println!("slave pid: {}", slave_pid);
     
