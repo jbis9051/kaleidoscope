@@ -65,7 +65,7 @@ async fn main() {
     let server_path = my_dir.join(server_binary);
     let server_path = server_path.to_str().unwrap();
     println!("starting command (kaleidoscope) server");
-    let mut slave = Command::new(server_path)
+    let mut slave = Command::new(server_path) // we spawn the server as a child process so it's easier to manage and secure the IPC
         .arg(config_path)
         .uid(user.uid.as_raw())
         .gid(group.gid.as_raw())
@@ -98,6 +98,7 @@ pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>
     let socket = UnixListener::bind(config.socket_path.clone()).unwrap();
 
     // set permissions on the socket
+    // TODO: we might want to encrypt the data over the socket, but I don't think it's necessary right now
     tokio::fs::set_permissions(&config.socket_path, Permissions::from_mode(0o666)).await.unwrap();
 
 
@@ -108,7 +109,7 @@ pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>
         let cred = stream.peer_cred().unwrap();
         let connecting_pid = cred.pid().unwrap();
 
-        if connecting_pid != slave_pid as pid_t {
+        if connecting_pid != slave_pid as pid_t { // only permit our slave to connect, this prevents other processes from using our daemon
             panic!(
                 "connecting pid does not match slave pid: {} != {}",
                 connecting_pid, slave_pid
@@ -144,16 +145,16 @@ pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixS
 }
 
 pub async fn handle_file_request(app_config: AppConfig, pool: &SqlitePool, req: &IpcFileRequest) -> Result<(IpcFileResponse, File), IpcFileResponse> {
-    if !app_config.path_matches(&req.path) {
+    if !app_config.path_matches(&req.path) { // extra security check 1: ensure the path is in the config and not some random path, config is trusted given above permission checks
         return Err(IpcFileResponse::Error {
             error: "path not in config, the fuck u tryin do -_-".to_string(),
         });
     }
 
 
-    let media = Media::from_id(pool, &req.db_id).await.unwrap();
+    let media = Media::from_id(pool, &req.db_id).await.unwrap(); // since we don't enforce permissions on the DB file, this is somewhat vulnerable to various attacks, however it's highly limited given the above check
 
-    if media.path != req.path {
+    if media.path != req.path { // extra security check 2: ensure the path is in the DB and matches the media requested, without fixing the permission this doesn't provide much more than a sanity check
         return Err(IpcFileResponse::Error {
             error: "path mismatch".to_string(),
         });
