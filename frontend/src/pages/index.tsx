@@ -43,7 +43,10 @@ export default function Index() {
 
     const [preview, setPreview] = useState<Media | null>(null);
 
-    const [selected, setSelected] = useState<string | null>(null);
+    const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
+    const [shiftDown, setShiftDown] = useState(false);
+
+    const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
     const [selectedForward, setSelectedForward] = useState<SelectForward | null>(null);
 
     const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
@@ -114,18 +117,23 @@ export default function Index() {
 
     useEffect(() => {
         function keydown(ev: KeyboardEvent) {
+            if (ev.key === "Shift") {
+                setShiftDown(true);
+            }
+
             if (ev.key === "Escape") {
-                setSelected(null);
+                setSelectedTarget(null);
                 setPreview(null);
             }
 
-            if (!photos || !selected) {
+            if (!photos || !selectedTarget) {
                 return;
             }
             if (ev.key === "ArrowRight" || ev.key === "ArrowDown") {
-                const selectedIndex = photos.findIndex(photo => photo.uuid === selected);
+                const selectedIndex = photos.findIndex(photo => photo.uuid === selectedTarget);
                 if (photos.length > selectedIndex + 1) {
-                    setSelected(photos[selectedIndex + 1].uuid);
+                    setSelectedTarget(photos[selectedIndex + 1].uuid);
+                    setSelectedMedia([photos[selectedIndex + 1].uuid]);
                     if (preview) {
                         setPreview(photos[selectedIndex + 1]);
                     }
@@ -140,9 +148,10 @@ export default function Index() {
             }
 
             if (ev.key === "ArrowLeft" || ev.key === "ArrowUp") {
-                const selectedIndex = photos.findIndex(photo => photo.uuid === selected);
+                const selectedIndex = photos.findIndex(photo => photo.uuid === selectedTarget);
                 if (selectedIndex - 1 >= 0) {
-                    setSelected(photos[selectedIndex - 1].uuid);
+                    setSelectedTarget(photos[selectedIndex - 1].uuid);
+                    setSelectedMedia([photos[selectedIndex - 1].uuid]);
                     if (preview) {
                         setPreview(photos[selectedIndex - 1]);
                     }
@@ -153,12 +162,20 @@ export default function Index() {
             }
         }
 
+        function keyup(ev: KeyboardEvent) {
+            if (ev.key === "Shift") {
+                setShiftDown(false);
+            }
+        }
+
 
         window.addEventListener("keydown", keydown);
+        window.addEventListener("keyup", keyup);
         return () => {
             window.removeEventListener("keydown", keydown);
+            window.removeEventListener("keyup", keyup);
         }
-    }, [selected, photos, preview])
+    }, [selectedTarget, photos, preview])
 
     useEffect(() => {
         if (!loaded) {
@@ -173,26 +190,30 @@ export default function Index() {
         }
         switch (selectedForward) {
             case SelectForward.Forward:
-                setSelected(photos[0].uuid);
+                setSelectedTarget(photos[0].uuid);
+                setSelectedMedia([photos[0].uuid]);
                 if (preview) {
                     setPreview(photos[0]);
                 }
                 break;
             case SelectForward.Backward:
-                setSelected(photos[photos.length - 1].uuid);
+                setSelectedTarget(photos[photos.length - 1].uuid);
+                setSelectedMedia([photos[photos.length - 1].uuid]);
                 if (preview) {
                     setPreview(photos[photos.length - 1]);
                 }
                 break;
             default:
-                if (selected && !photos.some(photo => photo.uuid === selected)) { // if we've selected a photo but it doesn't exist, set it to first
+                if (selectedTarget && !photos.some(photo => photo.uuid === selectedTarget)) { // if we've selectedTarget a photo but it doesn't exist, set it to first
                     if (photos.length > 0) {
-                        setSelected(photos[0].uuid)
+                        setSelectedTarget(photos[0].uuid)
+                        setSelectedMedia([photos[0].uuid])
                         if (preview) {
                             setPreview(photos[0]);
                         }
                     } else {
-                        setSelected(null)
+                        setSelectedTarget(null)
+                        setSelectedMedia([])
                         setPreview(null);
                     }
                 }
@@ -364,7 +385,7 @@ export default function Index() {
                                         key={album.uuid}
                                         onClick={() => {
                                             setSelectedAlbum(album.uuid);
-                                            setSelected(null);
+                                            setSelectedTarget(null);
                                         }}>
                                         <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
                                         {album.name} ({album.media_count})
@@ -376,7 +397,7 @@ export default function Index() {
                                             className={`${styles.mediaView} ${selected && styles.selected}`}
                                             key={view.uuid}
                                             onClick={() => {
-                                                setSelected(null);
+                                                setSelectedTarget(null);
                                                 setSelectedAlbum(null);
                                                 window.history.replaceState({}, '', `${window.location.pathname}?${view.view_query}`);
                                                 queryToState();
@@ -485,11 +506,11 @@ export default function Index() {
                                 <option value="uuid">UUID</option>
                             </select>
                             <button onClick={() => setAsc(asc => !asc)}>{asc ? 'ASC' : 'DESC'}</button>
-                            <button disabled={!(selected && selectedAlbum)} onClick={async () => {
-                                if (selected && selectedAlbum) {
-                                    await api.album_remove_media(selectedAlbum, [selected]);
-                                    loadAlbums();
-                                    setSelected(null);
+                            <button disabled={!(selectedTarget && selectedAlbum)} onClick={async () => {
+                                if (selectedMedia.length > 0 && selectedAlbum) {
+                                    await api.album_remove_media(selectedAlbum, selectedMedia);
+                                    loadGallery();
+                                    setSelectedTarget(null);
                                 }
                             }}>Remove
                             </button>
@@ -503,25 +524,47 @@ export default function Index() {
                         {photos &&
                             <Gallery
                                 media={photos}
-                                selected={selected}
+                                selected={selectedMedia}
                                 size={size} open={media => setPreview(media)}
-                                select={(m) => setSelected(m.uuid)}
-                                clearSelection={() => setSelected(null)}
+                                select={(m) => {
+                                    setSelectedTarget(m.uuid)
+                                    if (!shiftDown){
+                                        setSelectedMedia([m.uuid])
+                                        return
+                                    }
+                                    if (selectedMedia.length === 0 || !selectedTarget){
+                                        setSelectedMedia([m.uuid])
+                                        return
+                                    }
+                                    const startIndex = photos.findIndex(photo => photo.uuid === selectedTarget)
+                                    const endIndex = photos.findIndex(photo => photo.uuid === m.uuid)
+                                    if (startIndex === -1 || endIndex === -1){
+                                        setSelectedMedia([m.uuid])
+                                        return
+                                    }
+                                    // we want to add all the photos between the two to the current selection
+                                    const newSelection = photos.slice(Math.min(startIndex, endIndex), Math.max(startIndex, endIndex) + 1).map(m => m.uuid)
+                                    setSelectedMedia([...selectedMedia, ...newSelection])
+                                }}
+                                clearSelection={() => {
+                                    setSelectedTarget(null)
+                                    setSelectedMedia([])
+                                }}
                             />
                             || <span>Loading...</span>}
                     </div>
                     <div className={styles.mainFooter}>
                         <span>{count} items</span>
-                        <span>, {selected ? 1 : 0} selected</span>
+                        <span>, {selectedTarget ? 1 : 0} selected</span>
                         <span>, Page {page + 1} of {Math.ceil(count / limit)}</span>
                     </div>
                 </div>
                 <div className={styles.rightPanel}>
                     {(() => {
-                            if (!selected || !photos) {
+                            if (!selectedTarget || !photos) {
                                 return <span>No Photo Selected</span>
                             }
-                            const media = photos.find(m => m.uuid === selected);
+                            const media = photos.find(m => m.uuid === selectedTarget);
 
                             if (!media) {
                                 return <span>Selected Photo not found</span>
