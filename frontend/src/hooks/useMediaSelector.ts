@@ -31,7 +31,6 @@ export function useMediaSelector(media: Media[], layout: Media[][]) {
             }
 
             if (e.key === 'ArrowUp'){
-                console.log(layout);
                 const a = media.findIndex(m => m.uuid === target.uuid);
                 const b = Math.max(0, a - layout[0].length);
                 select(media[b]);

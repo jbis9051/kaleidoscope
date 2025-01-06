@@ -40,62 +40,6 @@
 }
 
 /* --- */
-
-.filterPanel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.filterHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.filterHeader button {
-    margin-left: 10px;
-}
-
-.filterTitle {
-    padding-left: 10px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #434343;
-}
-
-.filter {
-    padding-left: 10px;
-    padding-top: 5px;
-    font-size: 12px;
-}
-.filter label {
-    display: flex;
-    align-items: center;
-    width: 100%;
-}
-
-.filter span {
-    margin-right: 10px;
-
-}
-
-.filter input {
-    flex: 1;
-    font-size: 12px;
-    padding: 5px;
-    border: 1px solid #434343;
-    background: #2e2e2e;
-    color: white;
-    min-width: 0;
-}
-
-.filterDate input {
-
-}
-
-
-/* --- */
 .mainSection {
     flex: 1;
     width: 100%;

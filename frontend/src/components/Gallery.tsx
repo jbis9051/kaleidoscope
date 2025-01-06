@@ -34,10 +34,14 @@ export default function Gallery({media, size, open, selected, select, setLayout}
 
     const width = size;
     const height = (size * 8) / 7; // 9/16
+    const margin = 5 * 2;
+    const mediaTotalWidth = width + margin;
 
 
-    const mediaPerRow = Math.floor(containerWidth / (width + 10)); // 5px * 2 margin
+    const mediaPerRow = Math.floor(containerWidth / mediaTotalWidth);
     const rows = mediaPerRow > 0 ? Math.ceil(media.length / mediaPerRow): 0;
+
+    const leftOver = containerWidth % mediaTotalWidth;
 
     const layout = Array.from({length: rows}, (_, i) => media.slice(i * mediaPerRow, (i + 1) * mediaPerRow));
 
@@ -76,7 +80,7 @@ export default function Gallery({media, size, open, selected, select, setLayout}
              ref={containerRef}
         >
             {layout.map((row, i) => (
-                <div className={styles.row} key={i} onClick={e => {
+                <div className={styles.row} style={{margin: `0 ${leftOver/2}px`}} key={i} onClick={e => {
                     if (e.target === e.currentTarget) {
                         select(null);
                     }

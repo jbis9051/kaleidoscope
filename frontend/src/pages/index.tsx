@@ -6,19 +6,11 @@ import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata, {timestampToDateShort} from "@/utility/mediaMetadata";
 import AlbumSelector from "@/components/AlbumSelector";
-import {FilterOps, useQueryState} from "@/hooks/useQueryState";
+import {useQueryState} from "@/hooks/useQueryState";
 import GalleryStateSelector from "@/components/GalleryStateSelector";
 import {useMediaSelector} from "@/hooks/useMediaSelector";
+import FilterPanel from "@/components/FilterPanel";
 
-enum SelectForward {
-    Forward,
-    Backward
-}
-
-
-type FilterInputOps = {
-    [P in keyof FilterOps]: string | null;
-};
 
 export default function Index() {
     const [loaded, setLoaded] = useState(false);
@@ -39,9 +31,6 @@ export default function Index() {
     const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
     const [mediaViews, setMediaViews] = useState<MediaView[] | null>(null);
 
-
-    const [filterInput, setFilterInput] = useState<FilterInputOps>({path: null, before: null, after: null});
-
     const [count, setCount] = useState(0);
 
     const [size, setSize] = useState(200);
@@ -50,7 +39,11 @@ export default function Index() {
 
     const [layout, setLayout] = useState<Media[][]>([]);
 
-    const {selected: selectedMedia, select: selectMedia, target: selectMediaTarget} = useMediaSelector(media || [], layout);
+    const {
+        selected: selectedMedia,
+        select: selectMedia,
+        target: selectMediaTarget
+    } = useMediaSelector(media || [], layout);
 
     const api = new Api(API_URL);
 
@@ -69,15 +62,6 @@ export default function Index() {
         }
         loadGallery();
     }, [galleryState]);
-
-    // update the filterInputs when the filter changes
-    useEffect(() => {
-        setFilterInput({
-            path: galleryState.filter.path,
-            before: galleryState.filter.before?.toISOString().split('T')[0] || null,
-            after: galleryState.filter.after?.toISOString().split('T')[0] || null
-        })
-    }, [galleryState.filter])
 
 
     function loadGallery() {
@@ -190,86 +174,51 @@ export default function Index() {
                             loadAlbums();
                         }}
                         mediaViewMatchesCurrentURL={mediaViewMatchesCurrentURL}/>
-                    <div className={styles.filterPanel}>
-                        <div className={styles.filterHeader}>
-                            <div className={styles.filterTitle}>Filters</div>
-                            <div>
-                                <button onClick={() => {
-                                    const name = prompt('Filter Name');
-                                    if (name) {
-                                        api.media_view_create(name, window.location.search.substring(1)).then(() => loadMediaViews());
-                                    }
-                                }}>Save
-                                </button>
-                                <button
-                                    disabled={!mediaViews?.some(m => mediaViewMatchesCurrentURL(m))}
-                                    onClick={() => {
-                                        if (!mediaViews) {
-                                            return;
-                                        }
-                                        const selected = mediaViews.find(m => mediaViewMatchesCurrentURL(m));
-                                        if (!selected) {
-                                            return;
-                                        }
-                                        if (confirm(`Are you sure you want to delete ${selected.name}?`)) {
-                                            api.media_view_delete(selected.uuid).then(() => {
-                                                loadMediaViews()
-                                            });
-                                        }
-                                    }}>Trash
-                                </button>
-                                <button onClick={() => {
-                                    setGalleryState({
-                                        filter: {
-                                            path: filterInput.path,
-                                            before: filterInput.before ? new Date(filterInput.before) : null,
-                                            after: filterInput.after ? new Date(filterInput.after) : null,
-                                        }
-                                    });
-                                }}>Filter
-                                </button>
-                            </div>
-                        </div>
-                        <div className={styles.filter}>
-                            <label>
-                                <span>Path </span> <input value={filterInput.path || ''} onChange={e => {
-                                setFilterInput({...filterInput, path: e.target.value})
-                            }} type="text" placeholder="Path Filter"/>
-                            </label>
-                            <label className={styles.filterDate}>
-                                <span>Before </span> <input value={filterInput.before || ''}
-                                                            onChange={e => {
-                                                                setFilterInput({
-                                                                    ...filterInput,
-                                                                    before: e.target.value
-                                                                })
-                                                            }} type="date"/>
-                            </label>
-                            <label className={styles.filterDate}>
-                                <span>After </span> <input value={filterInput.after || ''}
-                                                           onChange={e => {
-                                                               setFilterInput({
-                                                                   ...filterInput,
-                                                                   after: e.target.value
-                                                               })
-                                                           }} type="date"/>
-                            </label>
-
-                        </div>
-                    </div>
+                    <FilterPanel
+                        filter={galleryState.filter}
+                        trashEnabled={!!mediaViews?.some(m => mediaViewMatchesCurrentURL(m))}
+                        setFilter={(filter) => setGalleryState({filter})}
+                        onTrash={async () => {
+                            if (!mediaViews) {
+                                return;
+                            }
+                            const selected = mediaViews.find(m => mediaViewMatchesCurrentURL(m));
+                            if (!selected) {
+                                return;
+                            }
+                            if (confirm(`Are you sure you want to delete ${selected.name}?`)) {
+                                await api.media_view_delete(selected.uuid).then(() => {
+                                    loadMediaViews()
+                                });
+                            }
+                        }}
+                        onSave={async () => {
+                            const name = prompt('Filter Name');
+                            if (name) {
+                                await api.media_view_create(name, window.location.search.substring(1));
+                                loadMediaViews()
+                            }
+                        }}
+                    />
                 </div>
                 <div className={styles.mainSection}>
-                    <GalleryStateSelector galleryState={galleryState} setGalleryState={setGalleryState} oldest={oldest}
-                                          newest={newest} count={count} size={size} setSize={setSize}
-                                          removeEnabled={!!(selectedMedia.length > 0 && galleryState.selectedAlbum)}
-                                          onRemove={async () => {
-                                              if (selectedMedia.length > 0 && galleryState.selectedAlbum) {
-                                                  await api.album_remove_media(galleryState.selectedAlbum, selectedMedia.map(m => m.uuid));
-                                                  loadGallery();
-                                                  loadAlbums();
-                                                  selectMedia(null);
-                                              }
-                                          }}/>
+                    <GalleryStateSelector
+                        galleryState={galleryState}
+                        setGalleryState={setGalleryState}
+                        oldest={oldest}
+                        newest={newest}
+                        count={count}
+                        size={size}
+                        setSize={setSize}
+                        removeEnabled={!!(selectedMedia.length > 0 && galleryState.selectedAlbum)}
+                        onRemove={async () => {
+                            if (selectedMedia.length > 0 && galleryState.selectedAlbum) {
+                                await api.album_remove_media(galleryState.selectedAlbum, selectedMedia.map(m => m.uuid));
+                                loadGallery();
+                                loadAlbums();
+                                selectMedia(null);
+                            }
+                        }}/>
                     <div className={styles.mainSectionContent}>
                         {media &&
                             <Gallery
