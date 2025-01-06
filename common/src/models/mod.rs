@@ -4,6 +4,7 @@ use sqlx::types::chrono::{DateTime, NaiveDateTime};
 pub mod media;
 pub mod album;
 pub mod media_view;
+pub mod kv;
 
 pub mod date {
     use serde::{self, Deserialize, Serializer};

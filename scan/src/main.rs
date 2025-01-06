@@ -11,16 +11,18 @@ use serde::Deserialize;
 use sha1::Digest;
 use sqlx::types::chrono::Utc;
 use sqlx::types::Uuid;
-use sqlx::{Connection, Executor, SqliteConnection};
+use sqlx::{Connection, Error, Executor, SqliteConnection};
 use std::env;
 use std::hash::Hasher;
 use std::path::Path;
 use walkdir::{DirEntry, WalkDir};
+use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
+use common::models::kv::Kv;
 
 #[tokio::main]
 async fn main() {
     let rust_log = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
-    
+
     let filter = match rust_log.as_str() {
         "trace" => log::LevelFilter::Trace,
         "debug" => log::LevelFilter::Debug,
@@ -29,11 +31,11 @@ async fn main() {
         "error" => log::LevelFilter::Error,
         _ => log::LevelFilter::Info,
     };
-    
+
     env_logger::Builder::new()
         .filter_module("scan", filter)
         .init();
-    
+
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
         eprintln!("usage: {} <config file>", args[0]);
@@ -46,7 +48,7 @@ async fn main() {
         .unwrap();
 
     config.canonicalize();
-    
+
     let mut total = 0;
     for path in config.scan_paths.iter() {
         info!("scanning path: {:?}", path);
@@ -54,12 +56,12 @@ async fn main() {
         info!("  found {} new media", count);
         total += count;
     }
-    
+
     info!("--- scanning complete, found {} new media ---", total);
     info!("--- verifying database ---");
 
     let mut media = Media::all(&mut db).await.unwrap();
-    
+
     for m in media.iter_mut() {
         // ensure this is within scope
 
@@ -102,10 +104,50 @@ async fn main() {
             }
         }
     }
-    
+
     info!("--- cleanup complete ---");
 
+    info!("--- building directory tree ---");
 
+    let mut tree = DirectoryTree::new();
+
+    // iterate through all media and add them to the tree
+
+    for m in media.iter() {
+        // we want to add the path to the tree
+        // but we want to remove the filename
+        // so we can get the parent directory
+        let path = Path::new(&m.path);
+        let parent = path.parent().unwrap_or_else(|| Path::new("/"));
+        let parent = parent.to_string_lossy();
+        tree.add_path(&parent);
+    }
+
+    debug!("{:?}", tree);
+
+    let mut kv =
+        Kv::from_key(&mut db, DIRECTORY_TREE_DB_KEY).await.expect("error getting directory tree").unwrap_or_else(|| {
+            Kv {
+                id: 0,
+                key: DIRECTORY_TREE_DB_KEY.to_string(),
+                value: "{}".to_string(),
+                created_at: Default::default(),
+                updated_at: Default::default(),
+            }
+        });
+
+    kv.value = serde_json::to_string(&tree).unwrap();
+
+    // TODO: This is not atomic but it's sqlite and a scan so who cares
+    if let Some(mut kv) = Kv::from_key(&mut db, &kv.key).await.unwrap() {
+        kv.update_by_key(&mut db).await.unwrap();
+    } else {
+        kv.create(&mut db).await.unwrap();
+    }
+
+    info!("--- directory tree built ---");
+
+    info!("--- scan complete ---");
 }
 
 async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &AppConfig) {
@@ -125,7 +167,7 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
                 debug!("      skipping path (based on config): {:?}", entry.path());
                 continue;
             }
-            
+
             if entry.file_type().is_dir() {
                 debug!("  discovered directory: {:?}", entry.path());
                 continue;
@@ -169,13 +211,13 @@ async fn add_file(entry: &DirEntry, config: &AppConfig, db: &mut SqliteConnectio
         Ok(None) => {
             debug!("          unsupported format: {:?}", entry.path());
             return false;
-        },
+        }
         Err(e) => {
             error!("          error getting metadata: {:?}", e);
             return false;
         }
     };
-    
+
     // write metadata to database
 
     if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
@@ -190,10 +232,10 @@ async fn add_file(entry: &DirEntry, config: &AppConfig, db: &mut SqliteConnectio
     let hash = hash(entry.path());
 
     // we want to generate a thumbnail while maintaining the aspect ratio, using thumb_size as the max size
-    
+
     let mut twidth = config.thumb_size;
     let mut theight = config.thumb_size;
-    
+
     if metadata.width > metadata.height {
         theight = (metadata.height as f32 / metadata.width as f32 * twidth as f32) as u32;
     } else {
@@ -233,7 +275,7 @@ async fn add_file(entry: &DirEntry, config: &AppConfig, db: &mut SqliteConnectio
         hash,
         file_created_at,
     };
-    
+
     media.create(&mut *db).await.unwrap();
     true
 }

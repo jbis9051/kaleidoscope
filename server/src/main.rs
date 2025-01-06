@@ -17,7 +17,9 @@ use common::models::album::Album;
 use common::models::media::Media;
 use common::types::DbPool;
 use tokio_util::io::ReaderStream;
+use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
 use common::media_query::MediaQuery;
+use common::models::kv::Kv;
 use common::models::media_view::MediaView;
 use common::scan_config::AppConfig;
 use crate::ipc::request_ipc_file;
@@ -55,6 +57,7 @@ async fn main() {
         .route("/album/:uuid", get(album).delete(album_delete))
         .route("/album/:uuid/media", post(album_add_media).delete(album_delete_media))
         .route("/media_view", get(media_view_index).post(media_view_create).delete(media_view_delete))
+        .route("/directory_tree", get(directory_tree))
         .layer(Extension(pool))
         .layer(cors);
 
@@ -263,4 +266,8 @@ async fn media_view_delete(Extension(conn): Extension<DbPool>, payload: Json<Med
 }
 
 
-
+async fn directory_tree(Extension(conn): Extension<DbPool>) -> Result<Json<DirectoryTree>, (StatusCode, String)> {
+    let kv = Kv::from_key(&conn, DIRECTORY_TREE_DB_KEY).await.unwrap().ok_or_else(|| (StatusCode::NOT_FOUND, "Directory tree not found".to_string()))?;
+    let tree: DirectoryTree = serde_json::from_str(kv.value.as_str()).unwrap();
+    Ok(Json(tree))
+}
