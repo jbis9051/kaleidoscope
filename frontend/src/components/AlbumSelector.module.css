@@ -1,0 +1,63 @@
+.albumSelector {
+    flex: 1;
+    border-bottom: 5px solid #1d1d1d;
+    display: flex;
+    flex-direction: column;
+}
+
+.albumHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.albumTitle {
+    display: block;
+    padding-left: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #434343;
+}
+
+.albumControls {
+    height: 25px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.albumContainer {
+    flex: 1;
+    position: relative;
+    width: 100%;
+}
+.albums {
+    position: absolute;
+    overflow: auto;
+    width: 100%;
+    height: 100%;
+}
+
+.album,.mediaView {
+    width: 100%;
+    font-size: 12px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    border: 3px solid transparent;
+    padding-left: 10px;
+
+}
+
+.album.hover {
+    border: 3px solid #2c65ca;
+}
+
+.album.selected, .mediaView.selected {
+    background: #434343;
+}
+
+.albumIcon {
+    margin-right: 8px;
+}

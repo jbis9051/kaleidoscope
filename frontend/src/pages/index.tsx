@@ -1,119 +1,88 @@
 import styles from "./index.module.css";
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {API_URL} from "@/global";
 import {AlbumIndex, Api, Media, MediaQueryColumns, MediaView} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata, {timestampToDateShort} from "@/utility/mediaMetadata";
-import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faFilter, faFolder} from "@fortawesome/free-solid-svg-icons";
+import AlbumSelector from "@/components/AlbumSelector";
+import {FilterOps, useQueryState} from "@/hooks/useQueryState";
+import GalleryStateSelector from "@/components/GalleryStateSelector";
 
 enum SelectForward {
     Forward,
     Backward
 }
 
-interface FilterOps {
-    path: string | null;
-    before: Date | null;
-    after: Date | null;
-}
 
-type FilterOpsPreview = {
+type FilterInputOps = {
     [P in keyof FilterOps]: string | null;
 };
 
 export default function Index() {
     const [loaded, setLoaded] = useState(false);
 
+    const initialQuery = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+
+    const [galleryState, setGalleryState, queryToState] = useQueryState({
+        page: 0,
+        orderby: 'created_at',
+        asc: true,
+        limit: 100,
+        selectedAlbum: null,
+        filter: {path: null, before: null, after: null}
+    })
+
+
     const [photos, setPhotos] = useState<Media[] | null>(null);
+    const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
+    const [mediaViews, setMediaViews] = useState<MediaView[] | null>(null);
 
-    const [page, setPage] = useState(0);
-    const [orderby, setOrderby] = useState<MediaQueryColumns>('id');
-    const [asc, setAsc] = useState(true);
-    const [limit, setLimit] = useState(10);
-    const [filter, setFilter] = useState<FilterOps>({path: null, before: null, after: null});
 
-    const [filterPreview, setFilterPreview] = useState<FilterOpsPreview>({path: null, before: null, after: null});
+    const [filterInput, setFilterInput] = useState<FilterInputOps>({path: null, before: null, after: null});
 
     const [count, setCount] = useState(0);
-
 
     const [size, setSize] = useState(200);
 
     const [preview, setPreview] = useState<Media | null>(null);
 
+    const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
     const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
     const [shiftDown, setShiftDown] = useState(false);
 
-    const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
     const [selectedForward, setSelectedForward] = useState<SelectForward | null>(null);
 
-    const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
-    const [selectedAlbum, setSelectedAlbum] = useState<string | null>(null);
-    const [albumHover, setAlbumHover] = useState<string | null>(null);
-
-    const [mediaViews, setMediaViews] = useState<MediaView[] | null>(null);
+    const mainContent = useRef<HTMLDivElement>(null);
+    const [scrollTo, setScrollTo] = useState<number | null>(null);
 
     const api = new Api(API_URL);
 
-    function queryToState() {
-        let query = new URLSearchParams(window.location.search);
-
-        const page = query.get('page');
-        const orderby = query.get('orderby');
-        const asc = query.get('asc');
-        const limit = query.get('limit');
-        const selectedAlbum = query.get('album');
-        const filter_path = query.get('filter_path');
-        const before = query.get('before');
-        const after = query.get('after');
-
-        if (page) {
-            setPage(parseInt(page, 10));
-        }
-
-        if (orderby) {
-            setOrderby(orderby as MediaQueryColumns);
-        }
-
-        if (asc) {
-            setAsc(asc === 'true');
-        }
-
-        if (limit) {
-            setLimit(parseInt(limit, 10));
-        }
-
-        if (selectedAlbum) {
-            setSelectedAlbum(selectedAlbum);
-        }
-
-        const newFilter: FilterOps = {path: null, before: null, after: null};
-
-        if (filter_path) {
-            newFilter.path = filter_path;
-        }
-        if (before) {
-            newFilter.before = new Date(parseInt(before, 10));
-        }
-        if (after) {
-            newFilter.after = new Date(parseInt(after, 10));
-        }
-
-        setFilter(newFilter);
-        setFilterPreview({
-            path: newFilter.path,
-            before: newFilter.before?.toISOString().split('T')[0] || null,
-            after: newFilter.after?.toISOString().split('T')[0] || null
-        });
-
-    }
-
+    // initially load the gallery state from the URL
     useEffect(() => {
-        queryToState();
+        setGalleryState(queryToState(initialQuery));
+        loadAlbums();
+        loadMediaViews();
         setLoaded(true);
     }, [])
+
+    // load the gallery when the gallery state changes
+    useEffect(() => {
+        if (!loaded) {
+            return;
+        }
+        loadGallery();
+    }, [galleryState]);
+
+    // update the filterInputs when the filter changes
+    useEffect(() => {
+        setFilterInput({
+            path: galleryState.filter.path,
+            before: galleryState.filter.before?.toISOString().split('T')[0] || null,
+            after: galleryState.filter.after?.toISOString().split('T')[0] || null
+        })
+    }, [galleryState.filter])
+
 
     useEffect(() => {
         function keydown(ev: KeyboardEvent) {
@@ -122,13 +91,18 @@ export default function Index() {
             }
 
             if (ev.key === "Escape") {
-                setSelectedTarget(null);
-                setPreview(null);
+                if (preview) {
+                    setPreview(null);
+                } else {
+                    setSelectedTarget(null);
+                    setSelectedMedia([]);
+                }
             }
 
             if (!photos || !selectedTarget) {
                 return;
             }
+
             if (ev.key === "ArrowRight" || ev.key === "ArrowDown") {
                 const selectedIndex = photos.findIndex(photo => photo.uuid === selectedTarget);
                 if (photos.length > selectedIndex + 1) {
@@ -138,11 +112,11 @@ export default function Index() {
                         setPreview(photos[selectedIndex + 1]);
                     }
                 } else {
-                    let totalPages = Math.ceil(count / limit);
+                   /* let totalPages = Math.ceil(count / limit);
                     if (page + 1 < totalPages) {
                         setPage(page + 1);
                         setSelectedForward(SelectForward.Forward);
-                    }
+                    }*/
                 }
 
             }
@@ -155,10 +129,10 @@ export default function Index() {
                     if (preview) {
                         setPreview(photos[selectedIndex - 1]);
                     }
-                } else if (page > 0) {
+                } /*else if (page > 0) {
                     setPage(page - 1);
                     setSelectedForward(SelectForward.Backward);
-                }
+                }*/
             }
         }
 
@@ -171,118 +145,107 @@ export default function Index() {
 
         window.addEventListener("keydown", keydown);
         window.addEventListener("keyup", keyup);
+
         return () => {
             window.removeEventListener("keydown", keydown);
             window.removeEventListener("keyup", keyup);
         }
     }, [selectedTarget, photos, preview])
 
-    useEffect(() => {
-        if (!loaded) {
-            return;
-        }
-        loadGallery();
-    }, [page, orderby, asc, limit, selectedAlbum, loaded, filter]);
+    /* useEffect(() => {
+         if (!photos) {
+             return;
+         }
+         /!*switch (selectedForward) {
+             case SelectForward.Forward:
+                 setSelectedTarget(photos[0].uuid);
+                 setSelectedMedia([photos[0].uuid]);
+                 if (preview) {
+                     setPreview(photos[0]);
+                 }
+                 break;
+             case SelectForward.Backward:
+                 setSelectedTarget(photos[photos.length - 1].uuid);
+                 setSelectedMedia([photos[photos.length - 1].uuid]);
+                 if (preview) {
+                     setPreview(photos[photos.length - 1]);
+                 }
+                 break;
+             default:
+                 if (selectedTarget && !photos.some(photo => photo.uuid === selectedTarget)) { // if we've selectedTarget a photo but it doesn't exist, set it to first
+                     if (photos.length > 0) {
+                         setSelectedTarget(photos[0].uuid)
+                         setSelectedMedia([photos[0].uuid])
+                         if (preview) {
+                             setPreview(photos[0]);
+                         }
+                     } else {
+                         setSelectedTarget(null)
+                         setSelectedMedia([])
+                         setPreview(null);
+                     }
+                 }
+         }*!/
+         if (scrollTo && mainContent.current){
+             mainContent.current.scrollTop = mainContent.current.scrollHeight - scrollTo
+             setScrollTo(null)
+         }
+         setSelectedForward(null);
+     }, [photos]);*!/*/
 
+    /*
     useEffect(() => {
-        if (!photos) {
-            return;
-        }
-        switch (selectedForward) {
-            case SelectForward.Forward:
-                setSelectedTarget(photos[0].uuid);
-                setSelectedMedia([photos[0].uuid]);
-                if (preview) {
-                    setPreview(photos[0]);
-                }
-                break;
-            case SelectForward.Backward:
-                setSelectedTarget(photos[photos.length - 1].uuid);
-                setSelectedMedia([photos[photos.length - 1].uuid]);
-                if (preview) {
-                    setPreview(photos[photos.length - 1]);
-                }
-                break;
-            default:
-                if (selectedTarget && !photos.some(photo => photo.uuid === selectedTarget)) { // if we've selectedTarget a photo but it doesn't exist, set it to first
-                    if (photos.length > 0) {
-                        setSelectedTarget(photos[0].uuid)
-                        setSelectedMedia([photos[0].uuid])
-                        if (preview) {
-                            setPreview(photos[0]);
-                        }
-                    } else {
-                        setSelectedTarget(null)
-                        setSelectedMedia([])
-                        setPreview(null);
+        function handleScroll(e: Event) {
+            if (!mainContent.current) {
+                return
+            }
+
+            // if we're at the top of the page
+            if (mainContent.current.scrollTop === 0) {
+                setScrollTo(mainContent.current.scrollHeight)
+                setPage(page => {
+                    if (page > 0) {
+                        console.log("page - 1")
+                        return page - 1
                     }
-                }
-        }
-        setSelectedForward(null);
-    }, [photos]);
-
-    useEffect(() => {
-        if (!loaded) {
-            return;
-        }
-        // update the URL
-        const query = new URLSearchParams();
-        query.set('page', page.toString());
-        query.set('orderby', orderby);
-        query.set('asc', asc.toString());
-        query.set('limit', limit.toString());
-        if (selectedAlbum) {
-            query.set('album', selectedAlbum);
-        }
-        if (filter.path) {
-            query.set('filter_path', filter.path);
-        }
-        if (filter.before) {
-            query.set('before', filter.before.getTime().toString(10));
-        }
-        if (filter.after) {
-            query.set('after', filter.after.getTime().toString(10));
+                    return page
+                });
+            }
+            // if we're at the bottom of the page
+            if (mainContent.current.scrollTop + mainContent.current.clientHeight >= mainContent.current.scrollHeight) {
+                setScrollTo(0)
+                setPage(page => {
+                    console.log(limit * (page + 1), count)
+                    if (limit * (page + 1) < count) {
+                        console.log("page + 1")
+                        return page + 1
+                    }
+                    return page
+                });
+            }
         }
 
-        window.history.replaceState({}, '', `${window.location.pathname}?${query.toString()}`);
-
-    }, [page, orderby, asc, limit, selectedAlbum, filter]);
+        if (mainContent.current) {
+            mainContent.current.addEventListener('scroll', handleScroll)
+        }
+        return () => {
+            if (mainContent.current) {
+                mainContent.current.removeEventListener('scroll', handleScroll)
+            }
+        }
+    }, [count]);*/
 
 
     function loadGallery() {
-        if (!selectedAlbum) {
-            api.getMedia(page, limit, orderby, asc, filter.path, filter.before, filter.after).then((photos) => {
+        if (!galleryState.selectedAlbum) {
+            api.getMedia(galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.before, galleryState.filter.after).then((photos) => {
                 setPhotos(photos.media)
                 setCount(photos.count)
             });
         } else {
-            api.album(selectedAlbum, page, limit, orderby, asc, filter.path, filter.before, filter.after).then((album) => {
+            api.album(galleryState.selectedAlbum, galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.before, galleryState.filter.after).then((album) => {
                 setPhotos(album.media.media)
                 setCount(album.media.count)
-            });
-        }
-    }
-
-    function createAlbum() {
-        const name = prompt('Album Name');
-        if (albums?.find(a => a.name === name)) {
-            alert('Album with that name already exists');
-            return;
-        }
-        if (name) {
-            api.album_create(name).then(() => loadAlbums());
-        }
-    }
-
-    function deleteAlbum() {
-        if (!selectedAlbum) {
-            return;
-        }
-        const name = albums?.find(a => a.uuid === selectedAlbum)?.name;
-        if (confirm(`Are you sure you want to delete ${name}?`)) {
-            api.album_delete(selectedAlbum).then(() => {
-                setSelectedAlbum(null);
-                loadAlbums();
             });
         }
     }
@@ -299,10 +262,30 @@ export default function Index() {
         });
     }
 
-    useEffect(() => {
-        loadAlbums();
-        loadMediaViews();
-    }, []);
+    function createAlbum() {
+        const name = prompt('Album Name');
+        if (albums?.find(a => a.name === name)) {
+            alert('Album with that name already exists');
+            return;
+        }
+        if (name) {
+            api.album_create(name).then(() => loadAlbums());
+        }
+    }
+
+    function deleteAlbum() {
+        if (!galleryState.selectedAlbum) {
+            return;
+        }
+        const name = albums?.find(a => a.uuid === galleryState.selectedAlbum)?.name;
+        if (confirm(`Are you sure you want to delete ${name}?`)) {
+            api.album_delete(galleryState.selectedAlbum).then(() => {
+                setGalleryState({selectedAlbum: null});
+                loadAlbums();
+            });
+        }
+    }
+
 
     function mediaViewMatchesCurrentURL(view: MediaView) {
         const view_query = new URLSearchParams(view.view_query);
@@ -336,80 +319,33 @@ export default function Index() {
             </div>
             <div className={styles.mainFrame}>
                 <div className={styles.leftPanel}>
-                    <div className={styles.albumSelector}>
-                        <div className={styles.albumHeader}>
-                            <div className={styles.albumTitle}>Albums</div>
-                            <div className={styles.albumControls}>
-                                <button onClick={createAlbum}>New</button>
-                                <button onClick={deleteAlbum} disabled={!selectedAlbum}>Trash</button>
-                            </div>
-                        </div>
-                        <div className={styles.albumContainer}>
-                            <div className={styles.albums}>
-                                <div
-                                    className={`${styles.album} ${(!selectedAlbum && mediaViews?.every(m => !mediaViewMatchesCurrentURL(m))) && styles.selected}`}
-                                    onClick={() => {
-                                        if (selectedAlbum || mediaViews?.some(m => mediaViewMatchesCurrentURL(m))) {
-                                            setPage(0);
-                                        }
-                                        setSelectedAlbum(null);
-                                        setFilterPreview({path: null, before: null, after: null});
-                                        setFilter({path: null, before: null, after: null});
-                                    }}>
-                                    <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
-                                    All Photos
-                                </div>
-                                {albums && albums.map((album) => (
-                                    <div
-                                        onDrop={async (e) => {
-                                            const dragged = e.dataTransfer.getData('text/json');
-                                            const {selected} = JSON.parse(dragged);
-                                            await api.album_add_media(album.uuid, selected);
-                                            loadAlbums();
-                                            setAlbumHover(null);
-                                        }}
-                                        onDragOver={(e) => {
-                                            e.preventDefault()
-                                            e.dataTransfer.dropEffect = 'link';
-                                        }}
-                                        onDragEnter={() => setAlbumHover(album.uuid)}
-                                        onDragLeave={() => {
-                                            setAlbumHover(crnt => {
-                                                if (crnt === album.uuid) {
-                                                    return null;
-                                                }
-                                                return crnt;
-                                            })
-                                        }}
-                                        className={`${styles.album} ${selectedAlbum == album.uuid && styles.selected} ${albumHover == album.uuid && styles.hover}`}
-                                        key={album.uuid}
-                                        onClick={() => {
-                                            setSelectedAlbum(album.uuid);
-                                            setSelectedTarget(null);
-                                        }}>
-                                        <FontAwesomeIcon className={styles.albumIcon} icon={faFolder}/>
-                                        {album.name} ({album.media_count})
-                                    </div>
-                                ))}
-                                {mediaViews && mediaViews.map((view) => {
-                                        const selected = mediaViewMatchesCurrentURL(view);
-                                        return <div
-                                            className={`${styles.mediaView} ${selected && styles.selected}`}
-                                            key={view.uuid}
-                                            onClick={() => {
-                                                setSelectedTarget(null);
-                                                setSelectedAlbum(null);
-                                                window.history.replaceState({}, '', `${window.location.pathname}?${view.view_query}`);
-                                                queryToState();
-                                            }}>
-                                            <FontAwesomeIcon className={styles.albumIcon} icon={faFilter}/>
-                                            {view.name}
-                                        </div>
-                                    }
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <AlbumSelector
+                        albums={albums || []}
+                        mediaViews={mediaViews || []}
+                        selectedAlbum={galleryState.selectedAlbum}
+                        setSelectedAlbum={(album) => {
+                            if (!album) {
+                                setGalleryState({
+                                    selectedAlbum: null,
+                                    page: 0,
+                                    filter: {path: null, before: null, after: null}
+                                });
+                                return;
+                            }
+                            setGalleryState({selectedAlbum: album.uuid});
+                        }}
+                        selectMediaView={(view) => {
+                            setGalleryState(queryToState(new URLSearchParams(view.view_query)));
+                        }}
+                        createAlbum={createAlbum}
+                        deleteAlbum={deleteAlbum}
+                        onDrop={async (e, album) => {
+                            const dragged = e.dataTransfer.getData('text/json');
+                            const {selected} = JSON.parse(dragged);
+                            await api.album_add_media(album.uuid, selected);
+                            loadAlbums();
+                        }}
+                        mediaViewMatchesCurrentURL={mediaViewMatchesCurrentURL}/>
                     <div className={styles.filterPanel}>
                         <div className={styles.filterHeader}>
                             <div className={styles.filterTitle}>Filters</div>
@@ -439,10 +375,12 @@ export default function Index() {
                                     }}>Trash
                                 </button>
                                 <button onClick={() => {
-                                    setFilter({
-                                        path: filterPreview.path,
-                                        before: filterPreview.before ? new Date(filterPreview.before) : null,
-                                        after: filterPreview.after ? new Date(filterPreview.after) : null,
+                                    setGalleryState({
+                                        filter: {
+                                            path: filterInput.path,
+                                            before: filterInput.before ? new Date(filterInput.before) : null,
+                                            after: filterInput.after ? new Date(filterInput.after) : null,
+                                        }
                                     });
                                 }}>Filter
                                 </button>
@@ -450,24 +388,24 @@ export default function Index() {
                         </div>
                         <div className={styles.filter}>
                             <label>
-                                <span>Path </span> <input value={filterPreview.path || ''} onChange={e => {
-                                setFilterPreview({...filterPreview, path: e.target.value})
+                                <span>Path </span> <input value={filterInput.path || ''} onChange={e => {
+                                setFilterInput({...filterInput, path: e.target.value})
                             }} type="text" placeholder="Path Filter"/>
                             </label>
                             <label className={styles.filterDate}>
-                                <span>Before </span> <input value={filterPreview.before || ''}
+                                <span>Before </span> <input value={filterInput.before || ''}
                                                             onChange={e => {
-                                                                setFilterPreview({
-                                                                    ...filterPreview,
+                                                                setFilterInput({
+                                                                    ...filterInput,
                                                                     before: e.target.value
                                                                 })
                                                             }} type="date"/>
                             </label>
                             <label className={styles.filterDate}>
-                                <span>After </span> <input value={filterPreview.after || ''}
+                                <span>After </span> <input value={filterInput.after || ''}
                                                            onChange={e => {
-                                                               setFilterPreview({
-                                                                   ...filterPreview,
+                                                               setFilterInput({
+                                                                   ...filterInput,
                                                                    after: e.target.value
                                                                })
                                                            }} type="date"/>
@@ -477,50 +415,18 @@ export default function Index() {
                     </div>
                 </div>
                 <div className={styles.mainSection}>
-                    <div className={styles.mainSectionHeader}>
-                        <div className={styles.pageSelector}>
-                            <button disabled={page <= 0} onClick={() => setPage(page => Math.max(page - 1, 0))}>-
-                            </button>
-                            <span>{page + 1}</span>
-                            <button disabled={limit * (page + 1) >= count} onClick={() => setPage(page => page + 1)}>+
-                            </button>
-                        </div>
-                        <div className={styles.thumbsizeRange}>
-                            <input type="range" min="50" max="500" value={size}
-                                   onChange={(e) => setSize(parseInt(e.target.value))}/>
-                        </div>
-                        <div className={styles.limitSelector}>
-                            <select value={limit} onChange={(e) => setLimit(parseInt(e.target.value, 10))}>
-                                <option value="10">10</option>
-                                <option value="20">20</option>
-                                <option value="50">50</option>
-                                <option value="100">100</option>
-                            </select>
-                        </div>
-                        <div className={styles.orderSelector}>
-                            <select value={orderby} onChange={(e) => setOrderby(e.target.value as MediaQueryColumns)}>
-                                <option value="id">ID</option>
-                                <option value="created_at">Created At</option>
-                                <option value="size">Size</option>
-                                <option value="name">Name</option>
-                                <option value="uuid">UUID</option>
-                            </select>
-                            <button onClick={() => setAsc(asc => !asc)}>{asc ? 'ASC' : 'DESC'}</button>
-                            <button disabled={!(selectedTarget && selectedAlbum)} onClick={async () => {
-                                if (selectedMedia.length > 0 && selectedAlbum) {
-                                    await api.album_remove_media(selectedAlbum, selectedMedia);
-                                    loadGallery();
-                                    setSelectedTarget(null);
-                                }
-                            }}>Remove
-                            </button>
-                        </div>
-                        <div className={styles.dateRange}>
-                            <span>{oldest && timestampToDateShort(oldest.created_at)}</span>-
-                            <span>{newest && timestampToDateShort(newest.created_at)}</span>
-                        </div>
-                    </div>
-                    <div className={styles.mainSectionContent}>
+                    <GalleryStateSelector galleryState={galleryState} setGalleryState={setGalleryState} oldest={oldest}
+                                          newest={newest} count={count} size={size} setSize={setSize}
+                                          removeEnabled={!!(selectedTarget && galleryState.selectedAlbum)}
+                                          onRemove={async () => {
+                                              if (selectedMedia.length > 0 && galleryState.selectedAlbum) {
+                                                  await api.album_remove_media(galleryState.selectedAlbum, selectedMedia);
+                                                  loadGallery();
+                                                  loadAlbums();
+                                                  setSelectedTarget(null);
+                                              }
+                                          }}/>
+                    <div className={styles.mainSectionContent} ref={mainContent}>
                         {photos &&
                             <Gallery
                                 media={photos}
@@ -528,23 +434,24 @@ export default function Index() {
                                 size={size} open={media => setPreview(media)}
                                 select={(m) => {
                                     setSelectedTarget(m.uuid)
-                                    if (!shiftDown){
+                                    if (!shiftDown) {
                                         setSelectedMedia([m.uuid])
                                         return
                                     }
-                                    if (selectedMedia.length === 0 || !selectedTarget){
+                                    if (selectedMedia.length === 0 || !selectedTarget) {
                                         setSelectedMedia([m.uuid])
                                         return
                                     }
                                     const startIndex = photos.findIndex(photo => photo.uuid === selectedTarget)
                                     const endIndex = photos.findIndex(photo => photo.uuid === m.uuid)
-                                    if (startIndex === -1 || endIndex === -1){
+                                    if (startIndex === -1 || endIndex === -1) {
                                         setSelectedMedia([m.uuid])
                                         return
                                     }
                                     // we want to add all the photos between the two to the current selection
                                     const newSelection = photos.slice(Math.min(startIndex, endIndex), Math.max(startIndex, endIndex) + 1).map(m => m.uuid)
-                                    setSelectedMedia([...selectedMedia, ...newSelection])
+                                    const newSet = new Set([...selectedMedia, ...newSelection])
+                                    setSelectedMedia(Array.from(newSet.values()))
                                 }}
                                 clearSelection={() => {
                                     setSelectedTarget(null)
@@ -556,7 +463,7 @@ export default function Index() {
                     <div className={styles.mainFooter}>
                         <span>{count} items</span>
                         <span>, {selectedTarget ? 1 : 0} selected</span>
-                        <span>, Page {page + 1} of {Math.ceil(count / limit)}</span>
+                        <span>, Page {galleryState.page + 1} of {Math.ceil(count / galleryState.limit)}</span>
                     </div>
                 </div>
                 <div className={styles.rightPanel}>

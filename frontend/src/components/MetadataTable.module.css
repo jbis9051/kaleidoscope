@@ -12,4 +12,5 @@
 }
 .value {
     user-select: text;
+    overflow-wrap: anywhere;
 }
