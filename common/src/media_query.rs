@@ -11,6 +11,7 @@ pub struct MediaQuery {
     pub limit: Option<i32>,
     pub page: Option<i32>,
     pub filter_path: Option<String>,
+    pub filter_not_path: Option<String>,
     #[serde(default, with = "ts_milliseconds_option")]
     pub before: Option<DateTime<Utc>>,
     #[serde(default, with = "ts_milliseconds_option")]
@@ -25,6 +26,7 @@ impl MediaQuery {
             limit: None,
             page: None,
             filter_path: None,
+            filter_not_path: None,
             before: None,
             after: None,
         }
@@ -35,6 +37,12 @@ impl MediaQuery {
             query
                 .push(" AND path LIKE ")
                 .push_bind(filter_path.clone());
+        }
+
+        if let Some(filter_not_path) = &self.filter_not_path {
+            query
+                .push(" AND path NOT LIKE ")
+                .push_bind(filter_not_path.clone());
         }
         
         if let Some(before) = &self.before {

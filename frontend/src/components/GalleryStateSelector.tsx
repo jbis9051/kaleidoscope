@@ -2,6 +2,13 @@ import styles from "@/components/GalleryStateSelector.module.css";
 import {timestampToDateShort} from "@/utility/mediaMetadata";
 import {QueryState} from "@/hooks/useQueryState";
 import {Media} from "@/api/api";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import {faFolder, faImage} from "@fortawesome/free-solid-svg-icons";
+
+export enum ViewType {
+    Gallery,
+    FileBrowser,
+}
 
 export interface GalleryStateSelectorProps {
     galleryState: QueryState;
@@ -16,9 +23,12 @@ export interface GalleryStateSelectorProps {
 
     removeEnabled: boolean;
     onRemove: () => void;
+
+    viewType: ViewType;
+    setViewType: (viewType: ViewType) => void;
 }
 
-export default function GalleryStateSelector({galleryState, setGalleryState, oldest, newest, count, size, setSize, removeEnabled,  onRemove}: GalleryStateSelectorProps) {
+export default function GalleryStateSelector({galleryState, setGalleryState, oldest, newest, count, size, setSize, removeEnabled,  onRemove, viewType, setViewType}: GalleryStateSelectorProps) {
     return (
         <div className={styles.container}>
             <div className={styles.pageSelector}>
@@ -58,8 +68,12 @@ export default function GalleryStateSelector({galleryState, setGalleryState, old
                 </select>
                 <button
                     onClick={() => setGalleryState({asc: !galleryState.asc})}>{galleryState.asc ? 'ASC' : 'DESC'}</button>
-                <button disabled={!removeEnabled} onClick={onRemove}>Remove
-                </button>
+                <button disabled={!removeEnabled} onClick={onRemove}>Remove</button>
+            </div>
+            <div className={styles.viewToggle}>
+                <span className={`${viewType === ViewType.Gallery && styles.viewSelected}`} onClick={() => setViewType(ViewType.Gallery)}><FontAwesomeIcon icon={faImage}/></span>
+                <span className={styles.viewToggleSeparator}/>
+                <span className={`${viewType === ViewType.FileBrowser && styles.viewSelected}`} onClick={() => setViewType(ViewType.FileBrowser)}><FontAwesomeIcon icon={faFolder}/></span>
             </div>
             <div className={styles.dateRange}>
                 <span>{oldest && timestampToDateShort(oldest.created_at)}</span>-

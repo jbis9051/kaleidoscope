@@ -1,7 +1,7 @@
 import {Media} from "@/api/api";
 import {useEffect, useState} from "react";
 
-export function useMediaSelector(media: Media[], layout: Media[][]) {
+export function useMediaSelector(media: Media[], layout: Media[][] | null) {
     const [target, setTarget] = useState<Media | null>(null);
     const [selected, setSelected] = useState<Media[]>([]);
 
@@ -32,13 +32,13 @@ export function useMediaSelector(media: Media[], layout: Media[][]) {
 
             if (e.key === 'ArrowUp'){
                 const a = media.findIndex(m => m.uuid === target.uuid);
-                const b = Math.max(0, a - layout[0].length);
+                const b = layout ? Math.max(0, a - layout[0].length) : Math.max(0, a - 1);
                 select(media[b]);
             }
 
             if (e.key === 'ArrowDown'){
                 const a = media.findIndex(m => m.uuid === target.uuid);
-                const b = Math.min(media.length - 1, a + layout[0].length);
+                const b = layout ? Math.min(media.length - 1, a + layout[0].length) : Math.min(media.length - 1, a + 1);
                 select(media[b]);
             }
         }

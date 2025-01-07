@@ -11,7 +11,7 @@ export default function Gallery({media, size, open, selected, select, setLayout}
     selected: string[],
     open: (media: Media) => void,
     select: (media: Media | null) => void
-    setLayout: (layout: Media[][]) => void
+    setLayout: (layout: Media[][] | null) => void
 }) {
 
     const [containerWidth, setContainerWidth] = useState(0);

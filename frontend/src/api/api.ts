@@ -47,6 +47,16 @@ export interface AlbumIndex extends Album {
     media_count: number;
 }
 
+export interface DirectoryNode {
+    name: string;
+    items: number;
+    children: DirectoryNode[];
+}
+
+export interface DirectoryTree {
+    root: DirectoryNode;
+}
+
 
 export class Api {
     url: string;
@@ -54,8 +64,8 @@ export class Api {
         this.url = url;
     }
 
-    getMedia(page: number, limit: number, order_by: MediaQueryColumnsType, asc: boolean, filter_path: string | null, before: Date | null, after: Date | null): Promise<MediaIndexResponse> {
-        return fetch(`${this.url}/media?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
+    getMedia(page: number, limit: number, order_by: MediaQueryColumnsType, asc: boolean, filter_path: string | null, filter_not_path: string | null,  before: Date | null, after: Date | null): Promise<MediaIndexResponse> {
+        return fetch(`${this.url}/media?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${filter_not_path ? `&filter_not_path=${filter_not_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
     }
 
     async album_index(): Promise<AlbumIndex[]> {
@@ -63,8 +73,8 @@ export class Api {
         return indexes.map(([album, media_count]) => ({...album, media_count}));
     }
 
-    album(uuid: string, page: number, limit: number, order_by: MediaQueryColumnsType, asc: boolean, filter_path: string | null, before: Date | null, after: Date | null): Promise<AlbumResponse> {
-        return fetch(`${this.url}/album/${uuid}?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
+    album(uuid: string, page: number, limit: number, order_by: MediaQueryColumnsType, asc: boolean, filter_path: string | null, filter_not_path: string | null, before: Date | null, after: Date | null): Promise<AlbumResponse> {
+        return fetch(`${this.url}/album/${uuid}?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${filter_not_path ? `&filter_not_path=${filter_not_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
     }
 
     album_create(name: string): Promise<Album> {
@@ -125,6 +135,10 @@ export class Api {
             },
             body: JSON.stringify({uuid})
         }).then(response => {})
+    }
+
+    directory_tree(): Promise<DirectoryTree> {
+        return fetch(`${this.url}/directory_tree`).then(response => response.json())
     }
     
 }

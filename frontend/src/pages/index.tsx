@@ -1,21 +1,24 @@
 import styles from "./index.module.css";
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useState} from "react";
 import {API_URL} from "@/global";
-import {AlbumIndex, Api, Media, MediaQueryColumns, MediaView} from "@/api/api";
+import {AlbumIndex, Api, Media, MediaView} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
-import mediaToMetadata, {timestampToDateShort} from "@/utility/mediaMetadata";
+import mediaToMetadata from "@/utility/mediaMetadata";
 import AlbumSelector from "@/components/AlbumSelector";
 import {useQueryState} from "@/hooks/useQueryState";
-import GalleryStateSelector from "@/components/GalleryStateSelector";
+import GalleryStateSelector, {ViewType} from "@/components/GalleryStateSelector";
 import {useMediaSelector} from "@/hooks/useMediaSelector";
 import FilterPanel from "@/components/FilterPanel";
+import FileViewer from "@/components/FileViewer";
 
 
 export default function Index() {
-    const [loaded, setLoaded] = useState(false);
+    const [initialLoaded, setInitialLoaded] = useState(false);
 
     const initialQuery = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+
+    const [viewType, setViewType] = useState<ViewType>(ViewType.Gallery);
 
     const [galleryState, setGalleryState, queryToState] = useQueryState({
         page: 0,
@@ -23,7 +26,7 @@ export default function Index() {
         asc: true,
         limit: 100,
         selectedAlbum: null,
-        filter: {path: null, before: null, after: null}
+        filter: {path: null, before: null, after: null, not_path: null}
     });
 
 
@@ -37,7 +40,7 @@ export default function Index() {
 
     const [preview, setPreview] = useState<Media | null>(null);
 
-    const [layout, setLayout] = useState<Media[][]>([]);
+    const [layout, setLayout] = useState<Media[][] | null>(null);
 
     const {
         selected: selectedMedia,
@@ -52,26 +55,46 @@ export default function Index() {
         setGalleryState(queryToState(initialQuery));
         loadAlbums();
         loadMediaViews();
-        setLoaded(true);
+        setInitialLoaded(true);
+
+        let lastEscape = 0
+
+        function onKeyDown(e: KeyboardEvent) {
+            if (e.key === 'Escape' && !preview && selectedMedia.length === 0) { // clear filter on double escape
+                if (Date.now() - lastEscape < 250) {
+                   setGalleryState({filter: {path: null, before: null, after: null, not_path: null}})
+                }
+                lastEscape = Date.now();
+            }
+        }
+
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+
     }, [])
 
     // load the gallery when the gallery state changes
     useEffect(() => {
-        if (!loaded) {
+        if (!initialLoaded) {
             return;
         }
         loadGallery();
-    }, [galleryState]);
 
+        if(galleryState.selectedAlbum && viewType === ViewType.FileBrowser){ // browser doesn't support albums
+            setViewType(ViewType.Gallery);
+            setGalleryState({filter: {path: null, before: null, after: null, not_path: null}})
+        }
+
+    }, [galleryState]);
 
     function loadGallery() {
         if (!galleryState.selectedAlbum) {
-            api.getMedia(galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.before, galleryState.filter.after).then((photos) => {
+            return api.getMedia(galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path,galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((photos) => {
                 setMedia(photos.media)
                 setCount(photos.count)
             });
         } else {
-            api.album(galleryState.selectedAlbum, galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.before, galleryState.filter.after).then((album) => {
+            return api.album(galleryState.selectedAlbum, galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path,  galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((album) => {
                 setMedia(album.media.media)
                 setCount(album.media.count)
             });
@@ -156,7 +179,7 @@ export default function Index() {
                                 setGalleryState({
                                     selectedAlbum: null,
                                     page: 0,
-                                    filter: {path: null, before: null, after: null}
+                                    filter: {path: null, before: null, after: null, not_path: null}
                                 });
                                 return;
                             }
@@ -210,6 +233,8 @@ export default function Index() {
                         count={count}
                         size={size}
                         setSize={setSize}
+                        viewType={viewType}
+                        setViewType={setViewType}
                         removeEnabled={!!(selectedMedia.length > 0 && galleryState.selectedAlbum)}
                         onRemove={async () => {
                             if (selectedMedia.length > 0 && galleryState.selectedAlbum) {
@@ -220,15 +245,29 @@ export default function Index() {
                             }
                         }}/>
                     <div className={styles.mainSectionContent}>
-                        {media &&
+                        {initialLoaded && viewType === ViewType.FileBrowser &&
+                            <FileViewer
+                                api={api}
+                                filter={galleryState.filter}
+                                setGalleryState={setGalleryState}
+                                media={media}
+                                open={media => setPreview(media)}
+                                selected={selectedMedia.map(m => m.uuid)}
+                                select={selectMedia}
+                                setLayout={setLayout}
+                                setViewType={setViewType}
+                            />
+                        }
+                        {viewType === ViewType.Gallery && (media &&
                             <Gallery
                                 media={media}
+                                size={size}
+                                open={media => setPreview(media)}
                                 selected={selectedMedia.map(m => m.uuid)}
-                                size={size} open={media => setPreview(media)}
                                 select={selectMedia}
                                 setLayout={setLayout}
                             />
-                            || <span>Loading...</span>}
+                            || <span>Loading...</span>)}
                     </div>
                     <div className={styles.mainFooter}>
                         <span>{count} items</span>

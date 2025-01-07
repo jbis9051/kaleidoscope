@@ -48,6 +48,29 @@
     padding: 0 10px;
 }
 
+
+.viewToggle {
+    display: flex;
+    font-size: 16px;
+    height: 100%;
+    justify-content: center;
+    align-items: center;
+    color: #5e5e5e;
+    cursor: pointer;
+}
+
+.viewSelected {
+    color: white;
+}
+
+.viewToggleSeparator {
+    height: 50%;
+    width: 1px;
+    max-width: 1px;
+    background: #1d1d1d;
+    margin: 0 8px;
+}
+
 .dateRange {
     display: flex;
     justify-content: center;

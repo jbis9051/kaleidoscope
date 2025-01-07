@@ -17,12 +17,13 @@ interface FilterPanelProps {
 }
 
 export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, onSave}: FilterPanelProps) {
-    const [filterInput, setFilterInput] = useState<FilterInputOps>({path: null, before: null, after: null});
+    const [filterInput, setFilterInput] = useState<FilterInputOps>({path: null, before: null, after: null, not_path: null});
 
     // update the filterInputs when the filter changes
     useEffect(() => {
         setFilterInput({
             path: filter.path,
+            not_path: filter.not_path,
             before: filter.before?.toISOString().split('T')[0] || null,
             after: filter.after?.toISOString().split('T')[0] || null
         })
@@ -38,6 +39,7 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
                     <button onClick={() => {
                         setFilter({
                             path: filterInput.path,
+                            not_path: filterInput.not_path,
                             before: filterInput.before ? new Date(filterInput.before) : null,
                             after: filterInput.after ? new Date(filterInput.after) : null,
                         });
@@ -50,6 +52,11 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
                     <span>Path </span> <input value={filterInput.path || ''} onChange={e => {
                     setFilterInput({...filterInput, path: e.target.value})
                 }} type="text" placeholder="Path Filter"/>
+                </label>
+                <label>
+                    <span>Not Path </span> <input value={filterInput.not_path || ''} onChange={e => {
+                    setFilterInput({...filterInput, not_path: e.target.value})
+                }} type="text" placeholder="Not Path Filter"/>
                 </label>
                 <label className={styles.filterDate}>
                     <span>Before </span> <input value={filterInput.before || ''}

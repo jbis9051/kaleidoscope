@@ -3,6 +3,7 @@ import {MediaQueryColumns, MediaQueryColumnsType} from "@/api/api";
 
 export interface FilterOps {
     path: string | null;
+    not_path: string | null;
     before: Date | null;
     after: Date | null;
 }
@@ -27,13 +28,17 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         const limit = query.get('limit');
         const selectedAlbum = query.get('album');
         const filter_path = query.get('filter_path');
+        const filter_not_path = query.get('filter_not_path');
         const before = query.get('before');
         const after = query.get('after');
 
-        const newFilter: FilterOps = { path: null, before: null, after: null };
+        const newFilter: FilterOps = { path: null, before: null, after: null, not_path: null };
 
         if (filter_path) {
             newFilter.path = filter_path;
+        }
+        if (filter_not_path) {
+            newFilter.not_path = filter_not_path;
         }
         if (before) {
             newFilter.before = new Date(parseInt(before, 10));
@@ -70,6 +75,9 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         }
         if (state.filter.path) {
             query.set('filter_path', state.filter.path);
+        }
+        if (state.filter.not_path) {
+            query.set('filter_not_path', state.filter.not_path);
         }
         if (state.filter.before) {
             query.set('before', state.filter.before.getTime().toString(10));
