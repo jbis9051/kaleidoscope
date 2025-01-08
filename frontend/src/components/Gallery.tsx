@@ -60,7 +60,13 @@ export default function Gallery({media, size, open, selected, select, setLayout}
                     e.dataTransfer.setData('text/json', JSON.stringify({selected}));
                 }
             }}
-            draggable={true} onDoubleClick={() => open(m)} onMouseUp={() => select(m)}
+            draggable={true}
+            onMouseUp={(e) => {
+                select(m)
+                if(e.detail === 2){
+                    open(m);
+                }
+            }}
             className={`${styles.imageContainer} ${selected.includes(m.uuid) && styles.selected}`}
             style={{width: `${width}px`, height: `${height}px`}} key={m.id}>
             <div className={styles.imageWrapper}>

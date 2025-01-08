@@ -172,7 +172,8 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
                                      }
                                  }}
                                  draggable={true}
-                                 onDoubleClick={() => open(m)} onMouseUp={() => select(m)}
+                                 onDoubleClick={() => open(m)}
+                                 onMouseUp={() => select(m)}
                             >
                                 <div className={styles.imageWrapper}>
                                     <img draggable={false} className={styles.image}

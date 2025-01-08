@@ -11,6 +11,7 @@ import GalleryStateSelector, {ViewType} from "@/components/GalleryStateSelector"
 import {useMediaSelector} from "@/hooks/useMediaSelector";
 import FilterPanel from "@/components/FilterPanel";
 import FileViewer from "@/components/FileViewer";
+import MediaImg from "@/components/MediaImg";
 
 
 export default function Index() {
@@ -50,6 +51,12 @@ export default function Index() {
 
     const api = new Api(API_URL);
 
+    useEffect(() => {
+        if (preview && selectMediaTarget?.uuid !== preview.uuid) {
+            setPreview(selectMediaTarget);
+        }
+    }, [selectMediaTarget]);
+
     // initially load the gallery state from the URL
     useEffect(() => {
         setGalleryState(queryToState(initialQuery));
@@ -57,21 +64,41 @@ export default function Index() {
         loadMediaViews();
         setInitialLoaded(true);
 
+
+    }, []);
+
+    useEffect(() => {
         let lastEscape = 0
 
         function onKeyDown(e: KeyboardEvent) {
+            if (e.key === 'Escape' && preview) {
+                setPreview(null);
+                return;
+            }
+            if (e.key === 'Escape' && selectedMedia.length > 0) {
+                selectMedia(null);
+                return;
+            }
             if (e.key === 'Escape' && !preview && selectedMedia.length === 0) { // clear filter on double escape
                 if (Date.now() - lastEscape < 250) {
-                   setGalleryState({filter: {path: null, before: null, after: null, not_path: null}})
+                    setGalleryState({filter: {path: null, before: null, after: null, not_path: null}})
                 }
                 lastEscape = Date.now();
+            }
+
+            if (e.key === ' ' && e.target === document.body) {
+                if (preview) {
+                    setPreview(null);
+                } else if (selectMediaTarget) {
+                    setPreview(selectMediaTarget);
+                }
             }
         }
 
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
 
-    }, [])
+    }, [preview, selectedMedia.length, selectMediaTarget]);
 
     // load the gallery when the gallery state changes
     useEffect(() => {
@@ -80,7 +107,7 @@ export default function Index() {
         }
         loadGallery();
 
-        if(galleryState.selectedAlbum && viewType === ViewType.FileBrowser){ // browser doesn't support albums
+        if (galleryState.selectedAlbum && viewType === ViewType.FileBrowser) { // browser doesn't support albums
             setViewType(ViewType.Gallery);
             setGalleryState({filter: {path: null, before: null, after: null, not_path: null}})
         }
@@ -89,12 +116,12 @@ export default function Index() {
 
     function loadGallery() {
         if (!galleryState.selectedAlbum) {
-            return api.getMedia(galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path,galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((photos) => {
+            return api.getMedia(galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((photos) => {
                 setMedia(photos.media)
                 setCount(photos.count)
             });
         } else {
-            return api.album(galleryState.selectedAlbum, galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path,  galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((album) => {
+            return api.album(galleryState.selectedAlbum, galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((album) => {
                 setMedia(album.media.media)
                 setCount(album.media.count)
             });
@@ -161,7 +188,7 @@ export default function Index() {
                 }
             }}>
                 <div className={styles.previewWrapper}>
-                    <img src={`${API_URL}/media/${preview.uuid}/full`}/>
+                    <MediaImg media={preview}/>
                     <button onClick={() => setPreview(null)}>X</button>
                 </div>
             </div>}
@@ -288,7 +315,7 @@ export default function Index() {
 
                             return <>
                                 <div className={styles.previewImageContainer}>
-                                    <img draggable={false} src={`${API_URL}/media/${m.uuid}/full`}/>
+                                    <MediaImg draggable={false} blur={false} media={m}/>
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>
