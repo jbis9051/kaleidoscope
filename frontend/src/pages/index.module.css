@@ -150,6 +150,51 @@
     position: absolute;
 }
 
+.downloadWrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: absolute;
+    z-index: 1;
+    top: 0;
+    right: 0;
+    margin-top: 10px;
+    margin-right: 10px;
+    background: #2e2e2e;
+    padding: 8px 0px;
+    border-radius: 6px;
+    opacity: 0;
+    transition: opacity 300ms;
+    font-size: 14px;
+}
+
+.previewImageContainer:hover .downloadWrapper {
+    opacity: 1;
+}
+
+.downloadButton {
+    display: block;
+    padding: 0 10px;
+    color: white;
+    cursor: pointer;
+    transition: color 100ms;
+}
+
+.downloadButton:hover {
+    color: #2c65ca;
+}
+
+.downloadSeparator {
+    display: block;
+    width: 1px;
+    height: 15px;
+    background: #212121;
+}
+
+.downloadButton:last-child {
+}
+
+
 .previewInfoWrapper {
     flex: 1;
     min-height: 100px;

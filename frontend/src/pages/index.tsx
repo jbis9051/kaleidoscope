@@ -12,6 +12,8 @@ import {useMediaSelector} from "@/hooks/useMediaSelector";
 import FilterPanel from "@/components/FilterPanel";
 import FileViewer from "@/components/FileViewer";
 import MediaImg from "@/components/MediaImg";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import {faDownload, faFloppyDisk} from "@fortawesome/free-solid-svg-icons";
 
 
 export default function Index() {
@@ -315,6 +317,13 @@ export default function Index() {
 
                             return <>
                                 <div className={styles.previewImageContainer}>
+                                    <div className={styles.downloadWrapper}>
+                                        <FontAwesomeIcon className={styles.downloadButton} icon={faDownload}
+                                                         onClick={() => downloadItem(`${API_URL}/media/${m.uuid}/full`, m.name)}/>
+                                        <span className={styles.downloadSeparator}/>
+                                        <FontAwesomeIcon className={styles.downloadButton} icon={faFloppyDisk}
+                                                         onClick={() => downloadItem(`${API_URL}/media/${m.uuid}/raw`, m.name)}/>
+                                    </div>
                                     <MediaImg draggable={false} blur={false} media={m}/>
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
@@ -329,4 +338,16 @@ export default function Index() {
             </div>
         </div>
     );
+}
+
+
+function downloadItem(url: string, name?: string) {
+    const a = document.createElement('a');
+
+    a.href = url;
+    a.download = name || url;
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
