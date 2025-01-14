@@ -31,6 +31,19 @@ impl MediaQuery {
             after: None,
         }
     }
+
+    pub fn to_count_query(&self) -> Self {
+        Self {
+            order_by: None,
+            asc: None,
+            limit: None,
+            page: None,
+            filter_path: self.filter_path.clone(),
+            filter_not_path: self.filter_not_path.clone(),
+            before: self.before.clone(),
+            after: self.after.clone(),
+        }
+    }
     
     pub fn sqlize(&self, query: &mut QueryBuilder<Sqlite>) -> Result<(), sqlx::Error>{
         if let Some(filter_path) = &self.filter_path {

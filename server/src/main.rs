@@ -79,10 +79,7 @@ async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaQuery
     }
 
     let media = Media::get_all(&conn, &query).await.unwrap();
-    let mut count_query = (*query).clone();
-    count_query.limit = None;
-    count_query.page = None;
-    let count = Media::count(&conn, &count_query).await.unwrap();
+    let count = Media::count(&conn, &query.to_count_query()).await.unwrap();
     Ok(Json(MediaIndexResponse { media, count }))
 }
 
@@ -157,7 +154,7 @@ struct AlbumResponse {
 async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaQuery>) -> Result<Json<AlbumResponse>, (StatusCode, String)> {
     let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
     let media = album.get_media(&conn, &query).await.unwrap();
-    let count = album.count_media(&conn, &MediaQuery::new()).await.unwrap();
+    let count = album.count_media(&conn, &query.to_count_query()).await.unwrap();
     Ok(Json(AlbumResponse { album, media: MediaIndexResponse { media, count } }))
 }
 
