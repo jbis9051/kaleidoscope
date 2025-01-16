@@ -1,3 +1,4 @@
+use std::path::Path;
 use image::{RgbaImage, RgbImage};
 use walkdir::DirEntry;
 use common::models::system_time_to_naive_datetime;
@@ -11,17 +12,13 @@ impl Format<StandardError> for Standard {
     fn is_photo() -> bool {
         true
     }
-
-    fn is_valid(path: &DirEntry) -> bool {
-        true
-    }
-
-    fn get_metadata(path: &DirEntry) -> Result<MediaMetadata, StandardError> {
+    
+    fn get_metadata(path: &Path) -> Result<MediaMetadata, StandardError> {
         let file_meta = path.metadata()?;
-        let (width, height) = image::image_dimensions(path.path())?;
+        let (width, height) = image::image_dimensions(path)?;
 
         Ok(MediaMetadata {
-            name: path.file_name().to_string_lossy().to_string(),
+            name: path.file_name().unwrap().to_string_lossy().to_string(),
             width,
             height,
             size: file_meta.len() as u32,
@@ -30,8 +27,8 @@ impl Format<StandardError> for Standard {
         })
     }
 
-    fn generate_thumbnail(path: &DirEntry, width: u32, height: u32) -> Result<RgbImage, StandardError>{
-        let image = image::open(path.path())?;
+    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, StandardError>{
+        let image = image::open(path)?;
         let thumbnail = image.thumbnail(width, height);
         Ok(thumbnail.to_rgb8())
     }
@@ -42,5 +39,5 @@ pub enum StandardError {
     #[error("image error: {0}")]
     ImageError(#[from] image::ImageError),
     #[error("iO error: {0}")]
-    IoError(#[from] walkdir::Error),
+    IoError(#[from] std::io::Error),
 }

@@ -1,23 +1,17 @@
 mod format;
+mod add_or_update_media;
 
-use crate::format::{heif, raw, standard, video, Format, MediaMetadata};
-use common::models::media::Media;
-use common::models::system_time_to_naive_datetime;
-use common::scan_config::AppConfig;
-use env_logger::Env;
-use image::RgbImage;
-use log::{debug, error, info, log, warn};
-use serde::Deserialize;
-use sha1::Digest;
-use sqlx::types::chrono::Utc;
-use sqlx::types::Uuid;
-use sqlx::{Connection, Error, Executor, SqliteConnection};
-use std::env;
-use std::hash::Hasher;
-use std::path::Path;
-use walkdir::{DirEntry, WalkDir};
+use crate::add_or_update_media::{add_or_update_media, AddMediaError};
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
 use common::models::kv::Kv;
+use common::models::media::Media;
+use common::scan_config::AppConfig;
+use log::{debug, error, info, log, warn};
+use sha1::Digest;
+use sqlx::{Connection, SqliteConnection};
+use std::env;
+use std::path::Path;
+use walkdir::WalkDir;
 
 #[tokio::main]
 async fn main() {
@@ -48,6 +42,8 @@ async fn main() {
         .unwrap();
 
     config.canonicalize();
+
+    info!("--- starting scan ---");
 
     let mut total = 0;
     for path in config.scan_paths.iter() {
@@ -163,7 +159,7 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
     let mut count = 0;
     for entry in WalkDir::new(path) {
         if let Ok(entry) = entry {
-            if !config.path_matches(&entry.path()) {
+            if !config.path_matches(entry.path()) {
                 debug!("      skipping path (based on config): {:?}", entry.path());
                 continue;
             }
@@ -176,9 +172,17 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
                 debug!("      skipping symlink: {:?}", entry.path());
                 continue;
             }
-            if add_file(&entry, config, db).await {
-                info!("      found new file: {:?}", entry.path());
-                count += 1;
+            match add_or_update_media(entry.path(), config, db).await {
+                Ok(_) => {
+                    info!("      found new file: {:?}", entry.path());
+                    count += 1;
+                }
+                Err(AddMediaError::AlreadyExists(_)) => {
+                    debug!("      file already exists: {:?}", entry.path());
+                }
+                Err(e) => {
+                    error!("      error adding file: {} - {:?}", e, entry.path());
+                }
             }
         } else {
             error!("      unable to access: {:?}", entry.err().unwrap());
@@ -186,100 +190,6 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
     }
     count
 }
-
-async fn add_file(entry: &DirEntry, config: &AppConfig, db: &mut SqliteConnection) -> bool {
-    // do a cheap check immediately to see if the media already exists
-    let file_created_at = system_time_to_naive_datetime(entry.metadata().unwrap().created().unwrap());
-
-    if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
-        let file_size = entry.metadata().unwrap().len() as u32;
-        if media.file_created_at == file_created_at && media.size == file_size {
-            debug!("          media already exists: {:?}", entry.path());
-            return false;
-        }
-        remove_media(&mut media, db, config).await;
-    }
-
-
-    let uuid = Uuid::new_v4();
-    let data_dir = Path::new(&config.data_dir);
-    let thumb_path = data_dir.join(format!("{:?}-thumb.jpg", uuid));
-    let full_path = data_dir.join(format!("{:?}-full.jpg", uuid));
-
-    let (metadata, is_photo) = match get_media_metadata(entry) {
-        Ok(Some(data)) => data,
-        Ok(None) => {
-            debug!("          unsupported format: {:?}", entry.path());
-            return false;
-        }
-        Err(e) => {
-            error!("          error getting metadata: {:?}", e);
-            return false;
-        }
-    };
-
-    // write metadata to database
-
-    if let Some(mut media) = Media::from_path(&mut *db, entry.path().canonicalize().unwrap().to_string_lossy().as_ref()).await.unwrap() {
-        if media.created_at == metadata.created_at && media.size == metadata.size {
-            // this shouldn't really happen, but it could if (1) there's a different date in the media metadata as opposed to the file metadata and (2) the file was modified while keeping the file metadata the same (including the size)
-            debug!("          media already exists (second check): {:?}", entry.path());
-            return false;
-        }
-        remove_media(&mut media, db, config).await;
-    }
-
-    let hash = hash(entry.path());
-
-    // we want to generate a thumbnail while maintaining the aspect ratio, using thumb_size as the max size
-
-    let mut twidth = config.thumb_size;
-    let mut theight = config.thumb_size;
-
-    if metadata.width > metadata.height {
-        theight = (metadata.height as f32 / metadata.width as f32 * twidth as f32) as u32;
-    } else {
-        twidth = (metadata.width as f32 / metadata.height as f32 * theight as f32) as u32;
-    }
-
-    let (thumbnail, full) = match generate_media_caches(entry, twidth, theight) {
-        Ok(t) => t.unwrap(),
-        Err(e) => {
-            error!("          error generating thumbnail: {:?}", e);
-            return false;
-        }
-    };
-
-
-    // write thumbnail to disk
-    debug!("          writing thumbnail: {:?}", thumb_path);
-    thumbnail.save(thumb_path).unwrap();
-
-    // write full to disk
-    debug!("          writing full: {:?}", full_path);
-    full.save(full_path).unwrap();
-
-    let mut media = Media {
-        id: 0,
-        uuid,
-        name: metadata.name,
-        created_at: metadata.created_at,
-        width: metadata.width,
-        height: metadata.height,
-        size: metadata.size,
-        path: entry.path().canonicalize().unwrap().to_string_lossy().to_string(),
-        liked: false,
-        is_photo,
-        added_at: Utc::now().naive_utc(),
-        duration: metadata.duration.map(|d| d.as_secs() as u32),
-        hash,
-        file_created_at,
-    };
-
-    media.create(&mut *db).await.unwrap();
-    true
-}
-
 
 fn hash(path: &Path) -> String {
     let mut hasher = sha1::Sha1::new();
@@ -289,58 +199,3 @@ fn hash(path: &Path) -> String {
 }
 
 
-
-macro_rules! generate_media_caches_formats {
-    (
-        $entry: expr,
-        ($($format: ty),*),
-        $twidth: expr,
-        $theight: expr
-    ) => {
-        $(
-            if <$format>::is_supported($entry) {
-                let thumbnail = <$format>::generate_thumbnail($entry, $twidth, $theight)?;
-                let full = <$format>::generate_full($entry)?;
-                return Ok(Some((thumbnail, full)));
-            }
-        )*
-    };
-}
-
-macro_rules! get_metadata_from_media_formats {
-    (
-        $entry: expr,
-        ($($format: ty),*)
-    ) => {
-        $(
-            if <$format>::is_supported($entry) {
-                let metadata = <$format>::get_metadata($entry)?;
-                let is_photo = <$format>::is_photo();
-                return Ok(Some((metadata, is_photo)))
-            }
-        )*
-    };
-}
-fn generate_media_caches(entry: &DirEntry, twidth: u32, theight: u32) -> Result<Option<(RgbImage, RgbImage)>, MetadataError> {
-    generate_media_caches_formats!(entry, (standard::Standard, heif::Heif, video::Video, raw::Raw), twidth, theight);
-
-    Ok(None)
-}
-
-fn get_media_metadata(entry: &DirEntry) -> Result<Option<(MediaMetadata, bool)>, MetadataError> {
-    get_metadata_from_media_formats!(entry, (standard::Standard, heif::Heif, video::Video, raw::Raw));
-
-    Ok(None)
-}
-
-#[derive(Debug, thiserror::Error)]
-enum MetadataError {
-    #[error("standard format error: {0}")]
-    Standard(#[from] standard::StandardError),
-    #[error("heif format error: {0}")]
-    Heif(#[from] heif::HeifError),
-    #[error("video format error: {0}")]
-    Video(#[from] video::VideoError),
-    #[error("raw format error: {0}")]
-    Raw(#[from] raw::RawError),
-}

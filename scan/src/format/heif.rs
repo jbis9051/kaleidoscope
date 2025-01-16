@@ -1,4 +1,4 @@
-use std::path::{PathBuf};
+use std::path::{Path, PathBuf};
 use image::{RgbImage};
 use image::imageops::thumbnail;
 use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
@@ -14,22 +14,18 @@ impl Format<HeifError> for Heif {
     fn is_photo() -> bool {
         true
     }
+    
+    fn get_metadata(path: &Path) -> Result<MediaMetadata, HeifError> {
+        let file_meta = path.metadata()?;
 
-    fn is_valid(path: &DirEntry) -> bool {
-        true
-    }
-
-    fn get_metadata(entry: &DirEntry) -> Result<MediaMetadata, HeifError> {
-        let file_meta = entry.metadata()?;
-
-        let path = entry.path().to_str().ok_or(HeifError::PathToString(entry.path().to_path_buf()))?;
-        let ctx = HeifContext::read_from_file(path)?;
+        let path_str = path.to_str().ok_or(HeifError::PathToString(path.to_path_buf()))?;
+        let ctx = HeifContext::read_from_file(path_str)?;
         let handle = ctx.primary_image_handle()?;
 
         let native = file_meta.created().unwrap();
 
         Ok(MediaMetadata {
-            name: entry.file_name().to_string_lossy().to_string(),
+            name: path.file_name().unwrap().to_string_lossy().to_string(),
             width: handle.width(),
             height: handle.height(),
             size: file_meta.len() as u32,
@@ -38,10 +34,10 @@ impl Format<HeifError> for Heif {
         })
     }
 
-    fn generate_thumbnail(entry: &DirEntry, width: u32, height: u32) -> Result<RgbImage, HeifError> {
+    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, HeifError> {
         let lib_heif = LibHeif::new();
-        let path = entry.path().to_str().ok_or(HeifError::PathToString(entry.path().to_path_buf()))?;
-        let ctx = HeifContext::read_from_file(path)?;
+        let path_str = path.to_str().ok_or(HeifError::PathToString(path.to_path_buf()))?;
+        let ctx = HeifContext::read_from_file(path_str)?;
         let handle = ctx.primary_image_handle()?;
 
         let image = lib_heif.decode(&handle, ColorSpace::Rgb(RgbChroma::Rgb), None)?;
@@ -75,5 +71,5 @@ pub enum HeifError {
     #[error("image error: {0}")]
     Heif(#[from] libheif_rs::HeifError),
     #[error("iO error: {0}")]
-    Io(#[from] walkdir::Error),
+    Io(#[from] std::io::Error),
 }

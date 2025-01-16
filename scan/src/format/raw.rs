@@ -1,3 +1,4 @@
+use std::path::Path;
 use image::imageops::thumbnail;
 use image::RgbImage;
 use imagepipe::Pipeline;
@@ -13,20 +14,16 @@ impl Format<RawError> for Raw {
     fn is_photo() -> bool {
         true
     }
-
-    fn is_valid(path: &DirEntry) -> bool {
-        true
-    }
-
-    fn get_metadata(entry: &DirEntry) -> Result<MediaMetadata, RawError> {
-        let file_meta = entry.metadata()?;
+    
+    fn get_metadata(path: &Path) -> Result<MediaMetadata, RawError> {
+        let file_meta = path.metadata()?;
 
         let native = file_meta.created().unwrap();
 
-        let image = rawloader::decode_file(entry.path())?;
+        let image = rawloader::decode_file(path)?;
 
         Ok(MediaMetadata {
-            name: entry.file_name().to_string_lossy().to_string(),
+            name: path.file_name().unwrap().to_string_lossy().to_string(),
             width: image.width as u32,
             height: image.height as u32,
             size: file_meta.len() as u32,
@@ -36,8 +33,8 @@ impl Format<RawError> for Raw {
 
     }
 
-    fn generate_thumbnail(entry: &DirEntry, width: u32, height: u32) -> Result<RgbImage, RawError> {
-        let mut image = Pipeline::new_from_file(entry.path()).map_err(RawError::PipelineError)?;
+    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, RawError> {
+        let mut image = Pipeline::new_from_file(path).map_err(RawError::PipelineError)?;
         let srgb = image.output_8bit(None).map_err(RawError::PipelineError)?;
 
 
@@ -57,5 +54,5 @@ pub enum RawError {
     #[error("raw loader error: {0}")]
     RawLoader(#[from] rawloader::RawLoaderError),
     #[error("iO error: {0}")]
-    Io(#[from] walkdir::Error),
+    Io(#[from] std::io::Error),
 }

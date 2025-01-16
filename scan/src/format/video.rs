@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::time::Duration;
 use ffmpeg_next::codec::Context;
 use ffmpeg_next::format::Pixel;
@@ -16,21 +17,17 @@ impl Format<VideoError> for Video {
     fn is_photo() -> bool {
         false
     }
-
-    fn is_valid(path: &DirEntry) -> bool {
-        true
-    }
-
-    fn get_metadata(entry: &DirEntry) -> Result<MediaMetadata, VideoError> {
-        let file_meta = entry.metadata()?;
+    
+    fn get_metadata(path: &Path) -> Result<MediaMetadata, VideoError> {
+        let file_meta = path.metadata()?;
         ffmpeg_next::init().unwrap();
-        let context = ffmpeg_next::format::input(&entry.path())?;
+        let context = ffmpeg_next::format::input(&path)?;
         let stream = context.streams().best(ffmpeg_next::media::Type::Video).ok_or(VideoError::FfmpegError(ffmpeg_next::Error::StreamNotFound))?;
         let codec = Context::from_parameters(stream.parameters())?;
         let meta = codec.decoder().video()?;
 
         Ok(MediaMetadata {
-            name: entry.file_name().to_string_lossy().to_string(),
+            name: path.file_name().unwrap().to_string_lossy().to_string(),
             width: meta.width(),
             height: meta.height(),
             duration: Some(Duration::from_secs(stream.duration() as u64)),
@@ -39,9 +36,9 @@ impl Format<VideoError> for Video {
         })
     }
 
-    fn generate_thumbnail(entry: &DirEntry, width: u32, height: u32) -> Result<RgbImage, VideoError> {
+    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, VideoError> {
         ffmpeg_next::init().unwrap();
-        let mut context = ffmpeg_next::format::input(&entry.path())?;
+        let mut context = ffmpeg_next::format::input(&path)?;
         let stream = context.streams().best(ffmpeg_next::media::Type::Video).ok_or(VideoError::FfmpegError(ffmpeg_next::Error::StreamNotFound))?;
         let codec = Context::from_parameters(stream.parameters())?;
         let mut decoder = codec.decoder().video()?;
@@ -85,5 +82,5 @@ pub enum VideoError {
     #[error("ffmpeg error: {0}")]
     FfmpegError(#[from] ffmpeg_next::Error),
     #[error("iO error: {0}")]
-    IoError(#[from] walkdir::Error),
+    IoError(#[from] std::io::Error),
 }
