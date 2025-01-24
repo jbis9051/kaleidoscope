@@ -4,7 +4,7 @@ pub mod video;
 pub mod raw;
 
 use std::cmp::max;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use image::{RgbImage};
 use sqlx::types::chrono;
@@ -18,10 +18,15 @@ pub struct MediaMetadata {
     pub size: u32,
     pub created_at: chrono::NaiveDateTime,
     pub duration: Option<Duration>,
+    pub longitude: Option<f64>,
+    pub latitude: Option<f64>,
 }
 
 pub trait Format<T> {
     const EXTENSIONS: &'static [&'static str];
+    
+    const METADATA_VERSION: u32; // bump this if the metadata format changes
+    const THUMBNAIL_VERSION: u32; // bump this if the thumbnail format changes
 
     fn is_supported(path: &Path) -> bool {
         let ext = path.extension().unwrap_or_default().to_str().unwrap_or_default().to_lowercase();
@@ -41,6 +46,113 @@ pub trait Format<T> {
         Self::generate_thumbnail(path, width, height)
     }
 }
+
+
+
+macro_rules! match_format {
+    ($format: expr, $call: tt($($arg: expr),*)) => {
+        match $format {
+            FormatType::Standard => standard::Standard::$call($($arg),*).into(),
+            FormatType::Heif => heif::Heif::$call($($arg),*).into(),
+            FormatType::Video => video::Video::$call($($arg),*).into(),
+            FormatType::Raw => raw::Raw::$call($($arg),*).into(),
+        }
+    };
+    ($format: expr, $call: tt($($arg: expr),*), err) => {
+        match $format {
+            FormatType::Standard => standard::Standard::$call($($arg),*).map_err(|e| e.into()),
+            FormatType::Heif => heif::Heif::$call($($arg),*).map_err(|e| e.into()),
+            FormatType::Video => video::Video::$call($($arg),*).map_err(|e| e.into()),
+            FormatType::Raw => raw::Raw::$call($($arg),*).map_err(|e| e.into()),
+        }
+    };
+    ($format: expr, $assoc: ident) => {
+        match $format {
+            FormatType::Standard => standard::Standard::$assoc,
+            FormatType::Heif => heif::Heif::$assoc,
+            FormatType::Video => video::Video::$assoc,
+            FormatType::Raw => raw::Raw::$assoc,
+        }
+    };
+}
+
+
+
+enum FormatType {
+    Standard,
+    Heif,
+    Video,
+    Raw,
+}
+
+pub struct AnyFormat {
+    format: FormatType,
+    path: PathBuf
+}
+
+
+impl AnyFormat {
+    pub fn new(path: PathBuf) -> Option<Self> {
+        let format = {
+            if standard::Standard::is_supported(&path) {
+                FormatType::Standard
+            } else if heif::Heif::is_supported(&path) {
+                FormatType::Heif
+            } else if video::Video::is_supported(&path) {
+                FormatType::Video
+            } else if raw::Raw::is_supported(&path) {
+                FormatType::Raw
+            } else {
+                return None;
+            }
+        };
+
+        Some(Self {
+            format,
+            path
+        })
+    }
+
+    pub fn is_photo(&self) -> bool {
+        match_format!(self.format, is_photo())
+    }
+
+    pub fn get_metadata(&self) -> Result<MediaMetadata, MetadataError> {
+        match_format!(self.format, get_metadata(&self.path), err)
+    }
+
+    pub fn generate_thumbnail(&self, width: u32, height: u32) -> Result<RgbImage, MetadataError> {
+        match_format!(self.format, generate_thumbnail(&self.path, width, height), err)
+    }
+
+    pub fn generate_full(&self) -> Result<RgbImage, MetadataError> {
+        match_format!(self.format, generate_full(&self.path), err)
+    }
+    
+    pub fn metadata_version(&self) -> u32 {
+        match_format!(self.format, METADATA_VERSION)
+    }
+    
+    pub fn thumbnail_version(&self) -> u32 {
+        match_format!(self.format, THUMBNAIL_VERSION)
+    }
+    
+}
+
+
+#[derive(Debug, thiserror::Error)]
+pub enum MetadataError {
+    #[error("standard format error: {0}")]
+    Standard(#[from] standard::StandardError),
+    #[error("heif format error: {0}")]
+    Heif(#[from] heif::HeifError),
+    #[error("video format error: {0}")]
+    Video(#[from] video::VideoError),
+    #[error("raw format error: {0}")]
+    Raw(#[from] raw::RawError),
+}
+
+
 
 /// Calculates the width and height an image should be resized to.
 /// This preserves aspect ratio, and based on the `fill` parameter

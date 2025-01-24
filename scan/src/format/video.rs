@@ -13,6 +13,8 @@ pub struct Video;
 
 impl Format<VideoError> for Video {
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
+    const METADATA_VERSION: u32 = 0;
+    const THUMBNAIL_VERSION: u32 = 0;
 
     fn is_photo() -> bool {
         false
@@ -31,8 +33,10 @@ impl Format<VideoError> for Video {
             width: meta.width(),
             height: meta.height(),
             duration: Some(Duration::from_secs(stream.duration() as u64)),
+            longitude: None,
             created_at: system_time_to_naive_datetime(file_meta.created().unwrap()),
             size: file_meta.len() as u32,
+            latitude: None,
         })
     }
 

@@ -5,6 +5,7 @@ pub mod media;
 pub mod album;
 pub mod media_view;
 pub mod kv;
+pub mod sqlize;
 
 pub mod date {
     use serde::{self, Deserialize, Serializer};

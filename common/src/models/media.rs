@@ -1,3 +1,4 @@
+use crate::question_marks;
 use sqlx::sqlite::SqliteRow;
 use sqlx::types::chrono::NaiveDateTime;
 use sqlx::{Row, SqliteExecutor};
@@ -6,8 +7,17 @@ use serde::Serialize;
 use uuid::{Uuid};
 use crate::media_query::MediaQuery;
 use crate::models::date;
-
+use crate::{sqlize, update_set};
 use crate::types::DbPool;
+
+
+#[derive(Debug, Serialize)]
+pub struct Metadata {
+    pub id: i32,
+    pub media_id: i32,
+    pub key: String,
+    pub value: String,
+}
 
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Media {
@@ -28,56 +38,36 @@ pub struct Media {
     // in bytes
     pub size: u32,
     #[serde(with = "date")]
-    pub file_created_at: NaiveDateTime
+    pub file_created_at: NaiveDateTime,
+
+    pub longitude: Option<f64>,
+    pub latitude: Option<f64>,
+    
+    pub metadata_version: u32,
+    pub thumbnail_version: u32,
 }
 
-impl From<&SqliteRow> for Media {
-    fn from(row: &SqliteRow) -> Self {
-        Media {
-            id: row.get("id"),
-            uuid: row.get("uuid"),
-            name: row.get("name"),
-            created_at: row.get("created_at"),
-            width: row.get("width"),
-            height: row.get("height"),
-            size: row.get("size"),
-            path: row.get("path"),
-            liked: row.get("liked"),
-            is_photo: row.get("is_photo"),
-            added_at: row.get("added_at"),
-            duration: row.get("duration"),
-            hash: row.get("hash"),
-            file_created_at: row.get("file_created_at")
-        }
-    }
-}
+sqlize!(Media, "media", id, [
+    uuid,
+    name,
+    created_at,
+    width,
+    height,
+    size,
+    path,
+    liked,
+    is_photo,
+    added_at,
+    duration,
+    hash,
+    file_created_at,
+    longitude,
+    latitude,
+    metadata_version,
+    thumbnail_version
+]);
 
 impl Media {
-    pub async fn create<'a, T: SqliteExecutor<'a>>(&mut self, db: T) -> Result<(), sqlx::Error> {
-        *self = sqlx::query(
-            "INSERT INTO media (uuid, name, created_at, width, height, size, path, liked, is_photo, added_at, duration, hash, file_created_at) \
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING *;",
-        )
-            .bind(self.uuid)
-            .bind(&self.name)
-            .bind(self.created_at)
-            .bind(self.width)
-            .bind(self.height)
-            .bind(self.size)
-            .bind(&self.path)
-            .bind(self.liked)
-            .bind(self.is_photo)
-            .bind(self.added_at)
-            .bind(self.duration)
-            .bind(&self.hash)
-            .bind(self.file_created_at)
-            .fetch_one(db)
-            .await?
-            .borrow()
-            .into();
-        Ok(())
-    }
-
     pub fn safe_column(name: &str) -> Result<(), sqlx::Error> {
         match name {
             "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" | "duration" => Ok(()),

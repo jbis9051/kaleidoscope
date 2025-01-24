@@ -8,6 +8,8 @@ pub struct Standard;
 
 impl Format<StandardError> for Standard {
     const EXTENSIONS: &'static [&'static str] = &["jpeg", "jpg", "png"];
+    const METADATA_VERSION: u32 = 0;
+    const THUMBNAIL_VERSION: u32 = 0;
 
     fn is_photo() -> bool {
         true
@@ -24,6 +26,8 @@ impl Format<StandardError> for Standard {
             size: file_meta.len() as u32,
             created_at: system_time_to_naive_datetime(file_meta.created().unwrap()),
             duration: None,
+            longitude: None,
+            latitude: None,
         })
     }
 

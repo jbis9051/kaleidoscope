@@ -1,7 +1,8 @@
 mod format;
-mod add_or_update_media;
+mod media_operations;
 
-use crate::add_or_update_media::{add_or_update_media, AddMediaError};
+use std::collections::HashSet;
+use crate::media_operations::{add_media, AddMediaError};
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
 use common::models::kv::Kv;
 use common::models::media::Media;
@@ -12,6 +13,7 @@ use sqlx::{Connection, SqliteConnection};
 use std::env;
 use std::path::Path;
 use walkdir::WalkDir;
+use common::{debug_sql, question_marks, update_set};
 
 #[tokio::main]
 async fn main() {
@@ -54,6 +56,7 @@ async fn main() {
     }
 
     info!("--- scanning complete, found {} new media ---", total);
+
     info!("--- verifying database ---");
 
     let mut media = Media::all(&mut db).await.unwrap();
@@ -88,13 +91,15 @@ async fn main() {
     info!("--- verification complete, cleaning up data ---");
 
     let files = std::fs::read_dir(&config.data_dir).unwrap();
+    let uuids: HashSet<String> = media.iter().map(|m| m.uuid.to_string()).collect();
+    
     for file in files {
         let file = file.unwrap();
         let path = file.path();
         if path.extension().unwrap_or_default() == "jpg" {
             let name = path.file_stem().unwrap().to_string_lossy();
             let uuid = &name[0..36];
-            if !media.iter().any(|m| m.uuid.to_string() == uuid) {
+            if !uuids.contains(uuid) {
                 warn!("removing orphaned file: {:?}", path);
                 std::fs::remove_file(path).unwrap();
             }
@@ -172,7 +177,7 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
                 debug!("      skipping symlink: {:?}", entry.path());
                 continue;
             }
-            match add_or_update_media(entry.path(), config, db).await {
+            match add_media(entry.path(), config, db).await {
                 Ok(_) => {
                     info!("      found new file: {:?}", entry.path());
                     count += 1;

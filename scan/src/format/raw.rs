@@ -10,6 +10,8 @@ pub struct Raw;
 
 impl Format<RawError> for Raw {
     const EXTENSIONS: &'static [&'static str] = &["raf"];
+    const METADATA_VERSION: u32 = 0;
+    const THUMBNAIL_VERSION: u32 = 0;
 
     fn is_photo() -> bool {
         true
@@ -29,6 +31,8 @@ impl Format<RawError> for Raw {
             size: file_meta.len() as u32,
             created_at: system_time_to_naive_datetime(native),
             duration: None,
+            longitude: None,
+            latitude: None,
         })
 
     }
