@@ -10,8 +10,8 @@ pub struct Heif;
 
 impl Format<HeifError> for Heif {
     const EXTENSIONS: &'static [&'static str] = &["heif", "heic"];
-    const METADATA_VERSION: u32 = 0;
-    const THUMBNAIL_VERSION: u32 = 0;
+    const METADATA_VERSION: i32 = 0;
+    const THUMBNAIL_VERSION: i32 = 0;
 
     fn is_photo() -> bool {
         true
@@ -35,6 +35,7 @@ impl Format<HeifError> for Heif {
             duration: None,
             longitude: None,
             latitude: None,
+            is_screenshot: false,
         })
     }
 

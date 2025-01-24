@@ -8,6 +8,7 @@ use uuid::{Uuid};
 use crate::media_query::MediaQuery;
 use crate::models::date;
 use crate::{sqlize, update_set};
+use crate::format_type::FormatType;
 use crate::types::DbPool;
 
 
@@ -40,11 +41,14 @@ pub struct Media {
     #[serde(with = "date")]
     pub file_created_at: NaiveDateTime,
 
+    pub is_screenshot: bool,
+
     pub longitude: Option<f64>,
     pub latitude: Option<f64>,
-    
-    pub metadata_version: u32,
-    pub thumbnail_version: u32,
+
+    pub format: FormatType,
+    pub metadata_version: i32,
+    pub thumbnail_version: i32,
 }
 
 sqlize!(Media, "media", id, [
@@ -61,6 +65,8 @@ sqlize!(Media, "media", id, [
     duration,
     hash,
     file_created_at,
+    is_screenshot,
+    format,
     longitude,
     latitude,
     metadata_version,
@@ -135,6 +141,19 @@ impl Media {
             .fetch_optional(db)
             .await?
             .map(|row| row.borrow().into()))
+    }
+
+
+    pub async fn outdated<'a>(db: impl SqliteExecutor<'a>, format_type: FormatType, metadata_version: i32, thumbnail_version: i32) -> Result<Vec<Self>, sqlx::Error> {
+        Ok(sqlx::query("SELECT * FROM media WHERE format = $1 AND (metadata_version < $2 OR thumbnail_version < $3);")
+            .bind(format_type)
+            .bind(metadata_version)
+            .bind(thumbnail_version)
+            .fetch_all(db)
+            .await?
+            .iter()
+            .map(|row| row.into())
+            .collect())
     }
 
     pub async fn delete<'a>(&self, db: impl SqliteExecutor<'a>) -> Result<(), sqlx::Error> {

@@ -13,8 +13,8 @@ pub struct Video;
 
 impl Format<VideoError> for Video {
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
-    const METADATA_VERSION: u32 = 0;
-    const THUMBNAIL_VERSION: u32 = 0;
+    const METADATA_VERSION: i32 = 0;
+    const THUMBNAIL_VERSION: i32 = 0;
 
     fn is_photo() -> bool {
         false
@@ -37,6 +37,7 @@ impl Format<VideoError> for Video {
             created_at: system_time_to_naive_datetime(file_meta.created().unwrap()),
             size: file_meta.len() as u32,
             latitude: None,
+            is_screenshot: false,
         })
     }
 

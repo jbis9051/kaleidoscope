@@ -8,8 +8,8 @@ pub struct Standard;
 
 impl Format<StandardError> for Standard {
     const EXTENSIONS: &'static [&'static str] = &["jpeg", "jpg", "png"];
-    const METADATA_VERSION: u32 = 0;
-    const THUMBNAIL_VERSION: u32 = 0;
+    const METADATA_VERSION: i32 = 0;
+    const THUMBNAIL_VERSION: i32 = 0;
 
     fn is_photo() -> bool {
         true
@@ -28,6 +28,7 @@ impl Format<StandardError> for Standard {
             duration: None,
             longitude: None,
             latitude: None,
+            is_screenshot: false,
         })
     }
 

@@ -4,6 +4,9 @@ db:
 	touch ${DATABASE_URL}
 	./db/sqlx.sh migrate
 
+db-revert:
+	./db/sqlx.sh revert
+
 dev:
 	cd server && cargo run
 

@@ -77,7 +77,7 @@ macro_rules! sqlize {
                 Ok(())
             }
 
-            pub async fn update_by_id<'a, T: SqliteExecutor<'a>>(&self, db: T, id: i32) -> Result<(), sqlx::Error> {
+            pub async fn update_by_id<'a, T: SqliteExecutor<'a>>(&self, db: T) -> Result<(), sqlx::Error> {
                 sqlx::query(
                         &format!("UPDATE {} SET {} WHERE id = ?",
                             $table,

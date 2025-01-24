@@ -2,7 +2,7 @@ mod format;
 mod media_operations;
 
 use std::collections::HashSet;
-use crate::media_operations::{add_media, AddMediaError};
+use crate::media_operations::{add_media, update_media, AddMediaError};
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
 use common::models::kv::Kv;
 use common::models::media::Media;
@@ -14,6 +14,8 @@ use std::env;
 use std::path::Path;
 use walkdir::WalkDir;
 use common::{debug_sql, question_marks, update_set};
+use common::format_type::FormatType;
+use crate::format::*;
 
 #[tokio::main]
 async fn main() {
@@ -56,6 +58,35 @@ async fn main() {
     }
 
     info!("--- scanning complete, found {} new media ---", total);
+
+    info!("--- updating database ---");
+    
+    let formats =  [FormatType::Standard, FormatType::Raw, FormatType::Heif, FormatType::Video, FormatType::Unknown];
+    let mut updated = vec![0; formats.len()];
+    for (i, format) in formats.iter().enumerate() {
+       let (metadata_version, thumbnail_version) = match format {
+            FormatType::Unknown => (i32::MAX, i32::MAX),
+            _ => (match_format!(format, METADATA_VERSION), match_format!(format, THUMBNAIL_VERSION))
+        };
+        
+        let mut outdated = Media::outdated(&mut db, *format, metadata_version, thumbnail_version).await.unwrap();
+        
+        for media in outdated.iter_mut() {
+            match update_media(media, &config, &mut db).await {
+                Ok(_) => {
+                    updated[i] += 1;
+                }
+                Err(e) => {
+                    error!("  error updating media: {:?} - {:?}", media, e);
+                }
+            }
+        }
+        
+    }
+    
+    let report = formats.iter().zip(updated.iter()).map(|(f, u)| format!("{:?}[{}]", f, u)).collect::<Vec<String>>().join("|");
+    
+    info!("--- updating database complete report: {} ---", report);
 
     info!("--- verifying database ---");
 

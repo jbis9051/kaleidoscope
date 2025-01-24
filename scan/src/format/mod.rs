@@ -7,8 +7,10 @@ use std::cmp::max;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use image::{RgbImage};
+use serde::{Deserialize, Serialize};
 use sqlx::types::chrono;
-use walkdir::DirEntry;
+use common::format_type;
+use common::format_type::FormatType;
 
 #[derive(Debug)]
 pub struct MediaMetadata {
@@ -20,13 +22,14 @@ pub struct MediaMetadata {
     pub duration: Option<Duration>,
     pub longitude: Option<f64>,
     pub latitude: Option<f64>,
+    pub is_screenshot: bool,
 }
 
 pub trait Format<T> {
     const EXTENSIONS: &'static [&'static str];
-    
-    const METADATA_VERSION: u32; // bump this if the metadata format changes
-    const THUMBNAIL_VERSION: u32; // bump this if the thumbnail format changes
+
+    const METADATA_VERSION: i32; // bump this if the metadata format changes
+    const THUMBNAIL_VERSION: i32; // bump this if the thumbnail format changes
 
     fn is_supported(path: &Path) -> bool {
         let ext = path.extension().unwrap_or_default().to_str().unwrap_or_default().to_lowercase();
@@ -48,7 +51,7 @@ pub trait Format<T> {
 }
 
 
-
+#[macro_export]
 macro_rules! match_format {
     ($format: expr, $call: tt($($arg: expr),*)) => {
         match $format {
@@ -56,6 +59,7 @@ macro_rules! match_format {
             FormatType::Heif => heif::Heif::$call($($arg),*).into(),
             FormatType::Video => video::Video::$call($($arg),*).into(),
             FormatType::Raw => raw::Raw::$call($($arg),*).into(),
+            _ => panic!("invalid format type: {:?}", $format),
         }
     };
     ($format: expr, $call: tt($($arg: expr),*), err) => {
@@ -64,6 +68,7 @@ macro_rules! match_format {
             FormatType::Heif => heif::Heif::$call($($arg),*).map_err(|e| e.into()),
             FormatType::Video => video::Video::$call($($arg),*).map_err(|e| e.into()),
             FormatType::Raw => raw::Raw::$call($($arg),*).map_err(|e| e.into()),
+            _ => panic!("invalid format type: {:?}", $format),
         }
     };
     ($format: expr, $assoc: ident) => {
@@ -72,24 +77,15 @@ macro_rules! match_format {
             FormatType::Heif => heif::Heif::$assoc,
             FormatType::Video => video::Video::$assoc,
             FormatType::Raw => raw::Raw::$assoc,
+            _ => panic!("invalid format type: {:?}", $format),
         }
     };
-}
-
-
-
-enum FormatType {
-    Standard,
-    Heif,
-    Video,
-    Raw,
 }
 
 pub struct AnyFormat {
     format: FormatType,
     path: PathBuf
 }
-
 
 impl AnyFormat {
     pub fn new(path: PathBuf) -> Option<Self> {
@@ -113,6 +109,10 @@ impl AnyFormat {
         })
     }
 
+    pub fn format_type(&self) -> FormatType {
+        self.format
+    }
+
     pub fn is_photo(&self) -> bool {
         match_format!(self.format, is_photo())
     }
@@ -128,15 +128,15 @@ impl AnyFormat {
     pub fn generate_full(&self) -> Result<RgbImage, MetadataError> {
         match_format!(self.format, generate_full(&self.path), err)
     }
-    
-    pub fn metadata_version(&self) -> u32 {
+
+    pub fn metadata_version(&self) -> i32 {
         match_format!(self.format, METADATA_VERSION)
     }
-    
-    pub fn thumbnail_version(&self) -> u32 {
+
+    pub fn thumbnail_version(&self) -> i32 {
         match_format!(self.format, THUMBNAIL_VERSION)
     }
-    
+
 }
 
 
