@@ -1,8 +1,10 @@
 mod format;
 mod media_operations;
 
+mod exif;
+
 use std::collections::HashSet;
-use crate::media_operations::{add_media, update_media, AddMediaError};
+use crate::media_operations::{add_media, remove_media, update_media, AddMediaError};
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
 use common::models::kv::Kv;
 use common::models::media::Media;
@@ -182,14 +184,6 @@ async fn main() {
     info!("--- scan complete ---");
 }
 
-async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &AppConfig) {
-    media.delete(&mut *db).await.unwrap();
-    let thumb = Path::new(&config.data_dir).join(format!("{:?}-thumb.jpg", media.uuid));
-    let full = Path::new(&config.data_dir).join(format!("{:?}-full.jpg", media.uuid));
-    std::fs::remove_file(thumb);
-    std::fs::remove_file(full);
-}
-
 
 async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> u32 {
     let mut count = 0;
@@ -226,12 +220,3 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
     }
     count
 }
-
-fn hash(path: &Path) -> String {
-    let mut hasher = sha1::Sha1::new();
-    let mut file = std::fs::File::open(path).unwrap();
-    std::io::copy(&mut file, &mut hasher).unwrap();
-    format!("{:x}", hasher.finalize())
-}
-
-

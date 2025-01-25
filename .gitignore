@@ -7,3 +7,5 @@ dev
 **/node_modules
 **/.next
 frontend/out
+scan/src/lib.rs
+scan/tests

@@ -2,8 +2,10 @@ use std::path::Path;
 use image::imageops::thumbnail;
 use image::RgbImage;
 use imagepipe::Pipeline;
+use nom_exif::{ExifIter, MediaParser, MediaSource, TrackInfo};
 use walkdir::DirEntry;
 use common::models::system_time_to_naive_datetime;
+use crate::exif::extract_exif_nom;
 use crate::format::{Format, MediaMetadata, resize_dimensions};
 
 pub struct Raw;
@@ -60,4 +62,6 @@ pub enum RawError {
     RawLoader(#[from] rawloader::RawLoaderError),
     #[error("iO error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("exif error: {0}")]
+    Exif(#[from] nom_exif::Error),
 }

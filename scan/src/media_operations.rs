@@ -1,6 +1,7 @@
 use std::path::Path;
 use image::RgbImage;
 use log::{debug, error};
+use sha1::Digest;
 use sqlx::SqliteConnection;
 use sqlx::types::chrono::Utc;
 use sqlx::types::Uuid;
@@ -8,7 +9,6 @@ use common::models::media::Media;
 use common::models::system_time_to_naive_datetime;
 use common::scan_config::AppConfig;
 use crate::format::{heif, raw, standard, video, AnyFormat, Format, MediaMetadata, MetadataError};
-use crate::{hash, remove_media};
 
 pub async fn add_media(path: &Path, config: &AppConfig, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
     let format = AnyFormat::new(path.to_path_buf()).ok_or(AddMediaError::UnsupportedFormat)?;
@@ -150,3 +150,20 @@ pub enum AddMediaError {
     #[error("error getting metadata: {0}")]
     Metadata(#[from] MetadataError),
 }
+
+pub async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &AppConfig) {
+    media.delete(&mut *db).await.unwrap();
+    let thumb = Path::new(&config.data_dir).join(format!("{:?}-thumb.jpg", media.uuid));
+    let full = Path::new(&config.data_dir).join(format!("{:?}-full.jpg", media.uuid));
+    std::fs::remove_file(thumb);
+    std::fs::remove_file(full);
+}
+
+pub fn hash(path: &Path) -> String {
+    let mut hasher = sha1::Sha1::new();
+    let mut file = std::fs::File::open(path).unwrap();
+    std::io::copy(&mut file, &mut hasher).unwrap();
+    format!("{:x}", hasher.finalize())
+}
+
+
