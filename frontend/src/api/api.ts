@@ -93,7 +93,6 @@ export class Api {
     }
 
     private queryToParams(query: MediaQuery): string {
-        console.log(query);
         return `${Object.entries(query).map(([key, value]) => {
             if (value === null || value === undefined) {
                 return null;

@@ -14,6 +14,7 @@ import FileViewer from "@/components/FileViewer";
 import MediaImg from "@/components/MediaImg";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faDownload, faFloppyDisk} from "@fortawesome/free-solid-svg-icons";
+import Map from "@/components/Map/Map";
 
 
 export default function Index() {
@@ -332,6 +333,7 @@ export default function Index() {
                                 return <span>Selected Photo not found</span>
                             }
 
+                            // @ts-ignore
                             return <>
                                 <div className={styles.previewImageContainer}>
                                     <div className={styles.downloadWrapper}>
@@ -346,6 +348,14 @@ export default function Index() {
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>
                                         <MetadataTable metadata={mediaToMetadata(m)}/>
+                                        {m.latitude && m.longitude &&
+                                        <Map
+                                            center={[m.latitude, m.longitude]}
+                                            zoom={12}
+                                            className={styles.previewMap}
+                                            scrollWheelZoom={false}
+                                            media={[m]}
+                                        />}
                                     </div>
                                 </div>
                             </>

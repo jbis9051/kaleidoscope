@@ -1,0 +1,39 @@
+.mediaImg {
+    width: 100%;
+    height: auto;
+    position: relative;
+}
+
+.popup :global .leaflet-popup-content {
+    margin: 0;
+    background: green;
+}
+
+.mediaIcon {
+    background: white;
+    padding: 3px;
+    border-radius: 6px;
+    box-shadow: 2px 10px 10px rgba(0, 0, 0, 0.5);
+}
+
+/* triangle thing*/
+.mediaIcon::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -10px;
+    border-width: 10px;
+    border-style: solid;
+    border-color: white transparent transparent transparent;
+}
+
+
+
+.mediaIcon img {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover;
+    object-position: 50% 50%;
+    border-radius: 3px;
+}
