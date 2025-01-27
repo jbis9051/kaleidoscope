@@ -37,3 +37,18 @@
     object-position: 50% 50%;
     border-radius: 3px;
 }
+
+.clusterAmount {
+    height: 18px;
+    width: 18px;
+    font-weight: bold;
+    position: absolute;;
+    background: green;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    right: 0;
+    bottom: 0;
+    transform: translate(45%, 45%);
+}

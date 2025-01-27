@@ -8,6 +8,7 @@ export class FilterOps {
     after: Date | null = null;
     is_screenshot: boolean | null = null;
     import_id: number | null = null;
+    has_gps: boolean | null = null;
 }
 
 export interface QueryState {
@@ -35,6 +36,7 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         const after = query.get('after');
         const is_screenshot = query.get('is_screenshot');
         const import_id = query.get('import_id');
+        const has_gps = query.get('has_gps');
 
         const newFilter = new FilterOps();
 
@@ -61,6 +63,10 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
 
         if (import_id) {
             newFilter.import_id = parseInt(import_id, 10);
+        }
+
+        if (has_gps) {
+            newFilter.has_gps = has_gps === 'true';
         }
 
         return {
@@ -102,6 +108,9 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         }
         if(state.filter.import_id !== null){
             query.set('import_id', state.filter.import_id.toString());
+        }
+        if (state.filter.has_gps !== null && state.filter.has_gps !== undefined) {
+            query.set('has_gps', state.filter.has_gps.toString());
         }
 
         window.history.replaceState({}, '', `${window.location.pathname}?${query.toString()}`);

@@ -23,7 +23,8 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
         after: null,
         not_path: null,
         is_screenshot: null,
-        import_id: null
+        import_id: null,
+        has_gps: null
     });
 
     // update the filterInputs when the filter changes
@@ -34,7 +35,8 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
             before: filter.before?.toISOString().split('T')[0] || null,
             after: filter.after?.toISOString().split('T')[0] || null,
             is_screenshot: filter.is_screenshot?.toString() || "any",
-            import_id: filter.import_id?.toString() || null
+            import_id: filter.import_id?.toString() || null,
+            has_gps: filter.has_gps?.toString() || null
         })
     }, [filter])
 
@@ -52,7 +54,8 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
                             before: filterInput.before ? new Date(filterInput.before) : null,
                             after: filterInput.after ? new Date(filterInput.after) : null,
                             is_screenshot: filterInput.is_screenshot === 'any' ? null : filterInput.is_screenshot === 'true',
-                            import_id: filter.import_id
+                            import_id: filter.import_id,
+                            has_gps: filter.has_gps,
                         });
                     }}>Filter
                     </button>

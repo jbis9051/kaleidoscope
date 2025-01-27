@@ -83,6 +83,7 @@ export interface MediaQuery {
     after?: Date;
     is_screenshot?: boolean;
     import_id?: number;
+    has_gps?: boolean;
 }
 
 

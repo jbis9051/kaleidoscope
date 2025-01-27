@@ -1,5 +1,5 @@
 import {Media} from "@/api/api";
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 
 export function useMediaSelector(media: Media[], layout: Media[][] | null) {
     const [target, setTarget] = useState<Media | null>(null);
@@ -90,7 +90,19 @@ export function useMediaSelector(media: Media[], layout: Media[][] | null) {
         setSelected(Object.values(map));
     }
 
+    // this function is used to select a single media item, it also doesn't depend on selected or target allowing it to be used for components that shouldn't rerender
+    const singleSelect = useCallback((s: Media | null) => {
+        if (!s) {
+            setTarget(null);
+            setSelected([]);
+            return;
+        }
 
-    return {selected, select, target};
+        setTarget(s);
+        setSelected([s]);
+    }, []);
+
+
+    return {selected, singleSelect, select, target};
 
 }

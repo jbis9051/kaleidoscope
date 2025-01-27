@@ -15,6 +15,7 @@ import MediaImg from "@/components/MediaImg";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faDownload, faFloppyDisk} from "@fortawesome/free-solid-svg-icons";
 import Map from "@/components/Map/Map";
+import MapViewer from "@/components/MapViewer";
 
 
 export default function Index() {
@@ -49,7 +50,7 @@ export default function Index() {
     const {
         selected: selectedMedia,
         select: selectMedia,
-        target: selectMediaTarget
+        target: selectMediaTarget,
     } = useMediaSelector(media || [], layout);
 
     const api = new Api(API_URL);
@@ -66,8 +67,6 @@ export default function Index() {
         loadAlbums();
         loadMediaViews();
         setInitialLoaded(true);
-
-
     }, []);
 
     useEffect(() => {
@@ -117,7 +116,7 @@ export default function Index() {
 
     }, [galleryState]);
 
-    function stateToMediaQuery(queryState: QueryState): MediaQuery{
+    function stateToMediaQuery(queryState: QueryState): MediaQuery {
         return {
             page: queryState.page,
             order_by: queryState.orderby,
@@ -128,7 +127,8 @@ export default function Index() {
             before: queryState.filter.before || undefined,
             after: queryState.filter.after || undefined,
             is_screenshot: queryState.filter.is_screenshot === null ? undefined : queryState.filter.is_screenshot,
-            import_id: queryState.filter.import_id || undefined
+            import_id: queryState.filter.import_id || undefined,
+            has_gps: queryState.filter.has_gps === null ? undefined : queryState.filter.has_gps,
         }
     }
 
@@ -226,7 +226,10 @@ export default function Index() {
                                 setGalleryState({
                                     selectedAlbum: null,
                                     page: 0,
-                                    filter: new FilterOps()
+                                    filter: {
+                                        ...new FilterOps(),
+                                        has_gps: galleryState.filter.has_gps
+                                    }
                                 });
                                 return;
                             }
@@ -303,6 +306,14 @@ export default function Index() {
                                 select={selectMedia}
                                 setLayout={setLayout}
                                 setViewType={setViewType}
+                            />
+                        }
+                        {initialLoaded && viewType === ViewType.MapViewer &&
+                            <MapViewer
+                                media={media}
+                                select={selectMedia}
+                                filter={galleryState.filter}
+                                setGalleryState={setGalleryState}
                             />
                         }
                         {viewType === ViewType.Gallery && (media &&

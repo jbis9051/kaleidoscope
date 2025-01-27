@@ -3,11 +3,12 @@ import {timestampToDateShort} from "@/utility/mediaMetadata";
 import {QueryState} from "@/hooks/useQueryState";
 import {Media} from "@/api/api";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faFolder, faImage} from "@fortawesome/free-solid-svg-icons";
+import {faFolder, faImage, faMap} from "@fortawesome/free-solid-svg-icons";
 
 export enum ViewType {
     Gallery,
     FileBrowser,
+    MapViewer
 }
 
 export interface GalleryStateSelectorProps {
@@ -74,6 +75,8 @@ export default function GalleryStateSelector({galleryState, setGalleryState, old
                 <span className={`${viewType === ViewType.Gallery && styles.viewSelected}`} onClick={() => setViewType(ViewType.Gallery)}><FontAwesomeIcon icon={faImage}/></span>
                 <span className={styles.viewToggleSeparator}/>
                 <span className={`${viewType === ViewType.FileBrowser && styles.viewSelected}`} onClick={() => setViewType(ViewType.FileBrowser)}><FontAwesomeIcon icon={faFolder}/></span>
+                <span className={styles.viewToggleSeparator}/>
+                <span className={`${viewType === ViewType.MapViewer && styles.viewSelected}`} onClick={() => setViewType(ViewType.MapViewer)}><FontAwesomeIcon icon={faMap}/></span>
             </div>
             <div className={styles.dateRange}>
                 <span>{oldest && timestampToDateShort(oldest.created_at)}</span>-

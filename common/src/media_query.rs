@@ -18,6 +18,7 @@ pub struct MediaQuery {
     pub after: Option<DateTime<Utc>>,
     pub is_screenshot: Option<bool>,
     pub import_id: Option<i32>,
+    pub has_gps: Option<bool>
 }
 
 impl MediaQuery {
@@ -33,6 +34,7 @@ impl MediaQuery {
             after: None,
             is_screenshot: None,
             import_id: None,
+            has_gps: None,
         }
     }
 
@@ -48,6 +50,7 @@ impl MediaQuery {
             after: self.after.clone(),
             is_screenshot: self.is_screenshot,
             import_id: self.import_id,
+            has_gps: self.has_gps,
         }
     }
     
@@ -86,6 +89,16 @@ impl MediaQuery {
             query
                 .push(" AND import_id = ")
                 .push_bind(import_id);
+        }
+
+        if let Some(has_gps) = self.has_gps {
+            if has_gps {
+                query
+                    .push(" AND latitude IS NOT NULL AND longitude IS NOT NULL");
+            } else {
+                query
+                    .push(" AND (latitude IS NULL OR longitude IS NULL)");
+            }
         }
 
         if let Some(order_by) = &self.order_by {
