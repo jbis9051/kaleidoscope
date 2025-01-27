@@ -1,17 +1,27 @@
 export interface Media {
+    // some fields omitted for brevity
     id: number;
     uuid: string;
     name: string;
     created_at: number,
     width: number;
     height: number;
-    size: number;
     path: string;
     liked: boolean;
     is_photo: boolean;
     added_at: number;
     duration: number | null;
+    hash: string;
+    size: number;
+    file_created_at: number;
+    is_screenshot: boolean
+    longitude: number | null;
+    latitude: number | null;
+    format: FormatType;
+    import_id: number;
 }
+
+export type FormatType = 'standard' | 'heif' | 'video' | 'raw' | 'unknown';
 
 export interface Album {
     id: number;
@@ -37,6 +47,11 @@ export interface MediaIndexResponse {
     count: number;
 }
 
+export interface MediaViewIndexResponse {
+    media_views: MediaView[];
+    last_import_id: number;
+}
+
 export interface AlbumResponse {
     album: Album;
     media: MediaIndexResponse;
@@ -57,6 +72,19 @@ export interface DirectoryTree {
     root: DirectoryNode;
 }
 
+export interface MediaQuery {
+    order_by?: MediaQueryColumnsType;
+    asc?: boolean;
+    limit?: number;
+    page?: number;
+    filter_path?: string;
+    filter_not_path?: string;
+    before?: Date;
+    after?: Date;
+    is_screenshot?: boolean;
+    import_id?: number;
+}
+
 
 export class Api {
     url: string;
@@ -64,8 +92,22 @@ export class Api {
         this.url = url;
     }
 
-    getMedia(page: number, limit: number, order_by: MediaQueryColumnsType, asc: boolean, filter_path: string | null, filter_not_path: string | null,  before: Date | null, after: Date | null): Promise<MediaIndexResponse> {
-        return fetch(`${this.url}/media?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${filter_not_path ? `&filter_not_path=${filter_not_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
+    private queryToParams(query: MediaQuery): string {
+        console.log(query);
+        return `${Object.entries(query).map(([key, value]) => {
+            if (value === null || value === undefined) {
+                return null;
+            }
+            if (value instanceof Date) {
+                return `${key}=${value.getTime()}`;
+            } else {
+                return `${key}=${value}`;
+            }
+        }).filter(x => x !== null).join('&')}`;
+    }
+
+    getMedia(mediaQuery: MediaQuery): Promise<MediaIndexResponse> {
+        return fetch(`${this.url}/media?${this.queryToParams(mediaQuery)}`).then(response => response.json())
     }
 
     async album_index(): Promise<AlbumIndex[]> {
@@ -73,8 +115,8 @@ export class Api {
         return indexes.map(([album, media_count]) => ({...album, media_count}));
     }
 
-    album(uuid: string, page: number, limit: number, order_by: MediaQueryColumnsType, asc: boolean, filter_path: string | null, filter_not_path: string | null, before: Date | null, after: Date | null): Promise<AlbumResponse> {
-        return fetch(`${this.url}/album/${uuid}?page=${page}&limit=${limit}&order_by=${order_by}&asc=${asc}${filter_path ? `&filter_path=${filter_path}` : ''}${filter_not_path ? `&filter_not_path=${filter_not_path}` : ''}${before ? `&before=${before.getTime()}` : ''}${after ? `&after=${after.getTime()}` : ''}`).then(response => response.json())
+    album(uuid: string, mediaQuery: MediaQuery): Promise<AlbumResponse> {
+        return fetch(`${this.url}/album/${uuid}?${this.queryToParams(mediaQuery)}`).then(response => response.json())
     }
 
     album_create(name: string): Promise<Album> {
@@ -113,7 +155,7 @@ export class Api {
         }).then(response => response.json())
     }
     
-    media_view_index(): Promise<MediaView[]> {
+    media_view_index(): Promise<MediaViewIndexResponse> {
         return fetch(`${this.url}/media_view`).then(response => response.json())
     }
     

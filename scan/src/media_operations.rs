@@ -10,7 +10,7 @@ use common::models::system_time_to_naive_datetime;
 use common::scan_config::AppConfig;
 use crate::format::{heif, raw, standard, video, AnyFormat, Format, MediaMetadata, MetadataError};
 
-pub async fn add_media(path: &Path, config: &AppConfig, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
+pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
     let format = AnyFormat::new(path.to_path_buf()).ok_or(AddMediaError::UnsupportedFormat)?;
 
     let file_created_at = system_time_to_naive_datetime(path.metadata()?.created()?);
@@ -63,6 +63,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, db: &mut SqliteConnectio
         format: format.format_type(),
         metadata_version: format.metadata_version(),
         thumbnail_version: format.thumbnail_version(),
+        import_id,
     };
 
     media.create(&mut *db).await.unwrap();

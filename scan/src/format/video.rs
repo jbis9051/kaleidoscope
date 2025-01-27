@@ -5,10 +5,9 @@ use ffmpeg_next::format::Pixel;
 use ffmpeg_next::software::scaling::{context::Context as ScaleContext, flag::Flags};
 use ffmpeg_next::util::frame::video::Video as VideoFrame;
 use image::RgbImage;
-use nom_exif::{ExifIter, MediaParser, MediaSource, TrackInfo};
+use nom_exif::{MediaParser, MediaSource, TrackInfo};
 use std::path::Path;
 use std::time::Duration;
-use exif::Exif;
 use crate::exif::extract_exif_nom;
 
 pub struct Video;
@@ -16,7 +15,7 @@ pub struct Video;
 impl Format<VideoError> for Video {
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
     const METADATA_VERSION: i32 = 1;
-    const THUMBNAIL_VERSION: i32 = 0;
+    const THUMBNAIL_VERSION: i32 = 1;
 
     fn is_photo() -> bool {
         false
@@ -80,12 +79,20 @@ impl Format<VideoError> for Video {
             }
         }
 
+        // https://stackoverflow.com/a/69161058/7886229
+        // Round to the next 32bit divisible width
+        let round_width = if decoder.width() % 32 != 0 {
+            decoder.width() + 32 - (decoder.width() % 32)
+        } else {
+            decoder.width()
+        };
+
         let mut scaler = ScaleContext::get(
             decoder.format(),
             decoder.width(),
             decoder.height(),
             Pixel::RGB24,
-            decoder.width(),
+            round_width,
             decoder.height(),
             Flags::FAST_BILINEAR,
         )?;
@@ -94,12 +101,13 @@ impl Format<VideoError> for Video {
         scaler.run(&decoded, &mut rgb_frame)?;
 
         let rgb_image = RgbImage::from_raw(
-            decoder.width(),
+            round_width,
             decoder.height(),
             rgb_frame.data(0).to_vec(),
         )
         .unwrap();
-        let (nw, nh) = resize_dimensions(decoder.width(), decoder.height(), width, height, false);
+
+        let (nw, nh) = resize_dimensions(round_width, decoder.height(), width, height, false);
 
         let thumbnail = image::imageops::thumbnail(&rgb_image, nw, nh);
 

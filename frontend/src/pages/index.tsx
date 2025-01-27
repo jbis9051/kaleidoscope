@@ -1,12 +1,12 @@
 import styles from "./index.module.css";
 import {useEffect, useState} from "react";
 import {API_URL} from "@/global";
-import {AlbumIndex, Api, Media, MediaView} from "@/api/api";
+import {AlbumIndex, Api, Media, MediaQuery, MediaView} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata from "@/utility/mediaMetadata";
 import AlbumSelector from "@/components/AlbumSelector";
-import {useQueryState} from "@/hooks/useQueryState";
+import {FilterOps, QueryState, useQueryState} from "@/hooks/useQueryState";
 import GalleryStateSelector, {ViewType} from "@/components/GalleryStateSelector";
 import {useMediaSelector} from "@/hooks/useMediaSelector";
 import FilterPanel from "@/components/FilterPanel";
@@ -29,13 +29,13 @@ export default function Index() {
         asc: true,
         limit: 100,
         selectedAlbum: null,
-        filter: {path: null, before: null, after: null, not_path: null}
+        filter: new FilterOps()
     });
-
 
     const [media, setMedia] = useState<Media[] | null>(null);
     const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
     const [mediaViews, setMediaViews] = useState<MediaView[] | null>(null);
+    const [lastImportId, setLastImportId] = useState<number | null>(null);
 
     const [count, setCount] = useState(0);
 
@@ -83,7 +83,7 @@ export default function Index() {
             }
             if (e.key === 'Escape' && !preview && selectedMedia.length === 0) { // clear filter on double escape
                 if (Date.now() - lastEscape < 250) {
-                    setGalleryState({filter: {path: null, before: null, after: null, not_path: null}})
+                    setGalleryState({filter: new FilterOps()})
                 }
                 lastEscape = Date.now();
             }
@@ -111,19 +111,34 @@ export default function Index() {
 
         if (galleryState.selectedAlbum && viewType === ViewType.FileBrowser) { // browser doesn't support albums
             setViewType(ViewType.Gallery);
-            setGalleryState({filter: {path: null, before: null, after: null, not_path: null}})
+            setGalleryState({filter: new FilterOps()});
         }
 
     }, [galleryState]);
 
+    function stateToMediaQuery(queryState: QueryState): MediaQuery{
+        return {
+            page: queryState.page,
+            order_by: queryState.orderby,
+            asc: queryState.asc,
+            limit: queryState.limit,
+            filter_path: queryState.filter.path || undefined,
+            filter_not_path: queryState.filter.not_path || undefined,
+            before: queryState.filter.before || undefined,
+            after: queryState.filter.after || undefined,
+            is_screenshot: queryState.filter.is_screenshot === null ? undefined : queryState.filter.is_screenshot,
+            import_id: queryState.filter.import_id || undefined
+        }
+    }
+
     function loadGallery() {
         if (!galleryState.selectedAlbum) {
-            return api.getMedia(galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((photos) => {
+            return api.getMedia(stateToMediaQuery(galleryState)).then((photos) => {
                 setMedia(photos.media)
                 setCount(photos.count)
             });
         } else {
-            return api.album(galleryState.selectedAlbum, galleryState.page, galleryState.limit, galleryState.orderby, galleryState.asc, galleryState.filter.path, galleryState.filter.not_path, galleryState.filter.before, galleryState.filter.after).then((album) => {
+            return api.album(galleryState.selectedAlbum, stateToMediaQuery(galleryState)).then((album) => {
                 setMedia(album.media.media)
                 setCount(album.media.count)
             });
@@ -138,7 +153,8 @@ export default function Index() {
 
     function loadMediaViews() {
         api.media_view_index().then((mediaViews) => {
-            setMediaViews(mediaViews);
+            setLastImportId(mediaViews.last_import_id);
+            setMediaViews(mediaViews.media_views);
         });
     }
 
@@ -202,13 +218,14 @@ export default function Index() {
                     <AlbumSelector
                         albums={albums || []}
                         mediaViews={mediaViews || []}
+                        lastImportId={lastImportId}
                         selectedAlbum={galleryState.selectedAlbum}
                         setSelectedAlbum={(album) => {
                             if (!album) {
                                 setGalleryState({
                                     selectedAlbum: null,
                                     page: 0,
-                                    filter: {path: null, before: null, after: null, not_path: null}
+                                    filter: new FilterOps()
                                 });
                                 return;
                             }

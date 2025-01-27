@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import {MediaQueryColumns, MediaQueryColumnsType} from "@/api/api";
 
-export interface FilterOps {
-    path: string | null;
-    not_path: string | null;
-    before: Date | null;
-    after: Date | null;
+export class FilterOps {
+    path: string | null = null;
+    not_path: string | null = null;
+    before: Date | null = null;
+    after: Date | null = null;
+    is_screenshot: boolean | null = null;
+    import_id: number | null = null;
 }
 
 export interface QueryState {
@@ -31,8 +33,10 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         const filter_not_path = query.get('filter_not_path');
         const before = query.get('before');
         const after = query.get('after');
+        const is_screenshot = query.get('is_screenshot');
+        const import_id = query.get('import_id');
 
-        const newFilter: FilterOps = { path: null, before: null, after: null, not_path: null };
+        const newFilter = new FilterOps();
 
         if (filter_path) {
             newFilter.path = filter_path;
@@ -49,6 +53,14 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
 
         if (orderby && MediaQueryColumns.indexOf(orderby) === -1) {
             throw new Error(`Invalid orderby value: ${orderby}`);
+        }
+
+        if (is_screenshot) {
+            newFilter.is_screenshot = is_screenshot === 'true';
+        }
+
+        if (import_id) {
+            newFilter.import_id = parseInt(import_id, 10);
         }
 
         return {
@@ -84,6 +96,12 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         }
         if (state.filter.after) {
             query.set('after', state.filter.after.getTime().toString(10));
+        }
+        if (state.filter.is_screenshot !== null && state.filter.is_screenshot !== undefined) {
+            query.set('is_screenshot', state.filter.is_screenshot.toString());
+        }
+        if(state.filter.import_id !== null){
+            query.set('import_id', state.filter.import_id.toString());
         }
 
         window.history.replaceState({}, '', `${window.location.pathname}?${query.toString()}`);

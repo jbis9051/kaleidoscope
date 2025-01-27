@@ -1,7 +1,7 @@
 use crate::question_marks;
 use sqlx::sqlite::SqliteRow;
 use sqlx::types::chrono::NaiveDateTime;
-use sqlx::{Row, SqliteExecutor};
+use sqlx::{Execute, Row, SqliteExecutor};
 use std::borrow::Borrow;
 use serde::Serialize;
 use uuid::{Uuid};
@@ -49,6 +49,7 @@ pub struct Media {
     pub format: FormatType,
     pub metadata_version: i32,
     pub thumbnail_version: i32,
+    pub import_id: i32,
 }
 
 sqlize!(Media, "media", id, [
@@ -70,7 +71,8 @@ sqlize!(Media, "media", id, [
     longitude,
     latitude,
     metadata_version,
-    thumbnail_version
+    thumbnail_version,
+    import_id
 ]);
 
 impl Media {

@@ -5,7 +5,7 @@ mod exif;
 
 use std::collections::HashSet;
 use crate::media_operations::{add_media, remove_media, update_media, AddMediaError};
-use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
+use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_ID_DB_KEY};
 use common::models::kv::Kv;
 use common::models::media::Media;
 use common::scan_config::AppConfig;
@@ -186,6 +186,31 @@ async fn main() {
 
 
 async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> u32 {
+    let mut import_id_kv = Kv::from_key(&mut *db, LAST_IMPORT_ID_DB_KEY)
+        .await
+        .expect("error getting last import id")
+        .unwrap_or_else(|| {
+            Kv {
+                id: 0,
+                key: LAST_IMPORT_ID_DB_KEY.to_string(),
+                value: "0".to_string(),
+                created_at: Default::default(),
+                updated_at: Default::default(),
+            }
+        });
+
+    let mut import_id = import_id_kv.value.parse::<i32>().unwrap();
+
+    import_id += 1;
+
+    import_id_kv.value = import_id.to_string();
+
+    import_id_kv.update_by_key(&mut *db).await.unwrap();
+
+
+    println!("beginning import id: {}", import_id);
+
+
     let mut count = 0;
     for entry in WalkDir::new(path) {
         if let Ok(entry) = entry {
@@ -202,7 +227,7 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
                 debug!("      skipping symlink: {:?}", entry.path());
                 continue;
             }
-            match add_media(entry.path(), config, db).await {
+            match add_media(entry.path(), config, import_id, db).await {
                 Ok(_) => {
                     info!("      found new file: {:?}", entry.path());
                     count += 1;

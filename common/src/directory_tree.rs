@@ -4,6 +4,7 @@ use polonius_the_crab::{exit_polonius, polonius, polonius_break, polonius_return
 use serde::{Deserialize, Serialize};
 
 pub const DIRECTORY_TREE_DB_KEY: &str = "directory_tree";
+pub const LAST_IMPORT_ID_DB_KEY: &str = "last_import_id";
 
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub struct Node {

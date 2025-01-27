@@ -15,7 +15,9 @@ pub struct MediaQuery {
     #[serde(default, with = "ts_milliseconds_option")]
     pub before: Option<DateTime<Utc>>,
     #[serde(default, with = "ts_milliseconds_option")]
-    pub after: Option<DateTime<Utc>>
+    pub after: Option<DateTime<Utc>>,
+    pub is_screenshot: Option<bool>,
+    pub import_id: Option<i32>,
 }
 
 impl MediaQuery {
@@ -29,6 +31,8 @@ impl MediaQuery {
             filter_not_path: None,
             before: None,
             after: None,
+            is_screenshot: None,
+            import_id: None,
         }
     }
 
@@ -42,6 +46,8 @@ impl MediaQuery {
             filter_not_path: self.filter_not_path.clone(),
             before: self.before.clone(),
             after: self.after.clone(),
+            is_screenshot: self.is_screenshot,
+            import_id: self.import_id,
         }
     }
     
@@ -69,7 +75,19 @@ impl MediaQuery {
                 .push(" AND created_at > ")
                 .push_bind(*after);
         }
-        
+
+        if let Some(is_screenshot) = self.is_screenshot {
+            query
+                .push(" AND is_screenshot = ")
+                .push_bind(is_screenshot);
+        }
+
+        if let Some(import_id) = self.import_id {
+            query
+                .push(" AND import_id = ")
+                .push_bind(import_id);
+        }
+
         if let Some(order_by) = &self.order_by {
             Media::safe_column(order_by)?;
             query
@@ -93,7 +111,7 @@ impl MediaQuery {
                     .push_bind(page * self.limit.unwrap());
             }
         }
-        
+
         Ok(())
     }
 }

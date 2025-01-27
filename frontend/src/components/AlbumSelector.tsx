@@ -7,6 +7,7 @@ import React from "react";
 export interface AlbumProps {
     albums: AlbumIndex[];
     mediaViews: MediaView[];
+    lastImportId: number | null;
     selectedAlbum: string | null;
 
     setSelectedAlbum: (album: AlbumIndex | null) => void;
@@ -22,6 +23,7 @@ export interface AlbumProps {
 export default function AlbumSelector({
                                           albums,
                                           mediaViews,
+                                          lastImportId,
                                           selectedAlbum,
                                           setSelectedAlbum,
                                           selectMediaView,
@@ -30,7 +32,21 @@ export default function AlbumSelector({
                                           onDrop,
                                           mediaViewMatchesCurrentURL
                                       }: AlbumProps) {
+
     const [albumHover, setAlbumHover] = React.useState<AlbumIndex | null>(null);
+
+    if(lastImportId !== null) {
+        mediaViews = [
+            {
+                id: -1,
+                uuid: 'last-import',
+                name: 'Last Import',
+                view_query: `orderby=created_at&asc=false&limit=100&import_id=${lastImportId}`,
+                created_at: 0,
+            },
+            ...mediaViews
+        ]
+    }
 
     return <div className={styles.albumSelector}>
         <div className={styles.albumHeader}>

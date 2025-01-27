@@ -17,7 +17,7 @@ use common::models::album::Album;
 use common::models::media::Media;
 use common::types::DbPool;
 use tokio_util::io::ReaderStream;
-use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY};
+use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_ID_DB_KEY};
 use common::media_query::MediaQuery;
 use common::models::kv::Kv;
 use common::models::media_view::MediaView;
@@ -229,9 +229,19 @@ async fn album_delete_media(Extension(conn): Extension<DbPool>, path: Path<Album
     Ok(Json(album))
 }
 
-async fn media_view_index(Extension(conn): Extension<DbPool>) -> Json<Vec<MediaView>> {
+
+
+#[derive(Debug, Serialize)]
+struct MediaViewIndexResponse {
+    media_views: Vec<MediaView>,
+    last_import_id: i32,
+}
+
+async fn media_view_index(Extension(conn): Extension<DbPool>) -> Json<MediaViewIndexResponse> {
     let media = MediaView::get_all(&conn).await.unwrap();
-    Json(media)
+    let last_import_id = Kv::from_key(&conn, LAST_IMPORT_ID_DB_KEY).await.unwrap().map(|kv| kv.value.parse().unwrap()).unwrap_or(-1);
+
+    Json(MediaViewIndexResponse { media_views: media, last_import_id })
 }
 
 #[derive(Debug, serde::Deserialize)]

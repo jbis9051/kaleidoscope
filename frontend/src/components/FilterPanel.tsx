@@ -17,7 +17,14 @@ interface FilterPanelProps {
 }
 
 export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, onSave}: FilterPanelProps) {
-    const [filterInput, setFilterInput] = useState<FilterInputOps>({path: null, before: null, after: null, not_path: null});
+    const [filterInput, setFilterInput] = useState<FilterInputOps>({
+        path: null,
+        before: null,
+        after: null,
+        not_path: null,
+        is_screenshot: null,
+        import_id: null
+    });
 
     // update the filterInputs when the filter changes
     useEffect(() => {
@@ -25,7 +32,9 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
             path: filter.path,
             not_path: filter.not_path,
             before: filter.before?.toISOString().split('T')[0] || null,
-            after: filter.after?.toISOString().split('T')[0] || null
+            after: filter.after?.toISOString().split('T')[0] || null,
+            is_screenshot: filter.is_screenshot?.toString() || "any",
+            import_id: filter.import_id?.toString() || null
         })
     }, [filter])
 
@@ -42,6 +51,8 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
                             not_path: filterInput.not_path,
                             before: filterInput.before ? new Date(filterInput.before) : null,
                             after: filterInput.after ? new Date(filterInput.after) : null,
+                            is_screenshot: filterInput.is_screenshot === 'any' ? null : filterInput.is_screenshot === 'true',
+                            import_id: filter.import_id
                         });
                     }}>Filter
                     </button>
@@ -75,6 +86,16 @@ export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, o
                                                        after: e.target.value
                                                    })
                                                }} type="date"/>
+                </label>
+                <label>
+                    <span>Is Screenshot </span>
+                    <select value={filterInput.is_screenshot || 'null'} onChange={e => {
+                        setFilterInput({...filterInput, is_screenshot: e.target.value})
+                    }}>
+                        <option value="any">Any</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                    </select>
                 </label>
 
             </div>
