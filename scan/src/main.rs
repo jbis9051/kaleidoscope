@@ -189,15 +189,7 @@ async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> 
     let mut import_id_kv = Kv::from_key(&mut *db, LAST_IMPORT_ID_DB_KEY)
         .await
         .expect("error getting last import id")
-        .unwrap_or_else(|| {
-            Kv {
-                id: 0,
-                key: LAST_IMPORT_ID_DB_KEY.to_string(),
-                value: "0".to_string(),
-                created_at: Default::default(),
-                updated_at: Default::default(),
-            }
-        });
+        .expect("last import id not found");
 
     let mut import_id = import_id_kv.value.parse::<i32>().unwrap();
 
