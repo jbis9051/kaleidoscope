@@ -9,5 +9,5 @@ ALTER TABLE media ADD COLUMN format TEXT NOT NULL DEFAULT 'unknown';
 ALTER TABLE media ADD COLUMN metadata_version INT NOT NULL DEFAULT 0;
 ALTER TABLE media ADD COLUMN thumbnail_version INT NOT NULL DEFAULT 0;
 
-INSERT INTO kv (key, value, created_at, updated_at) VALUES ('last_import_id', '-1', CURRENT_DATE, CURRENT_DATE);
+INSERT INTO kv (key, value, created_at, updated_at) VALUES ('last_import_id', '-1', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
