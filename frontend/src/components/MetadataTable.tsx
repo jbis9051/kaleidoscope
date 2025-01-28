@@ -1,5 +1,4 @@
 import styles from "./MetadataTable.module.css";
-import Map from "@/components/Map";
 
 export default function MetadataTable({metadata}: { metadata: Record<string, string> }) {
     return (
