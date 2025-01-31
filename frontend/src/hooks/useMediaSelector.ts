@@ -9,6 +9,11 @@ export function useMediaSelector(media: Media[], layout: Media[][] | null) {
 
     useEffect(() => {
         function handleKeyDown(e: KeyboardEvent) {
+            if(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+                return;
+            }
+
+
             if (e.key === 'Shift') {
                 setShiftDown(true);
             }

@@ -260,6 +260,7 @@ export default function Index() {
                             }
                         }}/>
                     <FilterPanel
+                        api={api}
                         filter={galleryState.filter}
                         trashEnabled={!!mediaViews?.some(m => mediaViewMatchesCurrentURL(m))}
                         setFilter={(filter) => setGalleryState({filter: filter.clone()})}
