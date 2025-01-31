@@ -80,4 +80,32 @@ export default class Filter {
     clone() {
        return Filter.fromString(this.toFilterString());
     }
+
+    equals(other: Filter) {
+        const keys = Object.keys(this.filter);
+        const otherKeys = Object.keys(other.filter);
+        if (keys.length !== otherKeys.length) {
+            return false;
+        }
+        keys.sort();
+        otherKeys.sort();
+        if (keys.join('|') !== otherKeys.join('|')) {
+            return false;
+        }
+        for (const key of keys) {
+            const values = this.filter[key];
+            const otherValues = other.filter[key];
+            if (values.length !== otherValues.length) {
+                return false;
+            }
+            for (let i = 0; i < values.length; i++) {
+                const [op, value] = values[i];
+                const [otherOp, otherValue] = otherValues[i];
+                if (op !== otherOp || value !== otherValue) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
 }

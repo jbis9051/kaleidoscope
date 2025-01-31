@@ -18,6 +18,15 @@ import MapViewer from "@/components/MapViewer";
 import Filter from "@/utility/Filter";
 import FilterPanel from "@/components/FilterPanel";
 
+export interface MediaViewFilter extends MediaView {
+    filter: Filter | null;
+    album: string | null;
+}
+
+interface ViewQuery {
+    filter: string;
+    album: string | null;
+}
 
 export default function Index() {
     const [initialLoaded, setInitialLoaded] = useState(false);
@@ -37,7 +46,7 @@ export default function Index() {
 
     const [media, setMedia] = useState<Media[] | null>(null);
     const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
-    const [mediaViews, setMediaViews] = useState<MediaView[] | null>(null);
+    const [mediaViews, setMediaViews] = useState<MediaViewFilter[] | null>(null);
     const [lastImportId, setLastImportId] = useState<number | null>(null);
 
     const [count, setCount] = useState(0);
@@ -144,7 +153,17 @@ export default function Index() {
     function loadMediaViews() {
         api.media_view_index().then((mediaViews) => {
             setLastImportId(mediaViews.last_import_id);
-            setMediaViews(mediaViews.media_views);
+            setMediaViews(mediaViews.media_views.map(mv => {
+                try {
+                    const view_query: ViewQuery = JSON.parse(mv.view_query);
+                    const filter = Filter.fromString(view_query.filter);
+                    const album = view_query.album;
+                    return {...mv, filter, album};
+                } catch (e: any) {
+                    console.error(`Error parsing media view ${mv.name}: ${e.message}`);
+                    return {...mv, filter: null, album: null};
+                }
+            }));
         });
     }
 
@@ -173,16 +192,11 @@ export default function Index() {
     }
 
 
-    function mediaViewMatchesCurrentURL(view: MediaView) {
-        const view_query = new URLSearchParams(view.view_query);
-        view_query.delete("page");
-        view_query.sort();
-
-        const current_query = new URLSearchParams(window.location.search);
-        current_query.delete("page");
-        current_query.sort();
-
-        return view_query.toString() === current_query.toString();
+    function mediaViewMatchesCurrentURL(view: MediaViewFilter) {
+        if(!view.filter){
+            return false;
+        }
+        return galleryState.filter.equals(view.filter);
     }
 
     const oldest = media && media.length > 1 && media.reduce((prev, current) => (prev.created_at < current.created_at) ? prev : current) || null;
@@ -212,9 +226,9 @@ export default function Index() {
                         selectedAlbum={galleryState.selectedAlbum}
                         setSelectedAlbum={(album) => {
                             if (!album) {
-                                const gps = galleryState.filter.get('has_gps', "=");
                                 let filter = Filter.empty();
-                                if (gps) {
+                                if (viewType === ViewType.MapViewer) {
+                                    const gps = galleryState.filter.get('has_gps', "=");
                                     filter = filter.set('has_gps', "=", gps);
                                 }
                                 setGalleryState({
@@ -227,7 +241,13 @@ export default function Index() {
                             setGalleryState({selectedAlbum: album.uuid});
                         }}
                         selectMediaView={(view) => {
-                            setGalleryState(queryToState(new URLSearchParams(view.view_query)));
+                            if(!view.filter) {
+                                if (confirm(`Invalid filter '${view.name}', delete?`)) {
+                                    api.media_view_delete(view.uuid).then(() => loadMediaViews());
+                                }
+                                return;
+                            }
+                            setGalleryState({filter: view.filter.clone(), selectedAlbum: view.album});
                         }}
                         createAlbum={createAlbum}
                         deleteAlbum={deleteAlbum}
@@ -274,15 +294,20 @@ export default function Index() {
                             }
                             if (confirm(`Are you sure you want to delete ${selected.name}?`)) {
                                 await api.media_view_delete(selected.uuid).then(() => {
-                                    loadMediaViews()
+                                    loadMediaViews();
                                 });
                             }
                         }}
                         onSave={async () => {
                             const name = prompt('Filter Name');
                             if (name) {
-                                await api.media_view_create(name, window.location.search.substring(1));
-                                loadMediaViews()
+                                const viewQuery = JSON.stringify({
+                                    filter: galleryState.filter.toFilterString(),
+                                    album: galleryState.selectedAlbum
+                                });
+                                await api.media_view_create(name, viewQuery).then(() => {
+                                    loadMediaViews()
+                                });
                             }
                         }}
                     />

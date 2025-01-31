@@ -3,21 +3,23 @@ import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faFilter, faFolder} from "@fortawesome/free-solid-svg-icons";
 import {AlbumIndex, MediaView} from "@/api/api";
 import React from "react";
+import {MediaViewFilter} from "@/pages";
+import Filter from "@/utility/Filter";
 
 export interface AlbumProps {
     albums: AlbumIndex[];
-    mediaViews: MediaView[];
+    mediaViews: MediaViewFilter[];
     lastImportId: number | null;
     selectedAlbum: string | null;
 
     setSelectedAlbum: (album: AlbumIndex | null) => void;
-    selectMediaView: (view: MediaView) => void;
+    selectMediaView: (view: MediaViewFilter) => void;
     createAlbum: () => void;
     deleteAlbum: () => void;
 
     onDrop: (e: React.DragEvent<HTMLDivElement>, album: AlbumIndex) => void;
 
-    mediaViewMatchesCurrentURL: (view: MediaView) => boolean;
+    mediaViewMatchesCurrentURL: (view: MediaViewFilter) => boolean;
 }
 
 export default function AlbumSelector({
@@ -35,14 +37,17 @@ export default function AlbumSelector({
 
     const [albumHover, setAlbumHover] = React.useState<AlbumIndex | null>(null);
 
+
     if(lastImportId !== null) {
         mediaViews = [
             {
                 id: -1,
                 uuid: 'last-import',
                 name: 'Last Import',
-                view_query: `orderby=created_at&asc=false&limit=100&import_id=${lastImportId}`,
+                view_query: "",
                 created_at: 0,
+                filter: Filter.empty().set('import_id', '=', lastImportId),
+                album: null
             },
             ...mediaViews
         ]

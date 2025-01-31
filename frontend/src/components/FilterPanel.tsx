@@ -28,7 +28,14 @@ export default function FilterPanel({api, filter, trashEnabled, setFilter, onTra
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        api.info().then(info => setDescription(info.media_query));
+        api.info().then(info => {
+            const desc = info.media_query;
+            delete desc.fields["page"];
+            delete desc.fields["asc"];
+            delete desc.fields["limit"];
+            delete desc.fields["order_by"];
+            setDescription(info.media_query)
+        });
     }, []);
 
     // update the filterInputs when the filter changes
@@ -41,7 +48,6 @@ export default function FilterPanel({api, filter, trashEnabled, setFilter, onTra
             setSuggestions([]);
             return;
         }
-        console.log({filterInput, cursor});
         const before = filterInput.substring(0, cursor);
         const lastWhitespace = before.lastIndexOf(" ");
         const part = before.substring(lastWhitespace + 1);

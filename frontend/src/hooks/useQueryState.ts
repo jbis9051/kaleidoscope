@@ -22,7 +22,7 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         const asc = query.get('asc');
         const limit = query.get('limit');
 
-        const orderby = query.get('orderby');
+        const orderby = query.get('order_by');
 
         const filter = query.get('filter');
 
@@ -41,7 +41,7 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         const query = new URLSearchParams();
 
         query.set('page', state.page.toString());
-        query.set('orderby', state.orderby);
+        query.set('order_by', state.orderby);
         query.set('asc', state.asc.toString());
         query.set('limit', state.limit.toString());
 
