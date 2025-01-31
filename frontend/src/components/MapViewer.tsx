@@ -2,12 +2,13 @@ import {Media} from "@/api/api";
 import Map from "@/components/Map/Map";
 import styles from './MapViewer.module.css';
 import React, {useCallback, useEffect} from "react";
-import {FilterOps, QueryState} from "@/hooks/useQueryState";
+import {QueryState} from "@/hooks/useQueryState";
+import Filter from "@/utility/Filter";
 
 export interface MapViewerProps {
     media: Media[] | null;
     select: (media: Media) => void;
-    filter: FilterOps;
+    filter: Filter;
     setGalleryState: (state: Partial<QueryState>) => void;
 }
 
@@ -15,8 +16,10 @@ export default function MapViewer({media, select, filter, setGalleryState}: MapV
     const [recenterFunction, setRecenterFunction] = React.useState<() => void>(() => () => {});
 
     useEffect(() => {
-        if (!filter.has_gps) {
-            setGalleryState({filter: {...filter, has_gps: true}});
+        if (!filter.get('has_gps', "=")) {
+            const newFilter = filter.clone();
+            newFilter.set('has_gps', '=', true);
+            setGalleryState({filter});
         }
     }, [filter]);
 

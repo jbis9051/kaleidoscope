@@ -38,9 +38,6 @@ export interface MediaView {
     created_at: number,
 }
 
-export const MediaQueryColumns = ['id', 'uuid', 'name', 'created_at', 'width', 'height', 'size', 'path', 'liked', 'is_photo', 'added_at'];
-export type MediaQueryColumnsType = (typeof MediaQueryColumns)[number];
-
 
 export interface MediaIndexResponse {
     media: Media[];
@@ -72,18 +69,15 @@ export interface DirectoryTree {
     root: DirectoryNode;
 }
 
-export interface MediaQuery {
-    order_by?: MediaQueryColumnsType;
-    asc?: boolean;
-    limit?: number;
-    page?: number;
-    filter_path?: string;
-    filter_not_path?: string;
-    before?: Date;
-    after?: Date;
-    is_screenshot?: boolean;
-    import_id?: number;
-    has_gps?: boolean;
+export type MediaQuery = string;
+
+export interface MediaQueryDescription  {
+    fields: { [key: string]: string };
+    dsl_types: { [key: string]: string[] };
+}
+
+export interface Info {
+    media_query: MediaQueryDescription;
 }
 
 
@@ -93,21 +87,8 @@ export class Api {
         this.url = url;
     }
 
-    private queryToParams(query: MediaQuery): string {
-        return `${Object.entries(query).map(([key, value]) => {
-            if (value === null || value === undefined) {
-                return null;
-            }
-            if (value instanceof Date) {
-                return `${key}=${value.getTime()}`;
-            } else {
-                return `${key}=${value}`;
-            }
-        }).filter(x => x !== null).join('&')}`;
-    }
-
     getMedia(mediaQuery: MediaQuery): Promise<MediaIndexResponse> {
-        return fetch(`${this.url}/media?${this.queryToParams(mediaQuery)}`).then(response => response.json())
+        return fetch(`${this.url}/media?query=${encodeURI(mediaQuery)}`).then(response => response.json())
     }
 
     async album_index(): Promise<AlbumIndex[]> {
@@ -116,7 +97,7 @@ export class Api {
     }
 
     album(uuid: string, mediaQuery: MediaQuery): Promise<AlbumResponse> {
-        return fetch(`${this.url}/album/${uuid}?${this.queryToParams(mediaQuery)}`).then(response => response.json())
+        return fetch(`${this.url}/album/${uuid}?query=${encodeURI(mediaQuery)}`).then(response => response.json())
     }
 
     album_create(name: string): Promise<Album> {
@@ -181,6 +162,10 @@ export class Api {
 
     directory_tree(): Promise<DirectoryTree> {
         return fetch(`${this.url}/directory_tree`).then(response => response.json())
+    }
+
+    info(): Promise<Info> {
+        return fetch(`${this.url}/info`).then(response => response.json())
     }
     
 }

@@ -6,16 +6,17 @@ import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata from "@/utility/mediaMetadata";
 import AlbumSelector from "@/components/AlbumSelector";
-import {FilterOps, QueryState, useQueryState} from "@/hooks/useQueryState";
+import {QueryState, useQueryState} from "@/hooks/useQueryState";
 import GalleryStateSelector, {ViewType} from "@/components/GalleryStateSelector";
 import {useMediaSelector} from "@/hooks/useMediaSelector";
-import FilterPanel from "@/components/FilterPanel";
 import FileViewer from "@/components/FileViewer";
 import MediaImg from "@/components/MediaImg";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faDownload, faFloppyDisk} from "@fortawesome/free-solid-svg-icons";
 import Map from "@/components/Map/Map";
 import MapViewer from "@/components/MapViewer";
+import Filter from "@/utility/Filter";
+import FilterPanel from "@/components/FilterPanel";
 
 
 export default function Index() {
@@ -31,7 +32,7 @@ export default function Index() {
         asc: true,
         limit: 100,
         selectedAlbum: null,
-        filter: new FilterOps()
+        filter: Filter.empty()
     });
 
     const [media, setMedia] = useState<Media[] | null>(null);
@@ -83,7 +84,7 @@ export default function Index() {
             }
             if (e.key === 'Escape' && !preview && selectedMedia.length === 0) { // clear filter on double escape
                 if (Date.now() - lastEscape < 250) {
-                    setGalleryState({filter: new FilterOps()})
+                    setGalleryState({filter: Filter.empty()})
                 }
                 lastEscape = Date.now();
             }
@@ -111,25 +112,13 @@ export default function Index() {
 
         if (galleryState.selectedAlbum && viewType === ViewType.FileBrowser) { // browser doesn't support albums
             setViewType(ViewType.Gallery);
-            setGalleryState({filter: new FilterOps()});
+            setGalleryState({filter: Filter.empty()});
         }
 
     }, [galleryState]);
 
     function stateToMediaQuery(queryState: QueryState): MediaQuery {
-        return {
-            page: queryState.page,
-            order_by: queryState.orderby,
-            asc: queryState.asc,
-            limit: queryState.limit,
-            filter_path: queryState.filter.path || undefined,
-            filter_not_path: queryState.filter.not_path || undefined,
-            before: queryState.filter.before || undefined,
-            after: queryState.filter.after || undefined,
-            is_screenshot: queryState.filter.is_screenshot === null ? undefined : queryState.filter.is_screenshot,
-            import_id: queryState.filter.import_id || undefined,
-            has_gps: queryState.filter.has_gps === null ? undefined : queryState.filter.has_gps,
-        }
+        return queryState.filter.toMediaQuery(queryState.orderby, queryState.asc, queryState.limit, queryState.page);
     }
 
     function loadGallery() {
@@ -223,13 +212,15 @@ export default function Index() {
                         selectedAlbum={galleryState.selectedAlbum}
                         setSelectedAlbum={(album) => {
                             if (!album) {
+                                const gps = galleryState.filter.get('has_gps', "=");
+                                let filter = Filter.empty();
+                                if (gps) {
+                                    filter = filter.set('has_gps', "=", gps);
+                                }
                                 setGalleryState({
                                     selectedAlbum: null,
                                     page: 0,
-                                    filter: {
-                                        ...new FilterOps(),
-                                        has_gps: galleryState.filter.has_gps
-                                    }
+                                    filter,
                                 });
                                 return;
                             }
@@ -247,10 +238,31 @@ export default function Index() {
                             loadAlbums();
                         }}
                         mediaViewMatchesCurrentURL={mediaViewMatchesCurrentURL}/>
+                </div>
+                <div className={styles.mainSection}>
+                    <GalleryStateSelector
+                        galleryState={galleryState}
+                        setGalleryState={setGalleryState}
+                        oldest={oldest}
+                        newest={newest}
+                        count={count}
+                        size={size}
+                        setSize={setSize}
+                        viewType={viewType}
+                        setViewType={setViewType}
+                        removeEnabled={!!(selectedMedia.length > 0 && galleryState.selectedAlbum)}
+                        onRemove={async () => {
+                            if (selectedMedia.length > 0 && galleryState.selectedAlbum) {
+                                await api.album_remove_media(galleryState.selectedAlbum, selectedMedia.map(m => m.uuid));
+                                loadGallery();
+                                loadAlbums();
+                                selectMedia(null);
+                            }
+                        }}/>
                     <FilterPanel
                         filter={galleryState.filter}
                         trashEnabled={!!mediaViews?.some(m => mediaViewMatchesCurrentURL(m))}
-                        setFilter={(filter) => setGalleryState({filter})}
+                        setFilter={(filter) => setGalleryState({filter: filter.clone()})}
                         onTrash={async () => {
                             if (!mediaViews) {
                                 return;
@@ -273,27 +285,6 @@ export default function Index() {
                             }
                         }}
                     />
-                </div>
-                <div className={styles.mainSection}>
-                    <GalleryStateSelector
-                        galleryState={galleryState}
-                        setGalleryState={setGalleryState}
-                        oldest={oldest}
-                        newest={newest}
-                        count={count}
-                        size={size}
-                        setSize={setSize}
-                        viewType={viewType}
-                        setViewType={setViewType}
-                        removeEnabled={!!(selectedMedia.length > 0 && galleryState.selectedAlbum)}
-                        onRemove={async () => {
-                            if (selectedMedia.length > 0 && galleryState.selectedAlbum) {
-                                await api.album_remove_media(galleryState.selectedAlbum, selectedMedia.map(m => m.uuid));
-                                loadGallery();
-                                loadAlbums();
-                                selectMedia(null);
-                            }
-                        }}/>
                     <div className={styles.mainSectionContent}>
                         {initialLoaded && viewType === ViewType.FileBrowser &&
                             <FileViewer

@@ -186,6 +186,7 @@ async fn main() {
 
 
 async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> u32 {
+    // TODO: this should be done outside of the scan
     let mut import_id_kv = Kv::from_key(&mut *db, LAST_IMPORT_ID_DB_KEY)
         .await
         .expect("error getting last import id")

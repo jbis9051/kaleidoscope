@@ -556,6 +556,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror",
  "toml 0.8.12",
  "uuid",
 ]

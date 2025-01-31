@@ -63,3 +63,11 @@ pub fn system_time_to_naive_datetime(sys_time: SystemTime) -> NaiveDateTime {
     let nanos = duration_since_epoch.subsec_nanos();
     DateTime::from_timestamp(secs as i64, nanos).unwrap().naive_utc()
 }
+
+#[derive(thiserror::Error, Debug)]
+pub enum MediaError {
+    #[error("sqlx error: {0}")]
+    Sqlx(#[from] sqlx::Error),
+    #[error("media_query error: {0}")]
+    MediaQuery(#[from] crate::media_query::MediaQueryError),
+}

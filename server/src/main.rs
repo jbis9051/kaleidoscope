@@ -4,12 +4,14 @@ use std::io::{BufRead, Read, Write};
 use axum::{Extension, Json, Router, routing::get};
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
-use axum::http::{header, HeaderMap, HeaderValue, Method, StatusCode};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::post;
 use chrono::Utc;
 use nix::unistd::Uid;
 use once_cell::sync::Lazy;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sqlx::sqlite::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
@@ -18,7 +20,7 @@ use common::models::media::Media;
 use common::types::DbPool;
 use tokio_util::io::ReaderStream;
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_ID_DB_KEY};
-use common::media_query::MediaQuery;
+use common::media_query::{MediaQuery, MediaQueryType};
 use common::models::kv::Kv;
 use common::models::media_view::MediaView;
 use common::scan_config::AppConfig;
@@ -58,6 +60,7 @@ async fn main() {
         .route("/album/:uuid/media", post(album_add_media).delete(album_delete_media))
         .route("/media_view", get(media_view_index).post(media_view_create).delete(media_view_delete))
         .route("/directory_tree", get(directory_tree))
+        .route("/info", get(info))
         .layer(Extension(pool))
         .layer(cors);
 
@@ -66,16 +69,21 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct MediaQueryQuery {
+    query: MediaQuery
+}
+
 #[derive(Debug, Serialize)]
 struct MediaIndexResponse {
     media: Vec<Media>,
     count: u32,
 }
-async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaQuery>) -> Result<Json<MediaIndexResponse>, (StatusCode, String)> {
-    if let Some(order_by) = &query.order_by {
-        if Media::safe_column(order_by).is_err() {
-            return Err((StatusCode::BAD_REQUEST, format!("Invalid column: {}", order_by)));
-        }
+async fn media_index(Extension(conn): Extension<DbPool>, query: Query<MediaQueryQuery>) -> Result<Json<MediaIndexResponse>, (StatusCode, String)> {
+    let query = &query.query;
+
+    if let Err(err) = query.validate() {
+        return Err((StatusCode::BAD_REQUEST, format!("invalid query: {}", err)));
     }
 
     let media = Media::get_all(&conn, &query).await.unwrap();
@@ -151,7 +159,13 @@ struct AlbumResponse {
     media: MediaIndexResponse
 }
 
-async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaQuery>) -> Result<Json<AlbumResponse>, (StatusCode, String)> {
+async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaQueryQuery>) -> Result<Json<AlbumResponse>, (StatusCode, String)> {
+    let query = &query.query;
+
+    if let Err(err) = query.validate() {
+        return Err((StatusCode::BAD_REQUEST, format!("invalid query: {}", err)));
+    }
+
     let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
     let media = album.get_media(&conn, &query).await.unwrap();
     let count = album.count_media(&conn, &query.to_count_query()).await.unwrap();
@@ -277,4 +291,20 @@ async fn directory_tree(Extension(conn): Extension<DbPool>) -> Result<Json<Direc
     let kv = Kv::from_key(&conn, DIRECTORY_TREE_DB_KEY).await.unwrap().ok_or_else(|| (StatusCode::NOT_FOUND, "Directory tree not found".to_string()))?;
     let tree: DirectoryTree = serde_json::from_str(kv.value.as_str()).unwrap();
     Ok(Json(tree))
+}
+
+async fn info() -> Response {
+    let info = format!(
+        r#"{{
+            "media_query": {}
+        }}"#,
+        MediaQueryType::describe()
+    );
+
+    (
+        StatusCode::OK,
+        [(header::CONTENT_TYPE, "application/json")],
+        info,
+    )
+        .into_response()
 }

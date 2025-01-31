@@ -5,8 +5,8 @@ use std::borrow::Borrow;
 use serde::Serialize;
 use uuid::{Uuid};
 use crate::media_query::MediaQuery;
-use crate::models::media::Media;
-use crate::models::date;
+use crate::models::media::{Media};
+use crate::models::{date, MediaError};
 
 
 use crate::types::DbPool;
@@ -80,7 +80,7 @@ impl Album {
             .get(0))
     }
 
-    pub async fn count_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<u32, sqlx::Error> {
+    pub async fn count_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<u32, MediaError> {
         let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media \
             INNER JOIN album_media ON media.id = album_media.media_id \
             WHERE album_media.album_id = ");
@@ -98,7 +98,7 @@ impl Album {
             .get(0))
     }
 
-    pub async fn get_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Media>, sqlx::Error> {
+    pub async fn get_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Media>, MediaError> {
 
         let mut query = sqlx::QueryBuilder::new("SELECT media.* FROM media \
             INNER JOIN album_media ON media.id = album_media.media_id \
@@ -145,3 +145,4 @@ impl Album {
         Ok(())
     }
 }
+

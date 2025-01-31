@@ -3,14 +3,15 @@ import {Api, DirectoryNode, DirectoryTree, Media} from "@/api/api";
 import styles from "@/components/FileViewer.module.css";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faFolder} from "@fortawesome/free-solid-svg-icons";
-import {FilterOps, QueryState} from "@/hooks/useQueryState";
+import {QueryState} from "@/hooks/useQueryState";
 import {API_URL} from "@/global";
 import {tree} from "next/dist/build/templates/app-page";
 import {ViewType} from "@/components/GalleryStateSelector";
+import Filter from "@/utility/Filter";
 
 interface FileViewerProps {
     api: Api
-    filter: FilterOps,
+    filter: Filter,
     setGalleryState: (state: Partial<QueryState>) => void;
     setViewType: (viewType: ViewType) => void;
     media: Media[] | null,
@@ -28,35 +29,37 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
     const [loaded, setLoaded] = useState(false);
 
     function filterValid(tree: DirectoryTree){
+        const path = filter.get("path", "%");
+        const not_path = filter.get("path", "!%");
         // check if filter is a valid path
-        if(!filter.path || !filter.not_path){
+        if(!path || !not_path){
             return false;
         }
         // filter.path must be in format /dir1/dir2/%, filter.not_path must be in format /dir1/dir2/%/%
-        if(!filter.path.endsWith("/%") || !filter.not_path.endsWith("/%/%")){
+        if(!path.endsWith("/%") || !not_path.endsWith("/%/%")){
             return false;
         }
         // filter.path must be a prefix of filter.not_path
-        if(!filter.not_path.startsWith(filter.path)){
+        if(!not_path.startsWith(path)){
             return false;
         }
 
         // filter.path must be a valid path in the tree
 
         // filter.path must start with the root
-        if(!filter.path.startsWith(tree.root.name)){
+        if(!path.startsWith(tree.root.name)){
             return false;
         }
 
-        const path = filter.path.slice(tree.root.name.length + 1).split("/");
+        const clean = path.slice(tree.root.name.length + 1).split("/");
 
 
         let curr = tree.root;
 
         let out = [curr];
 
-        while(path.length > 1){ // last element is %
-            const next = path.shift();
+        while(clean.length > 1){ // last element is %
+            const next = clean.shift();
             const child = curr.children.find(c => c.name === next);
             if(!child){
                 return false;
@@ -114,16 +117,20 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
         const path = curr + "/%";
         const not_path = curr + "/%/%";
 
-        if (filter.path === path && filter.not_path === not_path) {
+        const filterPath = filter.get("path", "%");
+        const filterNotPath = filter.get("path", "!%");
+
+        if (filterPath === path && filterNotPath === not_path) {
             return;
         }
 
+        const newFilter = filter.clone();
+
+        newFilter.set("path", "%", path);
+        newFilter.set("path", "!%", not_path);
+
         setGalleryState({
-            filter: {
-                ...filter,
-                path,
-                not_path,
-            }
+            filter: newFilter
         })
     }, [currentPath]);
 

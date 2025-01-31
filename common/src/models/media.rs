@@ -6,7 +6,7 @@ use std::borrow::Borrow;
 use serde::Serialize;
 use uuid::{Uuid};
 use crate::media_query::MediaQuery;
-use crate::models::date;
+use crate::models::{date, MediaError};
 use crate::{sqlize, update_set};
 use crate::format_type::FormatType;
 use crate::types::DbPool;
@@ -83,7 +83,7 @@ impl Media {
         }
     }
 
-    pub async fn get_all(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Self>, sqlx::Error> {
+    pub async fn get_all(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Self>, MediaError> {
         let mut query = sqlx::QueryBuilder::new("SELECT * FROM media WHERE 1=1");
 
         media_query.sqlize(&mut query)?;
@@ -98,7 +98,7 @@ impl Media {
             .collect())
     }
 
-    pub async fn count(db: &DbPool, media_query: &MediaQuery) -> Result<u32, sqlx::Error> {
+    pub async fn count(db: &DbPool, media_query: &MediaQuery) -> Result<u32, MediaError> {
         let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media WHERE 1=1");
 
         media_query.sqlize(&mut query)?;
@@ -166,3 +166,4 @@ impl Media {
         Ok(())
     }
 }
+

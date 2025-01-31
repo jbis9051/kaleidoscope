@@ -1,106 +1,47 @@
 import {useEffect, useState} from "react";
-import {FilterOps} from "@/hooks/useQueryState";
 import styles from "@/components/FilterPanel.module.css";
-
-type FilterInputOps = {
-    [P in keyof FilterOps]: string | null;
-};
+import Filter from "@/utility/Filter";
+import {MediaQueryDescription} from "@/api/api";
 
 interface FilterPanelProps {
-    filter: FilterOps;
+    filter: Filter;
 
     trashEnabled: boolean;
 
-    setFilter: (filter: FilterOps) => void;
+    setFilter: (filter: Filter) => void;
     onTrash: () => void;
     onSave: () => void;
 }
 
 export default function FilterPanel({filter, trashEnabled, setFilter, onTrash, onSave}: FilterPanelProps) {
-    const [filterInput, setFilterInput] = useState<FilterInputOps>({
-        path: null,
-        before: null,
-        after: null,
-        not_path: null,
-        is_screenshot: null,
-        import_id: null,
-        has_gps: null
-    });
-
+    const [filterInput, setFilterInput] = useState<string>("");
+    
+    //const [description, setDescription] = useState<MediaQueryDescription | null>(null);
+    
     // update the filterInputs when the filter changes
     useEffect(() => {
-        setFilterInput({
-            path: filter.path,
-            not_path: filter.not_path,
-            before: filter.before?.toISOString().split('T')[0] || null,
-            after: filter.after?.toISOString().split('T')[0] || null,
-            is_screenshot: filter.is_screenshot?.toString() || "any",
-            import_id: filter.import_id?.toString() || null,
-            has_gps: filter.has_gps?.toString() || null
-        })
+        setFilterInput(filter.toFilterString());
     }, [filter])
+
+    let filterError = null;
+
+    try {
+        Filter.fromString(filterInput);
+    } catch (e: any) {
+        filterError = e.message;
+    }
 
     return (
         <div className={styles.filterPanel}>
-            <div className={styles.filterHeader}>
-                <div className={styles.filterTitle}>Filters</div>
+            <div className={`${styles.filter} ${filterError ? styles.error : ""}`}>
+                <input placeholder={"Filter"} value={filterInput} onChange={(e) => setFilterInput(e.target.value)}/>
+            </div>
+            <div className={styles.actions}>
                 <div>
                     <button onClick={onSave}>Save</button>
                     <button disabled={!trashEnabled} onClick={onTrash}>Trash</button>
-                    <button onClick={() => {
-                        setFilter({
-                            path: filterInput.path,
-                            not_path: filterInput.not_path,
-                            before: filterInput.before ? new Date(filterInput.before) : null,
-                            after: filterInput.after ? new Date(filterInput.after) : null,
-                            is_screenshot: filterInput.is_screenshot === 'any' ? null : filterInput.is_screenshot === 'true',
-                            import_id: filter.import_id,
-                            has_gps: filter.has_gps,
-                        });
-                    }}>Filter
-                    </button>
+                    <button onClick={() => setFilter(Filter.fromString(filterInput)) }>Filter</button>
                 </div>
-            </div>
-            <div className={styles.filter}>
-                <label>
-                    <span>Path </span> <input value={filterInput.path || ''} onChange={e => {
-                    setFilterInput({...filterInput, path: e.target.value})
-                }} type="text" placeholder="Path Filter"/>
-                </label>
-                <label>
-                    <span>Not Path </span> <input value={filterInput.not_path || ''} onChange={e => {
-                    setFilterInput({...filterInput, not_path: e.target.value})
-                }} type="text" placeholder="Not Path Filter"/>
-                </label>
-                <label className={styles.filterDate}>
-                    <span>Before </span> <input value={filterInput.before || ''}
-                                                onChange={e => {
-                                                    setFilterInput({
-                                                        ...filterInput,
-                                                        before: e.target.value
-                                                    })
-                                                }} type="date"/>
-                </label>
-                <label className={styles.filterDate}>
-                    <span>After </span> <input value={filterInput.after || ''}
-                                               onChange={e => {
-                                                   setFilterInput({
-                                                       ...filterInput,
-                                                       after: e.target.value
-                                                   })
-                                               }} type="date"/>
-                </label>
-                <label>
-                    <span>Is Screenshot </span>
-                    <select value={filterInput.is_screenshot || 'null'} onChange={e => {
-                        setFilterInput({...filterInput, is_screenshot: e.target.value})
-                    }}>
-                        <option value="any">Any</option>
-                        <option value="true">Yes</option>
-                        <option value="false">No</option>
-                    </select>
-                </label>
-
             </div>
         </div>
     )

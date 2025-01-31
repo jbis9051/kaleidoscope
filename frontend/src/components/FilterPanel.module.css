@@ -1,44 +1,31 @@
 .filterPanel {
-    flex: 1;
     display: flex;
-    flex-direction: column;
+    border-bottom: 5px solid #1d1d1d;
+    padding: 5px 0;
 }
 
-.filterHeader {
+.actions {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
 
-.filterHeader button {
+.actions button {
     margin-left: 10px;
 }
 
-.filterTitle {
-    padding-left: 10px;
-    padding-top: 5px;
-    padding-bottom: 5px;
-    border-bottom: 1px solid #434343;
-}
-
 .filter {
+    flex: 1;
     padding: 5px 5px 0;
     font-size: 12px;
 }
-.filter label {
-    width: 100%;
-}
 
-.filter span {
-    display: block;
-    width: 100%;
-    font-weight: bold;
-    margin-top: 5px;
-    margin-bottom: 4px;
+.filter.error input {
+    border-color: #ff0000;
 }
 
 .filter input {
-    flex: 1;
+    width: 100%;
     font-size: 12px;
     padding: 5px;
     border: 1px solid #434343;
@@ -46,6 +33,6 @@
     background: #2e2e2e;
     color: white;
     min-width: 0;
-    width: 100%;
     margin: 0;
+    font-family: monospace;
 }
