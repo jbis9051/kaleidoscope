@@ -51,15 +51,30 @@ async fn main() {
 
     info!("--- starting scan ---");
 
+    let mut import_id_kv = Kv::from_key(&mut db, LAST_IMPORT_ID_DB_KEY)
+        .await
+        .expect("error getting last import id")
+        .expect("last import id not found");
+
+    let mut import_id = import_id_kv.value.parse::<i32>().unwrap();
+
+    import_id += 1;
+
+    import_id_kv.value = import_id.to_string();
+
+    import_id_kv.update_by_key(&mut db).await.unwrap();
+
+    println!("beginning import id: {}", import_id);
+
     let mut total = 0;
     for path in config.scan_paths.iter() {
         info!("scanning path: {:?}", path);
-        let count = scan_dir(path, &config, &mut db).await;
+        let count = scan_dir(path, &config, import_id, &mut db).await;
         info!("  found {} new media", count);
         total += count;
     }
 
-    info!("--- scanning complete, found {} new media ---", total);
+    info!("--- scanning complete, found {} new media, import_id: {} ---", total, import_id);
 
     info!("--- updating database ---");
     
@@ -185,25 +200,7 @@ async fn main() {
 }
 
 
-async fn scan_dir(path: &str, config: &AppConfig, db: &mut SqliteConnection) -> u32 {
-    // TODO: this should be done outside of the scan
-    let mut import_id_kv = Kv::from_key(&mut *db, LAST_IMPORT_ID_DB_KEY)
-        .await
-        .expect("error getting last import id")
-        .expect("last import id not found");
-
-    let mut import_id = import_id_kv.value.parse::<i32>().unwrap();
-
-    import_id += 1;
-
-    import_id_kv.value = import_id.to_string();
-
-    import_id_kv.update_by_key(&mut *db).await.unwrap();
-
-
-    println!("beginning import id: {}", import_id);
-
-
+async fn scan_dir(path: &str, config: &AppConfig, import_id: i32, db: &mut SqliteConnection) -> u32 {
     let mut count = 0;
     for entry in WalkDir::new(path) {
         if let Ok(entry) = entry {

@@ -17,7 +17,7 @@ dsl_types! {
                 Ok(x.parse().map_err(|_| format!("invalid bool format: {}", x))?)
             }
         };
-        number(DSLNum, i32) {
+        integer(DSLInteger, i32) {
             GreaterEqual = ">=",
             LessEqual = "<=",
             Greater = ">",
@@ -25,6 +25,16 @@ dsl_types! {
             Equal = "=",
             |x| {
                 Ok(x.parse().map_err(|_| format!("invalid number format: {}", x))?)
+            }
+        };
+        float(DSLFloat, f64) {
+            GreaterEqual = ">=",
+            LessEqual = "<=",
+            Greater = ">",
+            Less = "<",
+            Equal = "=",
+            |x| {
+                Ok(x.parse().map_err(|_| format!("invalid float format: {}", x))?)
             }
         };
         string(DSLString, String) {
@@ -55,14 +65,26 @@ impl DSLBool {
     }
 }
 
-impl DSLNum {
+impl DSLInteger {
     pub fn to_sql_string(&self) -> &'static str {
         match self {
-            DSLNum::GreaterEqual => ">=",
-            DSLNum::LessEqual => "<=",
-            DSLNum::Greater => ">",
-            DSLNum::Less => "<",
-            DSLNum::Equal => "=",
+            DSLInteger::GreaterEqual => ">=",
+            DSLInteger::LessEqual => "<=",
+            DSLInteger::Greater => ">",
+            DSLInteger::Less => "<",
+            DSLInteger::Equal => "=",
+        }
+    }
+}
+
+impl DSLFloat {
+    pub fn to_sql_string(&self) -> &'static str {
+        match self {
+            Self::GreaterEqual => ">=",
+            Self::LessEqual => "<=",
+            Self::Greater => ">",
+            Self::Less => "<",
+            Self::Equal => "=",
         }
     }
 }
@@ -92,12 +114,15 @@ query_dsl! {
     MediaQuery(MediaQueryType){
         order_by(string, OrderBy),
         asc(bool, Asc),
-        limit(number, Limit),
-        page(number, Page),
+        limit(integer, Limit),
+        page(integer, Page),
         path(string, Path),
         created_at(date, CreatedAt),
         is_screenshot(bool, IsScreenshot),
         has_gps(bool, HasGps),
+        import_id(integer, ImportId),
+        longitude(float, Longitude),
+        latitude(float, Latitude),
     }
 }
 impl MediaQuery {
@@ -173,7 +198,7 @@ impl MediaQuery {
                             }
                         },
                         MediaQueryType::Limit(op, _) | MediaQueryType::Page(op, _) => {
-                            if op != &DSLNum::Equal {
+                            if op != &DSLInteger::Equal {
                                 return Err(MediaQueryError::InvalidOperator(filter.clone()));
                             }
                         }
@@ -204,7 +229,7 @@ impl MediaQuery {
             match filter {
                 MediaQueryType::Path(op, path) => {
                     query
-                        .push(" AND path ")
+                        .push(" AND media.path ")
                         .push(op.to_sql_string())
                         .push_bind(path.clone());
                 }
@@ -213,23 +238,41 @@ impl MediaQuery {
                     let datetime_utc: DateTime<Utc> = Utc.from_utc_datetime(&naive_datetime);
 
                     query
-                        .push(" AND created_at ")
+                        .push(" AND media.created_at ")
                         .push(op.to_sql_string())
                         .push_bind(datetime_utc);
                 }
                 MediaQueryType::IsScreenshot(op, screenshot) => {
                     query
-                        .push(" AND is_screenshot ")
+                        .push(" AND media.is_screenshot ")
                         .push(op.to_sql_string())
                         .push_bind(screenshot.clone());
                 }
                 MediaQueryType::HasGps(_, gps) => {
                     query
-                        .push(" AND (latitude IS ")
+                        .push(" AND (media.latitude IS ")
                         .push(if *gps { "NOT " } else { "" })
-                        .push("NULL AND longitude IS ")
+                        .push("NULL AND media.longitude IS ")
                         .push(if *gps { "NOT " } else { "" })
                         .push("NULL)");
+                }
+                MediaQueryType::ImportId(op, import_id) => {
+                    query
+                        .push(" AND import_id ")
+                        .push(op.to_sql_string())
+                        .push_bind(import_id.clone());
+                }
+                MediaQueryType::Longitude(op, longitude) => {
+                    query
+                        .push(" AND media.longitude ")
+                        .push(op.to_sql_string())
+                        .push_bind(longitude.clone());
+                }
+                MediaQueryType::Latitude(op, latitude) => {
+                    query
+                        .push(" AND media.latitude ")
+                        .push(op.to_sql_string())
+                        .push_bind(latitude.clone());
                 }
 
                 MediaQueryType::OrderBy(_, col) => {

@@ -78,7 +78,7 @@ sqlize!(Media, "media", id, [
 impl Media {
     pub fn safe_column(name: &str) -> Result<(), sqlx::Error> {
         match name {
-            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" | "duration" => Ok(()),
+            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" | "duration" | "import_id" => Ok(()),
             _ => Err(sqlx::Error::ColumnNotFound(name.to_string()))
         }
     }
