@@ -13,6 +13,7 @@ export interface TimelineProps<T extends TimelineInterval> {
     api: Api,
     setGalleryState: (newState: Partial<QueryState>) => void
     mediaRange: [number, number] | null
+    selectedAlbum: string | null,
 }
 
 export default function Timeline<T extends TimelineInterval>({
@@ -20,7 +21,8 @@ export default function Timeline<T extends TimelineInterval>({
                                                                  filter,
                                                                  api,
                                                                  setGalleryState,
-                                                                 mediaRange
+                                                                 mediaRange,
+                                                                 selectedAlbum
                                                              }: TimelineProps<T>) {
     const timeline = useRef<HTMLDivElement>(null);
 
@@ -31,10 +33,16 @@ export default function Timeline<T extends TimelineInterval>({
     const [timeSelection, setTimeSelection] = useState<[number, number] | null>(null);
 
     useEffect(() => {
-        api.media_timeline(filter.toFilterString(), interval).then(data => {
-            setData(dataFiller(data, interval, filter));
-        });
-    }, [interval, filter, api]);
+        if (selectedAlbum === null) {
+            api.media_timeline(filter.toFilterString(), interval).then(data => {
+                setData(dataFiller(data, interval, filter));
+            });
+        } else {
+            api.album_timeline(selectedAlbum, filter.toFilterString(), interval).then(data => {
+                setData(dataFiller(data, interval, filter));
+            });
+        }
+    }, [interval, filter, api, selectedAlbum]);
 
     useEffect(() => {
         function onMouseMove(event: MouseEvent) {

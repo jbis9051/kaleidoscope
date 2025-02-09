@@ -122,6 +122,10 @@ export class Api {
         return fetch(`${this.url}/album/${uuid}?query=${encodeURI(mediaQuery)}`).then(response => response.json())
     }
 
+    album_timeline<T extends TimelineInterval>(uuid: string, mediaQuery: MediaQuery, interval: T): Promise<TimelineIntervalData<T>[]> {
+        return fetch(`${this.url}/album/${uuid}/timeline?query=${encodeURI(mediaQuery)}&interval=${interval}`).then(response => response.json())
+    }
+
     album_create(name: string): Promise<Album> {
         return fetch(`${this.url}/album`, {
             method: 'POST',

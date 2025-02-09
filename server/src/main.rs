@@ -61,6 +61,7 @@ async fn main() {
         .route("/album", get(album_index).post(album_create))
         .route("/album/:uuid", get(album).delete(album_delete))
         .route("/album/:uuid/media", post(album_add_media).delete(album_delete_media))
+        .route("/album/:uuid/timeline", get(album_timeline))
         .route("/media_view", get(media_view_index).post(media_view_create).delete(media_view_delete))
         .route("/directory_tree", get(directory_tree))
         .route("/info", get(info))
@@ -328,7 +329,7 @@ struct TimelineQuery {
     interval: String,
 }
 
-async fn media_timeline(Extension(conn): Extension<DbPool>, query: Query<TimelineQuery>) -> Result<Json<Vec<Value>>, (StatusCode, String)> { 
+async fn media_timeline(Extension(conn): Extension<DbPool>, query: Query<TimelineQuery>) -> Result<Json<Vec<Value>>, (StatusCode, String)> {
     let media_query = &query.query;
     let interval = &query.interval;
     
@@ -337,18 +338,39 @@ async fn media_timeline(Extension(conn): Extension<DbPool>, query: Query<Timelin
     }
     
     let media_query = media_query.to_count_query();
-    
-    match interval.as_str() {
+
+    timeline(&conn, &media_query, interval, None).await
+}
+
+async fn album_timeline(Extension(conn): Extension<DbPool>, query: Query<TimelineQuery>, path: Path<AlbumParams>) -> Result<Json<Vec<Value>>, (StatusCode, String)> {
+    let media_query = &query.query;
+    let interval = &query.interval;
+
+    if let Err(err) = media_query.validate() {
+        return Err((StatusCode::BAD_REQUEST, format!("invalid query: {}", err)));
+    }
+
+    let media_query = media_query.to_count_query();
+
+    let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
+
+    timeline(&conn, &media_query, interval, Some(album.id)).await
+}
+
+async fn timeline(conn: &DbPool, media_query: &MediaQuery, interval: &str, album_id: Option<i32>) -> Result<Json<Vec<Value>>, (StatusCode, String)> {
+    let media_query = media_query.to_count_query();
+
+    match interval {
         "month" => {
-            let timeline = Timeline::timeline_months(&conn, &media_query).await.unwrap();
+            let timeline = Timeline::timeline_months(&conn, &media_query, album_id).await.unwrap();
             Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
         }
         "day" => {
-            let timeline = Timeline::timeline_days(&conn, &media_query).await.unwrap();
+            let timeline = Timeline::timeline_days(&conn, &media_query, album_id).await.unwrap();
             Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
         }
         "hour" => {
-            let timeline = Timeline::timeline_hours(&conn, &media_query).await.unwrap();
+            let timeline = Timeline::timeline_hours(&conn, &media_query, album_id).await.unwrap();
             Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
         }
         _ => {

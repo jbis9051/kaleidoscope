@@ -89,13 +89,25 @@ impl From<&SqliteRow> for TimelineHour {
 pub struct Timeline;
 
 impl Timeline {
-    async fn timeline<T: for<'a> From<&'a SqliteRow>>(db: &DbPool, media_query: &MediaQuery, interval_query: &str) -> Result<Vec<T>, MediaError> {
-        let mut query = sqlx::QueryBuilder::new(format!(
-            "SELECT
+    async fn timeline<T: for<'a> From<&'a SqliteRow>>(db: &DbPool, media_query: &MediaQuery, album_id: Option<i32>, interval_query: &str) -> Result<Vec<T>, MediaError> {
+        let mut query = if let Some(album_id) = album_id {
+            let mut query = sqlx::QueryBuilder::new(format!(
+                "SELECT
                     {} AS interval,
                     COUNT(*) AS count
                  FROM media
-                 WHERE 1=1", interval_query));
+                 INNER JOIN album_media ON media.id = album_media.media_id
+                 WHERE album_media.album_id = ", interval_query));
+            query.push_bind(album_id);
+            query
+        } else {
+            sqlx::QueryBuilder::new(format!(
+                "SELECT
+                    {} AS interval,
+                    COUNT(*) AS count
+                 FROM media
+                 WHERE 1=1", interval_query))
+        };
 
         media_query.sqlize(&mut query)?;
 
@@ -112,18 +124,18 @@ impl Timeline {
             .collect())
     }
 
-    pub async fn timeline_months(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<TimelineMonth>, MediaError> {
-        Self::timeline::<TimelineMonth>(db, media_query, "STRFTIME('%Y-%m', media.created_at)")
+    pub async fn timeline_months(db: &DbPool, media_query: &MediaQuery, album_id: Option<i32>) -> Result<Vec<TimelineMonth>, MediaError> {
+        Self::timeline::<TimelineMonth>(db, media_query, album_id,"STRFTIME('%Y-%m', media.created_at)")
             .await
     }
 
-    pub async fn timeline_days(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<TimelineDay>, MediaError> {
-        Self::timeline::<TimelineDay>(db, media_query, "STRFTIME('%Y-%m-%d', media.created_at)")
+    pub async fn timeline_days(db: &DbPool, media_query: &MediaQuery, album_id: Option<i32>) -> Result<Vec<TimelineDay>, MediaError> {
+        Self::timeline::<TimelineDay>(db, media_query, album_id,"STRFTIME('%Y-%m-%d', media.created_at)")
             .await
     }
 
-    pub async fn timeline_hours(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<TimelineHour>, MediaError> {
-        Self::timeline::<TimelineHour>(db, media_query, "STRFTIME('%Y-%m-%d %H', media.created_at)")
+    pub async fn timeline_hours(db: &DbPool, media_query: &MediaQuery, album_id: Option<i32>) -> Result<Vec<TimelineHour>, MediaError> {
+        Self::timeline::<TimelineHour>(db, media_query, album_id,"STRFTIME('%Y-%m-%d %H', media.created_at)")
             .await
     }
 }

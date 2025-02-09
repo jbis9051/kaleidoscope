@@ -200,8 +200,8 @@ export default function Index() {
         return galleryState.filter.equals(view.filter);
     }
 
-    const oldest = media && media.length > 1 && media.reduce((prev, current) => (prev.created_at < current.created_at) ? prev : current) || null;
-    const newest = media && media.length > 1 && media.reduce((prev, current) => (prev.created_at > current.created_at) ? prev : current) || null;
+    const oldest = media && media.length > 0 && media.reduce((prev, current) => (prev.created_at < current.created_at) ? prev : current) || null;
+    const newest = media && media.length > 0 && media.reduce((prev, current) => (prev.created_at > current.created_at) ? prev : current) || null;
 
     return (
         <div className={styles.topLevel}>
@@ -317,6 +317,7 @@ export default function Index() {
                         <Timeline
                             interval={getInterval(galleryState.filter)}
                             filter={galleryState.filter}
+                            selectedAlbum={galleryState.selectedAlbum}
                             api={api}
                             setGalleryState={setGalleryState}
                             mediaRange={ oldest && newest ? [oldest.created_at, newest.created_at] : null}
