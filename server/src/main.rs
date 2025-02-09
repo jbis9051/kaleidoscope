@@ -11,7 +11,7 @@ use chrono::Utc;
 use nix::unistd::Uid;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::Value;
 use sqlx::sqlite::SqlitePool;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
@@ -23,6 +23,7 @@ use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_I
 use common::media_query::{MediaQuery, MediaQueryType};
 use common::models::kv::Kv;
 use common::models::media_view::MediaView;
+use common::models::timeline::Timeline;
 use common::scan_config::AppConfig;
 use crate::ipc::request_ipc_file;
 
@@ -51,6 +52,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/media", get(media_index))
+        // .route("/media/map", get(media_map))
+        .route("/media/timeline", get(media_timeline))
         .route("/media/:uuid", get(media))
         .route("/media/:uuid/raw", get(media_raw))
         .route("/media/:uuid/full", get(media_full))
@@ -307,4 +310,49 @@ async fn info() -> Response {
         info,
     )
         .into_response()
+}
+
+#[derive(Serialize, Deserialize)]
+struct MapQuery {
+    query: MediaQuery,
+    zoom: u32,
+}
+
+async fn media_map(Extension(conn): Extension<DbPool>, query: Query<MapQuery>) -> Result<Json<Vec<()>>, (StatusCode, String)> {
+    Ok(Json(vec![]))
+}
+
+#[derive(Serialize, Deserialize)]
+struct TimelineQuery {
+    query: MediaQuery,
+    interval: String,
+}
+
+async fn media_timeline(Extension(conn): Extension<DbPool>, query: Query<TimelineQuery>) -> Result<Json<Vec<Value>>, (StatusCode, String)> { 
+    let media_query = &query.query;
+    let interval = &query.interval;
+    
+    if let Err(err) = media_query.validate() {
+        return Err((StatusCode::BAD_REQUEST, format!("invalid query: {}", err)));
+    }
+    
+    let media_query = media_query.to_count_query();
+    
+    match interval.as_str() {
+        "month" => {
+            let timeline = Timeline::timeline_months(&conn, &media_query).await.unwrap();
+            Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
+        }
+        "day" => {
+            let timeline = Timeline::timeline_days(&conn, &media_query).await.unwrap();
+            Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
+        }
+        "hour" => {
+            let timeline = Timeline::timeline_hours(&conn, &media_query).await.unwrap();
+            Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
+        }
+        _ => {
+            Err((StatusCode::BAD_REQUEST, "invalid interval, options: 'month|day|hour'".to_string()))
+        }
+    }
 }

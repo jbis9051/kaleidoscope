@@ -108,4 +108,22 @@ export default class Filter {
         }
         return true;
     }
+
+    getDateRange(key: string){
+        let max = null;
+        let min = null;
+
+
+        const maxes = [this.get(key, "<="), this.get(key, "<")].filter(v => v !== null);
+        if (maxes.length > 0) {
+            max = new Date(maxes.map(d => new Date(d)).reduce((a, b) => a > b ? a : b, new Date(-8640000000000000)));
+        }
+
+        const mins = [this.get(key, ">="), this.get(key, ">")].filter(v => v !== null);
+        if (mins.length > 0) {
+            min = new Date(mins.map(d => new Date(d)).reduce((a, b) => a < b ? a : b, new Date(8640000000000000)));
+        }
+
+        return [min, max];
+    }
 }

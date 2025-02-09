@@ -47,6 +47,8 @@ dsl_types! {
             }
         };
         date(DSLDate, NaiveDate) {
+            BeforeEqual = "<=",
+            AfterEqual = ">=",
             Equal = "=",
             Before = "<",
             After = ">",
@@ -106,6 +108,8 @@ impl DSLDate {
             DSLDate::Equal => "=",
             DSLDate::Before => "<",
             DSLDate::After => ">",
+            DSLDate::BeforeEqual => "<=",
+            DSLDate::AfterEqual => ">=",
         }
     }
 }
@@ -234,13 +238,10 @@ impl MediaQuery {
                         .push_bind(path.clone());
                 }
                 MediaQueryType::CreatedAt(op, date) => {
-                    let naive_datetime = date.and_time(NaiveTime::MIN);
-                    let datetime_utc: DateTime<Utc> = Utc.from_utc_datetime(&naive_datetime);
-
                     query
                         .push(" AND media.created_at ")
                         .push(op.to_sql_string())
-                        .push_bind(datetime_utc);
+                        .push_bind(date.clone());
                 }
                 MediaQueryType::IsScreenshot(op, screenshot) => {
                     query

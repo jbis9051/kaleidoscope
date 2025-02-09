@@ -48,6 +48,16 @@
     position: relative;
 }
 
+.mainTop {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    border-bottom: 5px solid #1d1d1d;
+}
+
+.mainTop > * {
+    border-bottom: 1px solid #1d1d1d;
+}
 
 .mainSectionContent {
     flex: 1;

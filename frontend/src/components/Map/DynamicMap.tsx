@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
 import Leaflet from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import {MapContainer, Marker, Popup, TileLayer, Tooltip, useMap} from "react-leaflet";
+import {MapContainer, Marker, Popup, TileLayer, Tooltip, useMap, useMapEvent} from "react-leaflet";
 import {Media} from "@/api/api";
 import MediaImg from "@/components/MediaImg";
 import {API_URL} from "@/global";
@@ -52,6 +52,18 @@ function ChangeView({ center, zoom, centerOnMedia, bounds, setRecenterFunction }
 
     return null;
 }
+
+function ZoomListener(){
+    const [zoom, setZoom] = useState<number | null>(null);
+
+    useMapEvent('zoomend', (event) => {
+        setZoom(event.target.getZoom());
+        console.log('Zoom level changed:', event.target.getZoom());
+    });
+
+    return null;
+};
+
 
 export default function Map({scrollWheelZoom, center, zoom, markers, media, mediaSize, select, centerOnMedia, setRecenterFunction, ...props}: MapProps) {
     const [centerState, setCenterState] = useState(center);
@@ -157,6 +169,7 @@ export default function Map({scrollWheelZoom, center, zoom, markers, media, medi
                     bounds={bounds}
                     setRecenterFunction={setRecenterFunction}
                 />
+                <ZoomListener/>
                 {...children}
             </>
         </MapContainer>

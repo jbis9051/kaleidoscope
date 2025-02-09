@@ -80,6 +80,23 @@ export interface Info {
     media_query: MediaQueryDescription;
 }
 
+export interface TimelineMonth {
+    year: number;
+    month: number;
+    count: number;
+}
+
+export interface TimelineDay extends  TimelineMonth {
+    day: number;
+}
+
+export interface TimelineHour extends TimelineDay {
+    hour: number;
+}
+
+export type TimelineInterval = 'month' | 'day' | 'hour';
+
+export type TimelineIntervalData<T extends TimelineInterval> = T extends 'month' ? TimelineMonth : T extends 'day' ? TimelineDay : TimelineHour;
 
 export class Api {
     url: string;
@@ -87,8 +104,13 @@ export class Api {
         this.url = url;
     }
 
-    getMedia(mediaQuery: MediaQuery): Promise<MediaIndexResponse> {
+    media_index(mediaQuery: MediaQuery): Promise<MediaIndexResponse> {
         return fetch(`${this.url}/media?query=${encodeURI(mediaQuery)}`).then(response => response.json())
+    }
+
+
+    media_timeline<T extends TimelineInterval>(mediaQuery: MediaQuery, interval: T): Promise<TimelineIntervalData<T>[]> {
+        return fetch(`${this.url}/media/timeline?query=${encodeURI(mediaQuery)}&interval=${interval}`).then(response => response.json())
     }
 
     async album_index(): Promise<AlbumIndex[]> {

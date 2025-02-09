@@ -1,6 +1,5 @@
 .filterPanel {
     display: flex;
-    border-bottom: 5px solid #1d1d1d;
     padding: 5px 7px 5px 0;
     position: relative;
 }
