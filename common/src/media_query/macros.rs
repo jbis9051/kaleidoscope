@@ -61,8 +61,8 @@ macro_rules! dsl_types {
     };
 }
 
-pub fn parse_filter(value: &str) -> Result<Vec<String>, String> {
-    let chars = value.chars().collect::<Vec<_>>();
+pub fn parse_filter(query_string: &str) -> Result<Vec<String>, String> {
+    let chars = query_string.chars().collect::<Vec<_>>();
 
     let mut filters = vec![];
 
@@ -71,7 +71,7 @@ pub fn parse_filter(value: &str) -> Result<Vec<String>, String> {
 
     let mut curr_filter = String::new();
 
-    while curr < value.len() {
+    while curr < query_string.len() {
         let c = chars[curr];
         match c {
             _ if c.is_whitespace() => {

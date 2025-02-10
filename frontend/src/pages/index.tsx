@@ -315,7 +315,6 @@ export default function Index() {
                         />
                         {initialLoaded &&
                         <Timeline
-                            interval={getInterval(galleryState.filter)}
                             filter={galleryState.filter}
                             selectedAlbum={galleryState.selectedAlbum}
                             api={api}

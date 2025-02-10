@@ -14,6 +14,43 @@
     background: #232323;
 }
 
+.control {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    display: flex;
+    background: #373737;
+    border: 2px solid #1b1b1b;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    z-index: 1;
+    opacity: 0.3;
+    transition: opacity 50ms;
+}
+
+.control:hover {
+    opacity: 1;
+}
+
+.control div {
+    padding: 3px 8px;
+    cursor: pointer;
+}
+
+.control div.disabled {
+    cursor: not-allowed;
+    color: #7e7e7e;
+}
+
+.control div:hover {
+    background: #4c4c4c;
+}
+
+.control div.disabled:hover {
+    background: #373737;
+}
+
 .timeline {
     display: flex;
     height: 100%;

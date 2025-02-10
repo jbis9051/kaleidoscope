@@ -51,6 +51,16 @@ async fn main() {
 
     info!("--- starting scan ---");
 
+    if Kv::from_key(&mut db, LAST_IMPORT_ID_DB_KEY).await.unwrap().is_none() {
+        Kv {
+            id: 0,
+            key: LAST_IMPORT_ID_DB_KEY.to_string(),
+            value: "0".to_string(),
+            created_at: Default::default(),
+            updated_at: Default::default(),
+        }.create(&mut db).await.unwrap();
+    }
+
     let mut import_id_kv = Kv::from_key(&mut db, LAST_IMPORT_ID_DB_KEY)
         .await
         .expect("error getting last import id")
@@ -188,7 +198,7 @@ async fn main() {
     kv.value = serde_json::to_string(&tree).unwrap();
 
     // TODO: This is not atomic but it's sqlite and a scan so who cares
-    if let Some(mut kv) = Kv::from_key(&mut db, &kv.key).await.unwrap() {
+    if Kv::from_key(&mut db, &kv.key).await.unwrap().is_some() {
         kv.update_by_key(&mut db).await.unwrap();
     } else {
         kv.create(&mut db).await.unwrap();

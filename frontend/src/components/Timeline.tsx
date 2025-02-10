@@ -3,12 +3,12 @@ import {Api, TimelineDay, TimelineHour, TimelineInterval, TimelineIntervalData} 
 import {useEffect, useRef, useState} from "react";
 import Filter from "@/utility/Filter";
 import {QueryState} from "@/hooks/useQueryState";
-import {number} from "prop-types";
+import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
+import {faMinus, faPlus} from "@fortawesome/free-solid-svg-icons";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-export interface TimelineProps<T extends TimelineInterval> {
-    interval: T,
+export interface TimelineProps {
     filter: Filter,
     api: Api,
     setGalleryState: (newState: Partial<QueryState>) => void
@@ -16,21 +16,22 @@ export interface TimelineProps<T extends TimelineInterval> {
     selectedAlbum: string | null,
 }
 
-export default function Timeline<T extends TimelineInterval>({
-                                                                 interval,
+export default function Timeline({
                                                                  filter,
                                                                  api,
                                                                  setGalleryState,
                                                                  mediaRange,
                                                                  selectedAlbum
-                                                             }: TimelineProps<T>) {
+                                                             }: TimelineProps) {
     const timeline = useRef<HTMLDivElement>(null);
 
-    const [data, setData] = useState<TimelineIntervalData<T>[]>([]);
+    const [data, setData] = useState<TimelineIntervalData<TimelineInterval>[]>([]);
     const [cursor, setCursor] = useState<[number, number] | null>(null);
-    const [itemPreview, setItemPreview] = useState<TimelineIntervalData<T> | null>(null);
+    const [itemPreview, setItemPreview] = useState<TimelineIntervalData<TimelineInterval> | null>(null);
 
     const [timeSelection, setTimeSelection] = useState<[number, number] | null>(null);
+
+    const [interval, setInterval] = useState<TimelineInterval>(getInterval(filter));
 
     useEffect(() => {
         if (selectedAlbum === null) {
@@ -43,6 +44,10 @@ export default function Timeline<T extends TimelineInterval>({
             });
         }
     }, [interval, filter, api, selectedAlbum]);
+
+    useEffect(() => {
+        setInterval(getInterval(filter));
+    }, [filter]);
 
     useEffect(() => {
         function onMouseMove(event: MouseEvent) {
@@ -109,11 +114,11 @@ export default function Timeline<T extends TimelineInterval>({
             range = indexOfItemForInterval(interval, data, mediaRange);
         } catch (e) {
             // we are likely in middle of loading data
-            console.error(e);
+            //console.error(e);
         }
     }
 
-    function setFilter(item: TimelineIntervalData<T>, item2?: TimelineIntervalData<T>) {
+    function setFilter(item: TimelineIntervalData<TimelineInterval>, item2?: TimelineIntervalData<TimelineInterval>) {
         const newFilter = filter.clone();
 
         const format = (value: number) => value.toString().padStart(2, '0');
@@ -122,15 +127,15 @@ export default function Timeline<T extends TimelineInterval>({
         switch (interval) {
             case "month":
                 newFilter.set('created_at', '>=', `${item.year}-${format(item.month)}-01`);
-                const end = new Date((item2 || item).year, (item2 || item).month + 1, 1);
-                newFilter.set('created_at', '<', `${end.getUTCFullYear()}-${format(end.getUTCMonth())}-01`);
+                const end = new Date((item2 || item).year, (item2 || item).month - 1 + 1, 1);
+                newFilter.set('created_at', '<', `${end.getUTCFullYear()}-${format(end.getUTCMonth() + 1)}-01`);
                 break;
             case "day":
                 const dayItem = item as TimelineDay;
                 const dayItem2 = item2 as TimelineDay || undefined;
                 newFilter.set('created_at', '>=', `${dayItem.year}-${format(dayItem.month)}-${format(dayItem.day)}`);
-                const end2 = new Date((dayItem2 || dayItem).year, (dayItem2 || dayItem).month, (dayItem2 || dayItem).day + 1);
-                newFilter.set('created_at', '<', `${end2.getUTCFullYear()}-${format(end2.getUTCMonth())}-${format(end2.getUTCDate())}`);
+                const end2 = new Date((dayItem2 || dayItem).year, (dayItem2 || dayItem).month - 1, (dayItem2 || dayItem).day + 1);
+                newFilter.set('created_at', '<', `${end2.getUTCFullYear()}-${format(end2.getUTCMonth() + 1)}-${format(end2.getUTCDate())}`);
                 break;
             case "hour":
                 break;
@@ -141,9 +146,20 @@ export default function Timeline<T extends TimelineInterval>({
 
     const timeSelectionSorted = timeSelection && [...timeSelection].sort((a, b) => a - b) as [number, number];
 
+    function updateInterval(plus: boolean) {
+        const newInterval = intervalChange(interval, plus);
+        if (newInterval && safeInterval(filter, newInterval)) {
+            setInterval(newInterval);
+        }
+    }
+
     return (
         <div className={styles.container}>
             <div className={styles.timelineContainer}>
+                {!timeSelectionSorted && <div className={styles.control}>
+                    <div className={safeInterval(filter, intervalChange(interval, true)) ? '' : styles.disabled} onClick={() => updateInterval(true)}><FontAwesomeIcon icon={faPlus}/></div>
+                    <div className={safeInterval(filter, intervalChange(interval, false)) ? '' : styles.disabled} onClick={() => updateInterval(false)}><FontAwesomeIcon icon={faMinus}/></div>
+                </div>}
                 <div className={styles.timeline} ref={timeline}    onMouseLeave={() => setTimeSelection(null)}>
                     {data.map((item, index) => {
                         let info = null;
@@ -180,7 +196,7 @@ export default function Timeline<T extends TimelineInterval>({
                                 }}
                                 onMouseUp={() => {
                                     if(timeSelectionSorted === null || timeSelectionSorted[0] === timeSelectionSorted[1]) {
-                                       setFilter(item)
+                                        setFilter(item)
                                     } else {
                                         setFilter(data[timeSelectionSorted[0]], data[timeSelectionSorted[1]]);
                                     }
@@ -291,7 +307,7 @@ function dataFiller<T extends TimelineInterval>(data: TimelineIntervalData<T>[],
                 fillData(year, month);
             } else {
                 const minDay = minItem.year === maxItem.year && minItem.month === maxItem.month && interval !== "day" ? (minItem as TimelineDay).day : 1;
-                const maxDay = minItem.year === maxItem.year && minItem.month === maxItem.month && interval !== "day" ? (minItem as TimelineDay).day : 31;
+                const maxDay = minItem.year === maxItem.year && minItem.month === maxItem.month && interval !== "day" ? (maxItem as TimelineDay).day : 31;
                 for (let day = minDay; day <= maxDay; day++) {
                     if (interval === "day") {
                         fillData(year, month, day);
@@ -370,14 +386,53 @@ export function getInterval(filter: Filter): TimelineInterval {
 
     const diff = end.getTime() - start.getTime();
 
-    // if we are less than two days, show by hour
-    if (diff <= 2 * 24 * 60 * 60 * 1000) {
+    // if we are less than five days, show by hour
+    if (diff <= 5 * 24 * 60 * 60 * 1000) {
         return "hour";
     }
-    // if we are less than two months, show by day
-    if (diff <= 2 * 30 * 24 * 60 * 60 * 1000) {
+    // if we are less than four months, show by day
+    if (diff <= 4 * 30 * 24 * 60 * 60 * 1000) {
         return "day";
     }
     // otherwise show by month
     return "month"
+}
+
+
+function intervalChange(current: TimelineInterval, increment: boolean): TimelineInterval | null {
+    switch (current) {
+        case "month":
+            return increment ? "day" : null;
+        case "day":
+            return increment ? "hour" : "month";
+        case "hour":
+            return increment ? null : "day";
+    }
+}
+
+function safeInterval(filter: Filter, interval: TimelineInterval | null): boolean {
+    if(interval === null) {
+        return false;
+    }
+    const range = filter.getDateRange('created_at');
+    const [start, end] = range;
+
+    if (start === null || end === null) {
+        // if we don't have a range, we can't really determine if it's safe
+        // TODO: we could check the month query and see if it's within a reasonable range
+        return interval === "month";
+    }
+
+    const diff = end.getTime() - start.getTime();
+
+    const maxItems = 1000;
+
+    switch (interval) {
+        case "month":
+            return diff <= maxItems * 30 * 24 * 60 * 60 * 1000;
+        case "day":
+            return diff <= maxItems * 24 * 60 * 60 * 1000;
+        case "hour":
+            return diff <= maxItems * 60 * 60 * 1000;
+    }
 }

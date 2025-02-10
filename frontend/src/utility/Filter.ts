@@ -13,17 +13,18 @@ export default class Filter {
             return f;
         }
 
-        const parts = filter.split(' ');
-        for (const part of parts) {
-            const [key, rest] = part.split(':');
+        const filters = Filter.parseFilter(filter);
+
+        for (const filter of filters) {
+            const [key, rest] = filter.split(':');
 
             if (!rest) {
-                throw new Error(`invalid filter ${part}`);
+                throw new Error(`invalid filter '${filter}'`);
             }
 
             const match = rest.match(/([=<>!%]+)(.+)/);
             if (!match || match.length !== 3) {
-                throw new Error(`invalid filter ${part}`);
+                throw new Error(`invalid filter '${filter}'`);
             }
 
             const [op, value] = match.splice(1);
@@ -34,6 +35,59 @@ export default class Filter {
         return f;
     }
 
+    static parseFilter(query_string: string): string[] {
+        const chars = Array.from(query_string);
+        const filters: string[] = [];
+
+        let quote: string | null = null;
+        let curr = 0;
+        let currFilter = "";
+
+        while (curr < chars.length) {
+            const c = chars[curr];
+            switch (true) {
+                case /\s/.test(c):
+                    if (quote === null) {
+                        if (currFilter.length > 0) {
+                            filters.push(currFilter);
+                            currFilter = "";
+                        }
+                    } else {
+                        currFilter += c;
+                    }
+                    break;
+                case c === "\\":
+                    if (curr + 1 >= chars.length) {
+                        throw new Error("unexpected end of string");
+                    }
+                    currFilter += chars[curr + 1];
+                    curr += 1;
+                    break;
+                case c === '"' || c === "'":
+                    if (quote === c) {
+                        quote = null;
+                    } else if (quote === null) {
+                        quote = c;
+                    }
+                    break;
+                default:
+                    currFilter += c;
+                    break;
+            }
+            curr += 1;
+        }
+
+        if (quote !== null) {
+            throw new Error(`unmatched quote: ${quote}`);
+        }
+
+        if (currFilter.length > 0) {
+            filters.push(currFilter);
+        }
+
+        return filters;
+    }
+
     toFilterString(): string {
         // <key>:<op>value> <key>:<op><value>
         return Filter.stringify(this.filter);
@@ -41,8 +95,17 @@ export default class Filter {
 
     private static stringify(filters: FilterType) {
         return Object.entries(filters).map(([key, values]) => {
-            return values.map(([op, value]) => `${key}:${op}${value}`).join(' ');
+            return values.map(([op, value]) => `${key}:${op}${Filter.valueToString(value)}`).join(' ');
         }).join(' ');
+    }
+
+    private static valueToString(value: Value): string {
+        if (typeof value === 'string') {
+            if (value.includes(' ')) {
+                return `"${value}"`;
+            }
+        }
+        return value.toString();
     }
 
     toMediaQuery(order_by: OrderByColumns, asc: boolean, limit: number, page: number) {
