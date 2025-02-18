@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::fs::Permissions;
+use std::io::Error;
 use common::scan_config::AppConfig;
 use nix::libc::{pid_t};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
@@ -161,8 +162,8 @@ pub async fn handle_file_request(app_config: AppConfig, pool: &SqlitePool, req: 
     }
 
     let path = Path::new(&media.path);
-    let file = File::open(path).await.unwrap();
-    let length = file.metadata().await.unwrap().len();
+    let file = File::open(path).await.map_err(|e| IpcFileResponse::Error {error: format!("couldn't open file: {} - {:?}", media.path, e)})?;
+    let length = file.metadata().await.map_err(|e| IpcFileResponse::Error {error: format!("couldn't get metadata: {} - {:?}", media.path, e)})?.len();
 
     Ok((IpcFileResponse::Success {
         db_id: req.db_id,
