@@ -1,4 +1,5 @@
 mod ipc;
+mod migrations;
 
 use std::io::{BufRead, Read, Write};
 use axum::{Extension, Json, Router, routing::get};
@@ -20,6 +21,7 @@ use common::models::media::Media;
 use common::types::DbPool;
 use tokio_util::io::ReaderStream;
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_ID_DB_KEY};
+use common::env::EnvVar;
 use common::media_query::{MediaQuery, MediaQueryType};
 use common::models::kv::Kv;
 use common::models::media_view::MediaView;
@@ -27,9 +29,13 @@ use common::models::timeline::Timeline;
 use common::scan_config::AppConfig;
 use crate::ipc::request_ipc_file;
 
+static ENV: Lazy<EnvVar> = Lazy::new(|| {
+    let env = EnvVar::from_env();
+    env
+});
+
 static CONFIG: Lazy<AppConfig> = Lazy::new(|| {
-    let config: AppConfig = serde_json::from_str(std::env::var("CONFIG").unwrap().as_str()).unwrap();
-    config
+    ENV.config.as_ref().expect("No config provided").clone()
 });
 
 #[tokio::main]
@@ -39,11 +45,25 @@ async fn main() {
         eprintln!("Server must not be run as root!");
         std::process::exit(1);
     }
+    
+    if ENV.dev_mode {
+        println!("Running in dev mode");
+    }
 
-    println!("Listening on: {}", &CONFIG.listen_addr);
     println!("Config: {:?}", &CONFIG);
 
     let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
+
+
+    if ENV.db_migrate {
+        println!("Migrating database");
+        sqlx::migrate!("../db/migrations").run(&pool).await.expect("Failed to migrate database");
+        println!("Migration complete");
+    }
+
+
+    println!("Listening on: {}", &CONFIG.listen_addr);
+
 
     let cors = CorsLayer::new()
         .allow_methods(vec![Method::GET, Method::POST, Method::DELETE, Method::OPTIONS])

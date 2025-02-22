@@ -9,7 +9,7 @@ use crate::media_query::MediaQuery;
 use crate::models::{date, MediaError};
 use crate::{sqlize, update_set};
 use crate::format_type::FormatType;
-use crate::types::DbPool;
+use crate::types::{DbPool, SqliteAcquire};
 
 
 #[derive(Debug, Serialize)]
@@ -128,10 +128,11 @@ impl Media {
             .into())
     }
 
-    pub async fn from_id(db: &DbPool, id: &i32) -> Result<Self, sqlx::Error> {
+    pub async fn from_id(db: impl SqliteAcquire<'_>, id: &i32) -> Result<Self, sqlx::Error> {
+        let mut conn = db.acquire().await?;
         Ok(sqlx::query("SELECT * FROM media WHERE id = $1;")
             .bind(id)
-            .fetch_one(db)
+            .fetch_one(&mut *conn)
             .await?
             .borrow()
             .into())

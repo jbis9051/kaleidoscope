@@ -4,7 +4,6 @@ use std::io::Error;
 use common::scan_config::AppConfig;
 use nix::libc::{pid_t};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
-use std::os::unix::process::CommandExt;
 use std::path::Path;
 use sqlx::{SqlitePool};
 use tokio::fs::File;
@@ -17,7 +16,7 @@ use common::models::media::Media;
 
 #[tokio::main]
 async fn main() {
-    let dev_mode = std::env::var("dev_mode").is_ok();
+    let env_var = common::env::EnvVar::from_env();
     let config_path = std::env::args().nth(1).expect("No config file provided");
 
     let path = Path::new(&config_path);
@@ -27,12 +26,12 @@ async fn main() {
     // ensure the config file is owned by root
     let metadata = path.metadata().unwrap();
     let uid = metadata.uid();
-    if uid != 0 && !dev_mode {
+    if uid != 0 && !env_var.dev_mode {
         panic!("config file must be owned by root!");
     }
 
     // ensure the config file is not writable by others
-    if !metadata.permissions().readonly() && !dev_mode {
+    if !metadata.permissions().readonly() && !env_var.dev_mode {
         panic!("config file must not be writable by others!");
     }
 
@@ -72,6 +71,9 @@ async fn main() {
         .gid(group.gid.as_raw())
         .env_clear()
         .env("CONFIG", serde_json::to_string(&config).unwrap())
+        .env("dev_mode", env_var.dev_mode.to_string())
+        .env("db_migrate", env_var.db_migrate.to_string())
+        .env("migrate", env_var.migrate.to_string())
         .stdin(std::process::Stdio::null())
         .spawn()
         .expect("failed to start server");

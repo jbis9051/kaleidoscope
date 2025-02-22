@@ -59,7 +59,8 @@ macro_rules! sqlize {
         }
 
         impl $name {
-            pub async fn create<'a, T: SqliteExecutor<'a>>(&mut self, db: T) -> Result<(), sqlx::Error> {
+            pub async fn create(&mut self, db: impl SqliteAcquire<'_>) -> Result<(), sqlx::Error> {
+                let mut conn = db.acquire().await?;
                 *self = sqlx::query(
                         &format!("INSERT INTO {} ({}) VALUES ({}) RETURNING *",
                             $table,
@@ -70,7 +71,7 @@ macro_rules! sqlize {
                     $(
                         .bind(&self.$col)
                     )*
-                    .fetch_one(db)
+                    .fetch_one(&mut *conn)
                     .await?
                     .borrow()
                     .into();

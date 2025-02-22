@@ -3,6 +3,7 @@ members = [
     "server",
     "common",
     "scan",
-    "daemon"
+    "daemon",
+    "tasks"
 ]
 resolver = "2"
