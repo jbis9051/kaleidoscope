@@ -3,7 +3,14 @@ use common::models::media::Media;
 use common::types::{SqliteAcquire};
 use crate::tasks::{BackgroundTask};
 
-pub struct VideoDurationProcessor;
+pub struct VideoDurationProcessor {
+    pub config: VideoDurationProcessorConfig
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize, Default, Clone)]
+pub struct VideoDurationProcessorConfig {
+    pub name: String,
+}
 
 impl BackgroundTask for VideoDurationProcessor {
     type Error = String;
@@ -11,9 +18,12 @@ impl BackgroundTask for VideoDurationProcessor {
     const VERSION: u32 = 0;
 
     type Data = String;
+    type Config = VideoDurationProcessorConfig;
 
-    async fn new(db: impl SqliteAcquire<'_>) -> Result<Self, Self::Error> {
-        Ok(Self)
+    async fn new(db: impl SqliteAcquire<'_>, config: &Self::Config) -> Result<Self, Self::Error> {
+        Ok(VideoDurationProcessor {
+            config: config.clone()  
+        })
     }
 
 
@@ -26,6 +36,7 @@ impl BackgroundTask for VideoDurationProcessor {
     }
 
     async fn run(&self, db: impl SqliteAcquire<'_>, media: &Media) -> Result<Self::Data, Self::Error> {
+        println!("hello {}", self.config.name);
         Ok(media.duration.expect("no duration").to_string())
     }
 

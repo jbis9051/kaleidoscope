@@ -1,4 +1,5 @@
 use sqlx::{Executor, SqliteExecutor};
+use toml::Table;
 use common::models::media::Media;
 use common::types::{AcquireClone, DbPool, SqliteAcquire};
 use crate::queue::Queue;
@@ -12,12 +13,12 @@ pub enum RunError {
     SqlxError(#[from] sqlx::Error),
 }
 
-pub async fn run_queue(db: &mut impl AcquireClone, tasks: &[&str]) -> Result<(u32, u32), RunError> {
+pub async fn run_queue(db: &mut impl AcquireClone, tasks: &[&str], config: &Table) -> Result<(u32, u32), RunError> {
     let mut success = 0;
     let mut failed = 0;
 
     for task in tasks {
-        let task = Task::new(task, db.acquire_clone()).await?;
+        let task = Task::new(task, db.acquire_clone(), config).await?;
         while let Some(queue) = Queue::get_next(db.acquire_clone(), task.name()).await? {
             let media = Media::from_id(db.acquire_clone(), &queue.media_id).await?;
             match task.run_and_store(db.acquire_clone(), &media).await {

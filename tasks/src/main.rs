@@ -59,8 +59,8 @@ async fn main() {
                     eprintln!("store must be true when running all tasks");
                     return;
                 }
-                
-                let queue = run_queue(&mut db, &Task::TASK_NAMES)
+
+                let queue = run_queue(&mut db, &Task::TASK_NAMES, &config.tasks)
                     .await
                     .expect("error running queue");
                 println!("{} tasks succeeded, {} failed", queue.0, queue.1);
@@ -77,7 +77,7 @@ async fn main() {
                         eprintln!("store must be true when running specific task");
                         return;
                     }
-                    
+
                     // run the queue for the specified task
                     let tasks = Queue::count(&mut db, &task)
                         .await
@@ -89,13 +89,13 @@ async fn main() {
                     }
 
                     // let's confirm with user before running
-                    
+
                     if !confirm(&format!("{} tasks in queue for '{}'. Continue?", tasks, task)) {
                         println!("aborting");
                         return;
                     }
 
-                    let queue = run_queue(&mut db, &[&task])
+                    let queue = run_queue(&mut db, &[&task], &config.tasks)
                         .await
                         .expect("error running queue");
                     println!("{} tasks succeeded, {} failed", queue.0, queue.1);
@@ -152,20 +152,29 @@ async fn main() {
                 }
                 Operation::Run => {
                     // run the specified task for the specified media
-                    let task = Task::new(&task, &mut db).await.expect("error getting task");
+                    
+                    if !Task::compatible(&task, &media).await {
+                        // media is not compatible, should we force?
+                        if !confirm(&format!("media is not compatible with '{}'. Force?", task)) {
+                            println!("aborting");
+                            return;
+                        }
+                    }
+                    
+                    let task = Task::new(&task, &mut db, &config.tasks).await.expect("error getting task");
 
                     let queue = Queue::from_media_id(&mut db, &task.name(), media.id)
                         .await
                         .expect("error getting queue");
 
-                    let res = if store { 
+                    let res = if store {
                         task.run_and_store(&mut db, &media).await.expect("error running task");
                         None
-                    } else { 
+                    } else {
                         Some(task.run(&mut db, &media).await
                             .expect("error running task"))
                     };
-                     
+
 
                     if let Some(queue) = queue {
                         queue.delete(&mut db).await.expect("error deleting queue");

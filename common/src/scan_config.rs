@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use toml::Table;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppConfig {
@@ -13,6 +14,8 @@ pub struct AppConfig {
     pub client_user: String,
     pub client_group: String,
     pub socket_path: String,
+
+    pub tasks: Table,
 }
 
 impl AppConfig {

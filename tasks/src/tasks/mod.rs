@@ -4,13 +4,15 @@ use common::models::date;
 use common::models::media::Media;
 use common::question_marks;
 use common::sqlize;
-use common::types::{DbPool, SqliteAcquire};
+use common::types::{SqliteAcquire};
 use common::update_set;
-use serde::Serialize;
+use serde::{Serialize};
 use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteExecutor};
 use std::borrow::Borrow;
 use std::fmt::Debug;
+use serde::de::DeserializeOwned;
+use toml::Table;
 
 pub trait BackgroundTask: Sized {
     type Error: Debug;
@@ -20,7 +22,9 @@ pub trait BackgroundTask: Sized {
 
     type Data: Debug;
 
-    async fn new(db: impl SqliteAcquire<'_>) -> Result<Self, Self::Error>;
+    type Config: Serialize + DeserializeOwned + Default;
+
+    async fn new(db: impl SqliteAcquire<'_>, config: &Self::Config) -> Result<Self, Self::Error>;
     async fn compatible(media: &Media) -> bool;
     async fn needs_update(
         &self,
@@ -130,11 +134,12 @@ macro_rules! impl_task {
             }
 
 
-            pub async fn new(task: &str, db: impl SqliteAcquire<'_>) -> Result<Self, TaskError> {
+            pub async fn new(task: &str, db: impl SqliteAcquire<'_>, tasks: &Table) -> Result<Self, TaskError> {
                 match task {
                     $(
                         $task::NAME => {
-                            let task = $task::new(db).await.map_err(|e| TaskError::$task(e))?;
+                            let config: <$task as BackgroundTask>::Config = tasks.get($task::NAME).map(|v| v.clone().try_into()).transpose()?.unwrap_or_default();
+                            let task = $task::new(db, &config).await.map_err(|e| TaskError::$task(e))?;
                             Ok(Self::$task(task))
                         }
                     )*
@@ -179,4 +184,6 @@ pub enum TaskError {
     VideoDurationProcessor(String),
     #[error("error deserializing task data: {0}")]
     InvalidTaskData(#[from] serde_json::Error),
+    #[error("error deserializing task config: {0}")]
+    InvalidTaskConfig(#[from] toml::de::Error),
 }
