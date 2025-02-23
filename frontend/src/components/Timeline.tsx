@@ -14,15 +14,17 @@ export interface TimelineProps {
     setGalleryState: (newState: Partial<QueryState>) => void
     mediaRange: [number, number] | null
     selectedAlbum: string | null,
+    limit: number,
 }
 
 export default function Timeline({
-                                                                 filter,
-                                                                 api,
-                                                                 setGalleryState,
-                                                                 mediaRange,
-                                                                 selectedAlbum
-                                                             }: TimelineProps) {
+                                     filter,
+                                     api,
+                                     setGalleryState,
+                                     mediaRange,
+                                     selectedAlbum,
+                                     limit
+                                 }: TimelineProps) {
     const timeline = useRef<HTMLDivElement>(null);
 
     const [data, setData] = useState<TimelineIntervalData<TimelineInterval>[]>([]);
@@ -109,7 +111,7 @@ export default function Timeline({
 
     let range = null;
 
-    if(mediaRange !== null) {
+    if (mediaRange !== null) {
         try {
             range = indexOfItemForInterval(interval, data, mediaRange);
         } catch (e) {
@@ -118,10 +120,11 @@ export default function Timeline({
         }
     }
 
+    const format = (value: number) => value.toString().padStart(2, '0');
+
+
     function setFilter(item: TimelineIntervalData<TimelineInterval>, item2?: TimelineIntervalData<TimelineInterval>) {
         const newFilter = filter.clone();
-
-        const format = (value: number) => value.toString().padStart(2, '0');
 
 
         switch (interval) {
@@ -144,6 +147,38 @@ export default function Timeline({
         setGalleryState({filter: newFilter});
     }
 
+    async function movePage(item: TimelineIntervalData<TimelineInterval>) {
+        // we need to calculate the page for the item
+        // we begin by create a filter of all medias before the item
+        // then we can find the count, and then do some math to find the page
+
+        const outRange = filter.clone();
+
+        switch (interval) {
+            case "month":
+                outRange.add('created_at', '<', `${item.year}-${format(item.month)}-01`);
+                break;
+            case "day":
+                const dayItem = item as TimelineDay;
+                outRange.add('created_at', '<', `${dayItem.year}-${format(dayItem.month)}-${format(dayItem.day)}`);
+                break;
+            case "hour":
+                throw new Error("Not implemented");
+        }
+
+        let count = 0;
+
+        if (selectedAlbum === null) {
+            await api.media_index(outRange.toFilterString()).then(res => count = res.count);
+        } else {
+            await api.album(selectedAlbum, outRange.toFilterString()).then(res => count = res.media.count);
+        }
+
+        const page = Math.floor(count / limit);
+
+        setGalleryState({page});
+    }
+
     const timeSelectionSorted = timeSelection && [...timeSelection].sort((a, b) => a - b) as [number, number];
 
     function updateInterval(plus: boolean) {
@@ -157,10 +192,12 @@ export default function Timeline({
         <div className={styles.container}>
             <div className={styles.timelineContainer}>
                 {!timeSelectionSorted && <div className={styles.control}>
-                    <div className={safeInterval(filter, intervalChange(interval, true)) ? '' : styles.disabled} onClick={() => updateInterval(true)}><FontAwesomeIcon icon={faPlus}/></div>
-                    <div className={safeInterval(filter, intervalChange(interval, false)) ? '' : styles.disabled} onClick={() => updateInterval(false)}><FontAwesomeIcon icon={faMinus}/></div>
+                    <div className={safeInterval(filter, intervalChange(interval, true)) ? '' : styles.disabled}
+                         onClick={() => updateInterval(true)}><FontAwesomeIcon icon={faPlus}/></div>
+                    <div className={safeInterval(filter, intervalChange(interval, false)) ? '' : styles.disabled}
+                         onClick={() => updateInterval(false)}><FontAwesomeIcon icon={faMinus}/></div>
                 </div>}
-                <div className={styles.timeline} ref={timeline}    onMouseLeave={() => setTimeSelection(null)}>
+                <div className={styles.timeline} ref={timeline} onMouseLeave={() => setTimeSelection(null)}>
                     {data.map((item, index) => {
                         let info = null;
 
@@ -195,8 +232,8 @@ export default function Timeline({
                                     setTimeSelection(t => t && [t[0], index] as [number, number]);
                                 }}
                                 onMouseUp={() => {
-                                    if(timeSelectionSorted === null || timeSelectionSorted[0] === timeSelectionSorted[1]) {
-                                        setFilter(item)
+                                    if (timeSelectionSorted === null || timeSelectionSorted[0] === timeSelectionSorted[1]) {
+                                        movePage(item);
                                     } else {
                                         setFilter(data[timeSelectionSorted[0]], data[timeSelectionSorted[1]]);
                                     }
@@ -217,11 +254,14 @@ export default function Timeline({
                     })}
                     {timeSelectionSorted && (
                         <div className={`${styles.selection} ${styles.highlight}`}
-                                style={{left: `${timeSelectionSorted[0] * 8}px`, width: `${(timeSelectionSorted[1]-timeSelectionSorted[0]+1)*8}px`}}/>
+                             style={{
+                                 left: `${timeSelectionSorted[0] * 8}px`,
+                                 width: `${(timeSelectionSorted[1] - timeSelectionSorted[0] + 1) * 8}px`
+                             }}/>
                     )}
                     {range && (
                         <div className={`${styles.range} ${styles.highlight}`}
-                             style={{left: `${range[0] * 8}px`, width: `${(range[1]-range[0]+1)*8}px`}}/>
+                             style={{left: `${range[0] * 8}px`, width: `${(range[1] - range[0] + 1) * 8}px`}}/>
                     )}
                     {cursor !== null && (<div className={styles.cursor} style={{left: `${cursor[0] + cursor[1]}px`}}/>)}
                 </div>
@@ -292,10 +332,22 @@ function dataFiller<T extends TimelineInterval>(data: TimelineIntervalData<T>[],
     };
 
     const filterRange = filter.getDateRange('created_at');
-    if(filterRange[0] !== null && filterRange[1] !== null) {
+    if (filterRange[0] !== null && filterRange[1] !== null) {
         const [start, end] = [new Date(filterRange[0]), new Date(filterRange[1])];
-        minItem = {year: start.getUTCFullYear(), month: start.getUTCMonth() + 1, day: start.getUTCDate(), hour: start.getUTCHours(), count: -1} as TimelineIntervalData<T>;
-        maxItem = {year: end.getUTCFullYear(), month: end.getUTCMonth() + 1, day: end.getUTCDate(), hour: end.getUTCHours(), count: -1} as TimelineIntervalData<T>;
+        minItem = {
+            year: start.getUTCFullYear(),
+            month: start.getUTCMonth() + 1,
+            day: start.getUTCDate(),
+            hour: start.getUTCHours(),
+            count: -1
+        } as TimelineIntervalData<T>;
+        maxItem = {
+            year: end.getUTCFullYear(),
+            month: end.getUTCMonth() + 1,
+            day: end.getUTCDate(),
+            hour: end.getUTCHours(),
+            count: -1
+        } as TimelineIntervalData<T>;
     }
 
     for (let year = minItem.year; year <= maxItem.year; year++) {
@@ -368,7 +420,7 @@ function indexOfItemForRange(startDate: Date, endDate: Date, data: TimelineInter
     }
 
 
-    if(first === null || last === null) {
+    if (first === null || last === null) {
         throw new Error("Invalid range");
     }
 
@@ -411,7 +463,7 @@ function intervalChange(current: TimelineInterval, increment: boolean): Timeline
 }
 
 function safeInterval(filter: Filter, interval: TimelineInterval | null): boolean {
-    if(interval === null) {
+    if (interval === null) {
         return false;
     }
     const range = filter.getDateRange('created_at');

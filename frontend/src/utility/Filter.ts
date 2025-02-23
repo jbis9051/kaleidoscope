@@ -140,6 +140,14 @@ export default class Filter {
         return this;
     }
 
+    add(key: string, op: string, value: Value) {
+        if (!this.filter[key]) {
+            this.filter[key] = [];
+        }
+        this.filter[key].push([op, value]);
+        return this;
+    }
+
     clone() {
        return Filter.fromString(this.toFilterString());
     }

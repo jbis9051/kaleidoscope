@@ -320,6 +320,7 @@ export default function Index() {
                             api={api}
                             setGalleryState={setGalleryState}
                             mediaRange={ oldest && newest ? [oldest.created_at, newest.created_at] : null}
+                            limit={galleryState.limit}
                         />}
                     </div>
                     <div className={styles.mainSectionContent}>
