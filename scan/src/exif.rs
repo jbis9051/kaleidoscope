@@ -85,6 +85,13 @@ pub fn extract_exif_nom(track_info: &TrackInfo) -> ExifMetadata {
             }
         }
     }
+    
+    let author = track_info.get(TrackInfoTag::Author);
+    if let Some(author) = author {
+        if let EntryValue::Text(author) = author {
+            metadata.is_screenshot = author == "ReplayKitRecording"
+        }
+    }
 
     metadata
 }

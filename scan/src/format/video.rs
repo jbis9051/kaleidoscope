@@ -14,7 +14,7 @@ pub struct Video;
 
 impl Format<VideoError> for Video {
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
-    const METADATA_VERSION: i32 = 1;
+    const METADATA_VERSION: i32 = 2;
     const THUMBNAIL_VERSION: i32 = 1;
 
     fn is_photo() -> bool {
