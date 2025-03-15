@@ -43,12 +43,15 @@ impl Format<VideoError> for Video {
                 Some(exif)
             }
         }.map(|e| extract_exif_nom(&e));
+        
+        let seconds = stream.duration() as f64 * f64::from(stream.time_base());
+        let milliseconds = (seconds * 1000.0).round() as u64;
 
         Ok(MediaMetadata {
             name: path.file_name().unwrap().to_string_lossy().to_string(),
             width: meta.width(),
             height: meta.height(),
-            duration: Some(Duration::from_secs(stream.duration() as u64)),
+            duration: Some(Duration::from_millis(milliseconds)),
             created_at: system_time_to_naive_datetime(file_meta.created().unwrap()),
             size: file_meta.len() as u32,
             latitude: metadata.as_ref().and_then(|e| e.latitude),

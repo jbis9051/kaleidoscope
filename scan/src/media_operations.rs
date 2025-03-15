@@ -54,7 +54,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
         liked: false,
         is_photo,
         added_at: Utc::now().naive_utc(),
-        duration: metadata.duration.map(|d| d.as_secs() as u32),
+        duration: metadata.duration.map(|d| d.as_millis() as u32),
         hash,
         file_created_at,
         is_screenshot: metadata.is_screenshot,
@@ -89,7 +89,7 @@ pub async fn update_media(media: &mut Media, config: &AppConfig, db: &mut Sqlite
         media.width = metadata.width;
         media.height = metadata.height;
         media.size = metadata.size;
-        media.duration = metadata.duration.map(|d| d.as_secs() as u32);
+        media.duration = metadata.duration.map(|d| d.as_millis() as u32);
         media.longitude = metadata.longitude;
         media.latitude = metadata.latitude;
         media.is_screenshot = metadata.is_screenshot;

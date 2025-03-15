@@ -29,6 +29,15 @@ export function GPSFormat(longitude: number, latitude: number) {
     return `${Math.abs(latitude).toFixed(6)}°${lat} ${Math.abs(longitude).toFixed(6)}°${lon}`;
 }
 
+export function durationHumanReadable(milliseconds: number) {
+    // HH::MM::SS
+    const seconds = Math.floor(milliseconds / 1000);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainingSeconds = seconds % 60;
+    return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
+}
+
 
 export default function mediaToMetadata(media: Media): Record<string, string> {
     return {
@@ -42,7 +51,7 @@ export default function mediaToMetadata(media: Media): Record<string, string> {
         "Liked": media.liked.toString(),
         "Type": media.is_photo ? "Photo" : "Video",
         "Added At": timestampToDate(media.added_at),
-        "Duration": media.duration ? media.duration.toString() : "N/A",
+        "Duration": media.duration ? durationHumanReadable(media.duration) : "N/A",
         "Screenshot": media.is_screenshot ? "Yes" : "No",
         "GPS": (media.longitude && media.latitude) ? GPSFormat(media.longitude, media.latitude) : "N/A",
     }
