@@ -123,6 +123,7 @@ query_dsl! {
         path(string, Path),
         created_at(date, CreatedAt),
         is_screenshot(bool, IsScreenshot),
+        is_photo(bool, IsPhoto),
         has_gps(bool, HasGps),
         import_id(integer, ImportId),
         longitude(float, Longitude),
@@ -248,6 +249,12 @@ impl MediaQuery {
                         .push(" AND media.is_screenshot ")
                         .push(op.to_sql_string())
                         .push_bind(screenshot.clone());
+                }
+                MediaQueryType::IsPhoto(op, photo) => {
+                    query
+                        .push(" AND media.is_photo ")
+                        .push(op.to_sql_string())
+                        .push_bind(photo.clone());
                 }
                 MediaQueryType::HasGps(_, gps) => {
                     query
