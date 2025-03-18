@@ -211,7 +211,7 @@ export default function Index() {
                 }
             }}>
                 <div className={styles.previewWrapper}>
-                    <MediaImg media={preview}/>
+                    {preview.is_photo ? <MediaImg media={preview}/> : <video src={`${API_URL}/media/${preview.uuid}/raw`} controls/>}
                     <button onClick={() => setPreview(null)}>X</button>
                 </div>
             </div>}
@@ -373,7 +373,6 @@ export default function Index() {
                                 return <span>Selected Photo not found</span>
                             }
 
-                            // @ts-ignore
                             return <>
                                 <div className={styles.previewImageContainer}>
                                     <div className={styles.downloadWrapper}>
@@ -383,7 +382,7 @@ export default function Index() {
                                         <FontAwesomeIcon className={styles.downloadButton} icon={faFloppyDisk}
                                                          onClick={() => downloadItem(`${API_URL}/media/${m.uuid}/raw`, m.name)}/>
                                     </div>
-                                    <MediaImg draggable={false} blur={false} media={m}/>
+                                    {m.is_photo ? <MediaImg draggable={false} blur={false} media={m}/> : <video src={`${API_URL}/media/${m.uuid}/raw`} controls/>}
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>

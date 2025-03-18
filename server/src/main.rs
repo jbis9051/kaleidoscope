@@ -1,19 +1,24 @@
 mod ipc;
 mod migrations;
+mod stream;
 
-use std::io::{BufRead, Read, Write};
+use std::io::{BufRead, Cursor, Read, Write};
 use axum::{Extension, Json, Router, routing::get};
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::post;
+use axum::routing::{head, post};
+use axum_extra::headers::Range;
+use axum_extra::TypedHeader;
+use axum_range::{KnownSize, RangeBody, Ranged};
 use chrono::Utc;
 use nix::unistd::Uid;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::sqlite::SqlitePool;
+use tokio::net::UnixStream;
 use tower_http::cors::{Any, CorsLayer};
 use uuid::Uuid;
 use common::models::album::Album;
@@ -27,7 +32,8 @@ use common::models::kv::Kv;
 use common::models::media_view::MediaView;
 use common::models::timeline::Timeline;
 use common::scan_config::AppConfig;
-use crate::ipc::request_ipc_file;
+use crate::ipc::BufUnixStream;
+use crate::stream::RemoteMediaFile;
 
 static ENV: Lazy<EnvVar> = Lazy::new(|| {
     let env = EnvVar::from_env();
@@ -74,14 +80,14 @@ async fn main() {
         .route("/media", get(media_index))
         // .route("/media/map", get(media_map))
         .route("/media/timeline", get(media_timeline))
-        .route("/media/:uuid", get(media))
-        .route("/media/:uuid/raw", get(media_raw))
-        .route("/media/:uuid/full", get(media_full))
-        .route("/media/:uuid/thumb", get(media_thumb))
+        .route("/media/{uuid}", get(media))
+        .route("/media/{uuid}/raw", get(media_raw))
+        .route("/media/{uuid}/full", get(media_full))
+        .route("/media/{uuid}/thumb", get(media_thumb))
         .route("/album", get(album_index).post(album_create))
-        .route("/album/:uuid", get(album).delete(album_delete))
-        .route("/album/:uuid/media", post(album_add_media).delete(album_delete_media))
-        .route("/album/:uuid/timeline", get(album_timeline))
+        .route("/album/{uuid}", get(album).delete(album_delete))
+        .route("/album/{uuid}/media", post(album_add_media).delete(album_delete_media))
+        .route("/album/{uuid}/timeline", get(album_timeline))
         .route("/media_view", get(media_view_index).post(media_view_create).delete(media_view_delete))
         .route("/directory_tree", get(directory_tree))
         .route("/info", get(info))
@@ -125,19 +131,29 @@ async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> R
     Ok(Json(media))
 }
 
-async fn media_raw(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {
+async fn media_raw(Extension(conn): Extension<DbPool>, range: Option<TypedHeader<Range>>, path: Path<MediaParams>) -> Result<Response, (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
+    let name = media.name.clone();
     
-    let stream = request_ipc_file(&CONFIG, &media).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("ipc error requesting file: {:?}", e)))?;
-    let body = Body::from_stream(ReaderStream::new(stream));
+    let stream = UnixStream::connect(&CONFIG.socket_path).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("ipc error connecting to socket: {:?}", e)))?;
+    let mut buf_stream = BufUnixStream::new(stream);
+    
+    let file_size = ipc::request_file_size(&mut buf_stream, &media).await.map_err(|e| (StatusCode::BAD_REQUEST, format!("ipc error requesting file size: {:?}", e)))?;
 
+    let remote_media_file = RemoteMediaFile::new(file_size, media, buf_stream);
 
-    let mut headers = HeaderMap::new();
-    headers.insert(header::CONTENT_TYPE, HeaderValue::from_str("application/octet-stream").unwrap());
-    headers.insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{}\"", media.name)).unwrap());
-    headers.insert(header::CONTENT_LENGTH, HeaderValue::from_str(&media.size.to_string()).unwrap());
+    let body= KnownSize::sized(remote_media_file, file_size);
 
-    Ok((headers, body))
+ 
+    let range = range.map(|TypedHeader(range)| range);
+    
+    let ranged = Ranged::new(range, body);
+    
+    let mut res = ranged.into_response();
+    
+    res.headers_mut().insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{}\"", name)).unwrap());
+
+    Ok(res)
 }
 
 async fn media_full(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {

@@ -1,18 +1,18 @@
+use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest};
+use common::models::media::Media;
+use common::scan_config::AppConfig;
+use nix::libc::pid_t;
+use sqlx::SqlitePool;
 use std::fmt::Debug;
 use std::fs::Permissions;
-use std::io::Error;
-use common::scan_config::AppConfig;
-use nix::libc::{pid_t};
+use std::io::{Error, SeekFrom};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
-use sqlx::{SqlitePool};
 use tokio::fs::File;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, Take};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Command;
 use tokio::sync::oneshot::Receiver;
-use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest};
-use common::models::media::Media;
 
 #[tokio::main]
 async fn main() {
@@ -48,7 +48,9 @@ async fn main() {
         panic!("client_user must not be root!");
     }
 
-    let pool = SqlitePool::connect(&format!("sqlite://{}", config.db_path)).await.unwrap();
+    let pool = SqlitePool::connect(&format!("sqlite://{}", config.db_path))
+        .await
+        .unwrap();
 
     config.canonicalize();
 
@@ -58,7 +60,7 @@ async fn main() {
 
     let config2 = config.clone();
     println!("starting unix socket server");
-    let mut handle = tokio::spawn(start_server(pool, config2, rx));
+    let mut handle = tokio::spawn(start_server(pool, config2, rx, env_var.dev_mode));
 
     let my_path = std::env::current_exe().unwrap();
     let my_dir = my_path.parent().unwrap();
@@ -78,7 +80,8 @@ async fn main() {
         .spawn()
         .expect("failed to start server");
 
-    tx.send(slave.id().expect("unable to obtain slave id")).unwrap();
+    tx.send(slave.id().expect("unable to obtain slave id"))
+        .unwrap();
 
     // wait until the child dies or the server dies
     tokio::select! {
@@ -93,7 +96,7 @@ async fn main() {
     }
 }
 
-pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>) {
+pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>, dev_mode: bool) {
     // delete the socket if it already exists
     if Path::new(&config.socket_path).exists() {
         std::fs::remove_file(&config.socket_path).unwrap();
@@ -102,74 +105,173 @@ pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>
 
     // set permissions on the socket
     // TODO: we might want to encrypt the data over the socket, but I don't think it's necessary right now
-    tokio::fs::set_permissions(&config.socket_path, Permissions::from_mode(0o666)).await.unwrap();
-
+    tokio::fs::set_permissions(&config.socket_path, Permissions::from_mode(0o666))
+        .await
+        .unwrap();
 
     let slave_pid = rx.await.unwrap();
     println!("slave pid: {}", slave_pid);
-    
+
     while let Ok((stream, _)) = socket.accept().await {
         let cred = stream.peer_cred().unwrap();
         let connecting_pid = cred.pid().unwrap();
 
-        if connecting_pid != slave_pid as pid_t { // only permit our slave to connect, this prevents other processes from using our daemon
+        if connecting_pid != slave_pid as pid_t {
+            // only permit our slave to connect, this prevents other processes from using our daemon
             panic!(
                 "connecting pid does not match slave pid: {} != {}",
                 connecting_pid, slave_pid
             );
         }
-
-        tokio::spawn(handle_slave(config.clone(), pool.clone(), stream));
+        
+        tokio::spawn(handle_slave(config.clone(), pool.clone(), stream, dev_mode));
     }
 }
 
-pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixStream) {
-    let (reader, mut writer) = stream.split();
-    let mut reader = BufReader::new(reader);
-    let mut buf = String::new();
-    // read IpcRequest from client
-    let size = reader.read_line(&mut buf).await.unwrap();
-    if size == 0 {
-        return;
-    }
-    let req: IpcRequest = serde_json::from_str(&buf).map_err(|e| {
-        format!("unable to deserialize IpcRequest: {} | {}", e, buf)
-    }).unwrap();
-    let IpcRequest::File(req) = req;
-    let (res, file) = match handle_file_request(config, &pool, &req).await {
-        Ok((res, file)) => (res, Some(file)),
-        Err(res) => (res, None)
+macro_rules! return_on_err {
+    ($res:expr, $dev_mode: tt) => {
+        match $res {
+            Ok(res) => res,
+            Err(e) => {
+                if $dev_mode {
+                    eprintln!("{}", e);
+                    return;
+                } else {
+                    return;
+                }
+            }
+        }
     };
-    writer.write_all(serde_json::to_string(&res).unwrap().as_bytes()).await.unwrap();
-    writer.write_all(b"\n").await.unwrap();
-    if let Some(mut file) = file {
-        tokio::io::copy(&mut file, &mut writer).await.unwrap(); // we should really limit length here
+}
+
+pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixStream, dev_mode: bool) {
+    let (reader, mut writer) = stream.split();
+    let mut reader = BufReader::new(reader).lines();
+
+    while let Ok(Some(line)) = reader.next_line().await {
+        let req: IpcRequest = serde_json::from_str(&line)
+            .map_err(|e| format!("unable to deserialize IpcRequest: {} | {}", e, line))
+            .unwrap();
+
+        match req {
+            IpcRequest::FileData {file, start, end} => {
+                let (res, file) = match handle_file_request(&config, &pool, &file, start, end).await {
+                    Ok((res, file)) => (res, Some(file)),
+                    Err(res) => (res, None),
+                };
+
+                return_on_err!(writer
+                    .write_all(serde_json::to_string(&res).unwrap().as_bytes())
+                    .await, dev_mode);
+
+                return_on_err!(writer.write_all(b"\n").await, dev_mode);
+
+                if let Some(mut file) = file {
+                    return_on_err!(tokio::io::copy(&mut file, &mut writer).await, dev_mode);
+                }
+            }
+            IpcRequest::FileSize { file} => {
+                let res = handle_file_size_request(&config, &pool, &file).await.unwrap_or_else(|res| res);
+
+                return_on_err!(writer
+                    .write_all(serde_json::to_string(&res).unwrap().as_bytes())
+                    .await, dev_mode);
+
+                return_on_err!(writer.write_all(b"\n").await, dev_mode);
+            }
+        }
     }
 }
 
-pub async fn handle_file_request(app_config: AppConfig, pool: &SqlitePool, req: &IpcFileRequest) -> Result<(IpcFileResponse, File), IpcFileResponse> {
-    if !app_config.path_matches(&req.path) { // extra security check 1: ensure the path is in the config and not some random path, config is trusted given above permission checks
+
+pub async fn file_request_permissions(app_config: &AppConfig,
+                                          pool: &SqlitePool,
+                                          req: &IpcFileRequest) -> Result<(Media, File), IpcFileResponse> {
+    if !app_config.path_matches(&req.path) {
+        // extra security check 1: ensure the path is in the config and not some random path, config is trusted given above permission checks
         return Err(IpcFileResponse::Error {
             error: "path not in config, the fuck u tryin do -_-".to_string(),
         });
     }
 
-
     let media = Media::from_id(pool, &req.db_id).await.unwrap(); // since we don't enforce permissions on the DB file, this is somewhat vulnerable to various attacks, however it's highly limited given the above check
 
-    if media.path != req.path { // extra security check 2: ensure the path is in the DB and matches the media requested, without fixing the permission this doesn't provide much more than a sanity check
+    if media.path != req.path {
+        // extra security check 2: ensure the path is in the DB and matches the media requested, without fixing the permission this doesn't provide much more than a sanity check
         return Err(IpcFileResponse::Error {
             error: "path mismatch".to_string(),
         });
     }
 
     let path = Path::new(&media.path);
-    let file = File::open(path).await.map_err(|e| IpcFileResponse::Error {error: format!("couldn't open file: {} - {:?}", media.path, e)})?;
-    let length = file.metadata().await.map_err(|e| IpcFileResponse::Error {error: format!("couldn't get metadata: {} - {:?}", media.path, e)})?.len();
 
-    Ok((IpcFileResponse::Success {
-        db_id: req.db_id,
-        path: media.path.clone(),
-        length,
-    }, file))
+    let file = File::open(path).await.map_err(|e| IpcFileResponse::Error {
+        error: format!("couldn't open file: {} - {:?}", media.path, e),
+    })?;
+
+    Ok((media, file))
+}
+
+
+
+pub async fn handle_file_size_request(
+    app_config: &AppConfig,
+    pool: &SqlitePool,
+    req: &IpcFileRequest
+) -> Result<IpcFileResponse, IpcFileResponse> {
+    let (media, file) = file_request_permissions(app_config, pool, req).await?;
+
+    let file_size = file
+        .metadata()
+        .await
+        .map_err(|e| IpcFileResponse::Error {
+            error: format!("couldn't get metadata: {} - {:?}", media.path, e),
+        })?
+        .len();
+
+    Ok(IpcFileResponse::Success {
+        file: IpcFileRequest {
+            db_id: req.db_id,
+            path: media.path.clone(),
+        },
+        file_size,
+        response_size: 0,
+    })
+}
+
+
+pub async fn handle_file_request(
+    app_config: &AppConfig,
+    pool: &SqlitePool,
+    req: &IpcFileRequest,
+    start: u64,
+    end: u64,
+) -> Result<(IpcFileResponse, Take<File>), IpcFileResponse> {
+    let (media, mut file) = file_request_permissions(app_config, pool, req).await?;
+
+    let file_size = file
+        .metadata()
+        .await
+        .map_err(|e| IpcFileResponse::Error {
+            error: format!("couldn't get metadata: {} - {:?}", media.path, e),
+        })?
+        .len();
+
+    file.seek(SeekFrom::Start(start)).await.map_err(|e| IpcFileResponse::Error {
+        error: format!("couldn't seek to start: {} - {:?}", media.path, e),
+    })?;
+
+    let take = file.take(end - start);
+
+    Ok((
+        IpcFileResponse::Success {
+            file: IpcFileRequest {
+                db_id: req.db_id,
+                path: media.path.clone(),
+            },
+            file_size,
+            response_size: end - start,
+        },
+        take,
+    ))
 }

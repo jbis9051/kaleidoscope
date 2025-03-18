@@ -43,5 +43,4 @@ export default function MediaImg({media, loaded, blur, style, ...props}: MediaIm
             />
         }
     </>
-
 }

@@ -4,7 +4,14 @@ use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum IpcRequest {
-    File(IpcFileRequest),
+    FileData {
+        file: IpcFileRequest,
+        start: u64,
+        end: u64,
+    },
+    FileSize {
+        file: IpcFileRequest
+    },
 }
 
 
@@ -21,8 +28,8 @@ pub enum IpcFileResponse {
         error: String,
     },
     Success {
-        path: String,
-        db_id: i32,
-        length: u64,
+        file: IpcFileRequest,
+        file_size: u64,
+        response_size: u64,
     }
 }

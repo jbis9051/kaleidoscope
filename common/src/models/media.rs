@@ -20,7 +20,7 @@ pub struct Metadata {
     pub value: String,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
 pub struct Media {
     pub id: i32,
     pub uuid: Uuid,
