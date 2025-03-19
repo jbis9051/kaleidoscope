@@ -223,3 +223,7 @@
     width: 100%;
     height: 250px;
 }
+
+.previewMap > div {
+    z-index: 0;
+}

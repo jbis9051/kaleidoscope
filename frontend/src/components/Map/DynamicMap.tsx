@@ -99,7 +99,7 @@ export default function Map({scrollWheelZoom, center, zoom, markers, media, medi
         const markers = media.filter(m => m.latitude && m.longitude).map((media, index) => {
             const icon = new Leaflet.DivIcon({
                 className: styles.mediaIcon,
-                html: `<img src="${API_URL}/media/${media.uuid}/thumb" >`,
+                html: media.has_thumbnail ? `<img src="${API_URL}/media/${media.uuid}/thumb" >` : `<span style="color: black; word-break: break-all">${media.name}</span>`,
                 iconSize: [size, size],
                 iconAnchor: [size / 2, size+10]
             });

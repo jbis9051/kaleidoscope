@@ -23,7 +23,7 @@ export default function MediaImg({media, loaded, blur, style, ...props}: MediaIm
 
     return <>
         <img
-            src={loadedFull ? full : thumbnail}
+            src={full}
             alt={media.name}
             onLoad={() => {
                 setLoadedFull(true);

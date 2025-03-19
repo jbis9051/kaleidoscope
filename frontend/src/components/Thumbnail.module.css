@@ -4,25 +4,17 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
-}
-
-.iconContainer {
-    display: flex;
-    align-items: center;
     justify-content: center;
-    height: 70%;
+    align-items: center;
+    color: #939393;
 }
 
 .icon {
-    height: 100%;
+    height: 1.5em;
 }
 
-.textContainer {
-    background: red;
-    flex: 1;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 0;
+.text {
+    font-size: 1em;
+    text-align: center;
+    margin-top: 0.7em;
 }

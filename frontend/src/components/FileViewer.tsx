@@ -184,7 +184,7 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
                                  onMouseUp={() => select(m)}
                             >
                                 <div className={styles.imageWrapper}>
-                                    <Thumbnail media={m} draggable={false} className={styles.image}/>
+                                    <Thumbnail media={m} size={1.8} draggable={false} className={styles.image}/>
                                 </div>
                                 <div className={styles.fileName}>{m.name}</div>
                             </div>
