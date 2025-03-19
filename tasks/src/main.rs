@@ -3,8 +3,10 @@ use clap::{Parser, ValueEnum};
 use common::models::media::Media;
 use common::scan_config::AppConfig;
 use sqlx::{Connection, Pool, SqliteConnection};
-use tasks::queue::Queue;
-use tasks::runner::{add_to_compatible_queues, run_queue};
+use tokio::sync::mpsc;
+use common::types::AcquireClone;
+use tasks::models::queue::Queue;
+use tasks::ops::{add_to_compatible_queues, run_queue, RunProgress};
 use tasks::tasks::Task;
 
 #[derive(Parser, Debug)]
@@ -31,6 +33,27 @@ pub enum Operation {
     Run,
 }
 
+async fn progress_handler(mut recv: mpsc::Receiver<RunProgress>, mut db: impl AcquireClone){
+    while let Some(progress) = recv.recv().await {
+        let media = Media::from_id(db.acquire_clone(), &progress.queue.media_id)
+            .await
+            .expect("error getting media");
+
+        match &progress.error {
+            Some(e) => {
+                eprintln!("({}/{}) - task '{}' - media {}: failed {:?}", progress.index+1, progress.total, progress.queue.task, media.path, e);
+            }
+            None => {
+                println!("({}/{}) - task '{}' - media {}: succeeded", progress.index+1, progress.total, progress.queue.task, media.path);
+            }
+        }
+
+        if progress.done() {
+            break;
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() {
     let args: CliArgs = CliArgs::parse();
@@ -42,11 +65,19 @@ async fn main() {
         store
     } = args;
 
-    let config = AppConfig::from_path(&config_path);
+    let app_config = AppConfig::from_path(&config_path);
 
-    let mut db = SqliteConnection::connect(&format!("sqlite:{}", config.db_path))
+    let mut db = SqliteConnection::connect(&format!("sqlite:{}", app_config.db_path))
         .await
         .unwrap();
+
+    let progress_db = SqliteConnection::connect(&format!("sqlite:{}", app_config.db_path))
+        .await
+        .unwrap();
+
+    let (progress_tx, progress_rx) = mpsc::channel(10);
+
+   let join = tokio::spawn(progress_handler(progress_rx, progress_db));
 
     match (task_name, media) {
         (None, None) => match op {
@@ -60,9 +91,10 @@ async fn main() {
                     return;
                 }
 
-                let queue = run_queue(&mut db, &Task::TASK_NAMES, &config.tasks)
+                let queue = run_queue(&mut db, &Task::TASK_NAMES, &app_config.tasks, &app_config, Some(progress_tx))
                     .await
                     .expect("error running queue");
+                join.await.expect("error joining progress handler");
                 println!("{} tasks succeeded, {} failed", queue.0, queue.1);
             }
         },
@@ -95,9 +127,10 @@ async fn main() {
                         return;
                     }
 
-                    let queue = run_queue(&mut db, &[&task], &config.tasks)
+                    let queue = run_queue(&mut db, &[&task], &app_config.tasks, &app_config, Some(progress_tx))
                         .await
                         .expect("error running queue");
+                    join.await.expect("error joining progress handler");
                     println!("{} tasks succeeded, {} failed", queue.0, queue.1);
                 }
             }
@@ -127,7 +160,7 @@ async fn main() {
         (Some(task), Some(media)) => {
             let media_path = Path::new(&media);
             let canoc = media_path.canonicalize().expect("error canonicalizing path");
-            let media = Media::from_path(&mut db, canoc.to_str().unwrap())
+            let mut media = Media::from_path(&mut db, canoc.to_str().unwrap())
                 .await
                 .expect("error getting media")
                 .expect("media not found");
@@ -161,14 +194,14 @@ async fn main() {
                         }
                     }
                     
-                    let task = Task::new(&task, &mut db, &config.tasks).await.expect("error getting task");
+                    let task = Task::new(&task, &mut db, &app_config.tasks, &app_config).await.expect("error getting task");
 
                     let queue = Queue::from_media_id(&mut db, &task.name(), media.id)
                         .await
                         .expect("error getting queue");
 
                     let res = if store {
-                        task.run_and_store(&mut db, &media).await.expect("error running task");
+                        task.run_and_store(&mut db, &mut media).await.expect("error running task");
                         None
                     } else {
                         Some(task.run(&mut db, &media).await

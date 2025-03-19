@@ -1,9 +1,8 @@
-use crate::format::{Format, MediaMetadata};
-use common::models::system_time_to_naive_datetime;
-use exif::{Error, Exif, Tag, Value};
 use image::{RgbImage};
 use std::path::Path;
-use crate::exif::extract_exif;
+use crate::media_processors::exif::extract_exif;
+use crate::media_processors::format::{Format, MediaMetadata};
+use crate::models::system_time_to_naive_datetime;
 
 pub struct Standard;
 

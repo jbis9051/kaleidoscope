@@ -7,7 +7,6 @@ pub struct AppConfig {
     pub scan_paths: Vec<String>,
     pub exclude_paths: Option<Vec<String>>,
     pub data_dir: String,
-    pub thumb_size: u32,
     pub db_path: String,
 
     pub listen_addr: String,

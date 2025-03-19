@@ -1,17 +1,19 @@
 use std::path::Path;
-use image::RgbImage;
 use log::{debug, error};
 use sha1::Digest;
 use sqlx::SqliteConnection;
 use sqlx::types::chrono::Utc;
 use sqlx::types::Uuid;
+use common::media_processors::format::{AnyFormat, MetadataError};
 use common::models::media::Media;
 use common::models::system_time_to_naive_datetime;
 use common::scan_config::AppConfig;
-use crate::format::{heif, raw, standard, video, AnyFormat, Format, MediaMetadata, MetadataError};
+use tasks::ops::add_to_compatible_queues;
+use tasks::tasks::{BackgroundTask, Task};
+use tasks::tasks::thumbnail::ThumbnailGenerator;
 
 pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
-    let format = AnyFormat::new(path.to_path_buf()).ok_or(AddMediaError::UnsupportedFormat)?;
+    let format = AnyFormat::try_new(path.to_path_buf()).ok_or(AddMediaError::UnsupportedFormat)?;
 
     let file_created_at = system_time_to_naive_datetime(path.metadata()?.created()?);
     let path_str = path.canonicalize()?.to_string_lossy().to_string();
@@ -37,8 +39,6 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
 
     let uuid = Uuid::new_v4();
 
-    generate_thumbnails(&uuid, &format, config)?;
-
     let hash = hash(path);
     let is_photo = format.is_photo();
 
@@ -60,6 +60,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
         is_screenshot: metadata.is_screenshot,
         longitude: metadata.longitude,
         latitude: metadata.latitude,
+        has_thumbnail: false,
         format: format.format_type(),
         metadata_version: format.metadata_version(),
         thumbnail_version: format.thumbnail_version(),
@@ -67,12 +68,15 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
     };
 
     media.create(&mut *db).await.unwrap();
+
+    add_to_compatible_queues(&mut *db, &media, &Task::TASK_NAMES).await.unwrap();
+
     Ok(())
 }
 
 pub async fn update_media(media: &mut Media, config: &AppConfig, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
     let path = Path::new(&media.path);
-    let format = AnyFormat::new(path.to_path_buf()).ok_or(AddMediaError::UnsupportedFormat)?;
+    let format = AnyFormat::try_new(path.to_path_buf()).ok_or(AddMediaError::UnsupportedFormat)?;
 
     let format_change = media.format != format.format_type();
 
@@ -96,45 +100,16 @@ pub async fn update_media(media: &mut Media, config: &AppConfig, db: &mut Sqlite
         media.metadata_version = format.metadata_version();
     }
 
-    if media.thumbnail_version < format.thumbnail_version() || format_change {
-        debug!("          updating thumbnail for {:?}: {} --> {}", media.uuid, media.thumbnail_version, format.thumbnail_version());
-        generate_thumbnails(&media.uuid, &format, config)?;
-        media.thumbnail_version = format.thumbnail_version();
+    // we only add to the thumbnail queue if the format has changed, thumbnail version checking is handled by the ThumbnailGenerator task itself in a later step
+    if format_change {
+        let added = add_to_compatible_queues(&mut *db, &media, &[ThumbnailGenerator::NAME]).await.unwrap();
+        if added.len() > 0 {
+            debug!("          add media to thumbnail queue for update for {:?} due to format change: {} --> {}", media.uuid, media.thumbnail_version, format.thumbnail_version());
+            media.has_thumbnail = false;
+        }
     }
 
     media.update_by_id(&mut *db).await.unwrap();
-
-    Ok(())
-}
-
-pub fn generate_thumbnails(uuid: &Uuid, format: &AnyFormat, config: &AppConfig) -> Result<(), AddMediaError> {
-    let data_dir = Path::new(&config.data_dir);
-    let thumb_path = data_dir.join(format!("{:?}-thumb.jpg", uuid));
-    let full_path = data_dir.join(format!("{:?}-full.jpg", uuid));
-
-    let metadata = format.get_metadata()?;
-
-    // we want to generate a thumbnail while maintaining the aspect ratio, using thumb_size as the max size
-
-    let mut twidth = config.thumb_size;
-    let mut theight = config.thumb_size;
-
-    if metadata.width > metadata.height {
-        theight = (metadata.height as f32 / metadata.width as f32 * twidth as f32) as u32;
-    } else {
-        twidth = (metadata.width as f32 / metadata.height as f32 * theight as f32) as u32;
-    }
-
-    let thumbnail = format.generate_thumbnail(twidth, theight)?;
-    let full = format.generate_full()?;
-
-    // write thumbnail to disk
-    debug!("          writing thumbnail: {:?}", thumb_path);
-    thumbnail.save(thumb_path).unwrap();
-
-    // write full to disk
-    debug!("          writing full: {:?}", full_path);
-    full.save(full_path).unwrap();
 
     Ok(())
 }

@@ -78,7 +78,8 @@ macro_rules! sqlize {
                 Ok(())
             }
 
-            pub async fn update_by_id<'a, T: SqliteExecutor<'a>>(&self, db: T) -> Result<(), sqlx::Error> {
+            pub async fn update_by_id(&self, db: impl SqliteAcquire<'_>) -> Result<(), sqlx::Error> {
+                let mut conn = db.acquire().await?;
                 sqlx::query(
                         &format!("UPDATE {} SET {} WHERE id = ?",
                             $table,
@@ -89,7 +90,7 @@ macro_rules! sqlize {
                         .bind(&self.$col)
                     )*
                     .bind(&self.$id)
-                    .execute(db)
+                    .execute(&mut *conn)
                     .await?;
                 Ok(())
             }

@@ -1,18 +1,15 @@
-pub mod hello_world;
+pub mod thumbnail;
 
-use common::models::date;
 use common::models::media::Media;
-use common::question_marks;
-use common::sqlize;
-use common::types::{SqliteAcquire};
-use common::update_set;
+use common::types::{AcquireClone, SqliteAcquire};
 use serde::{Serialize};
-use sqlx::sqlite::SqliteRow;
 use sqlx::{Row, SqliteExecutor};
 use std::borrow::Borrow;
 use std::fmt::Debug;
 use serde::de::DeserializeOwned;
 use toml::Table;
+use common::scan_config::AppConfig;
+use crate::tasks::thumbnail::ThumbnailGenerator;
 
 pub trait BackgroundTask: Sized {
     type Error: Debug;
@@ -24,54 +21,28 @@ pub trait BackgroundTask: Sized {
 
     type Config: Serialize + DeserializeOwned + Default;
 
-    async fn new(db: impl SqliteAcquire<'_>, config: &Self::Config) -> Result<Self, Self::Error>;
-    async fn compatible(media: &Media) -> bool;
-    async fn needs_update(
+    async fn new(db: &mut impl AcquireClone, config: &Self::Config, app_config: &AppConfig) -> Result<Self, Self::Error>;
+    async fn compatible(media: &Media) -> bool; // TODO: this should have error handling
+    async fn outdated(
         &self,
-        db: impl SqliteAcquire<'_>,
+        db: &mut impl AcquireClone,
         media: &Media,
-    ) -> bool;
-
+    ) -> Result<bool, Self::Error>;
 
     async fn run(
         &self,
-        db: impl SqliteAcquire<'_>,
+        db: &mut impl AcquireClone,
         media: &Media
     ) -> Result<Self::Data, Self::Error>;
 
     async fn run_and_store(
         &self,
-        db: impl SqliteAcquire<'_>,
-        media: &Media
+        db: &mut impl AcquireClone,
+        media: &mut Media
     ) -> Result<(), Self::Error>;
 
-    async fn remove_data(&self, db: impl SqliteAcquire<'_>, media: &Media) -> Result<(), Self::Error>;
+    async fn remove_data(&self, db: &mut impl AcquireClone, media: &mut Media) -> Result<(), Self::Error>;
 }
-
-#[derive(Debug, Serialize)]
-pub struct BackgroundTaskDataRaw {
-    pub id: i32,
-    pub media_id: i32,
-    pub task: String,
-    pub version: u32,
-    pub data: String,
-    #[serde(with = "date")]
-    pub created_at: chrono::NaiveDateTime,
-    #[serde(with = "date")]
-    pub updated_at: chrono::NaiveDateTime,
-}
-
-sqlize!(
-    BackgroundTaskDataRaw,
-    "background_task_data",
-    id,
-    [media_id, task, version, data, created_at, updated_at]
-);
-
-
-
-
-use hello_world::*;
 
 macro_rules! match_task {
     ($task: expr, $call: tt($($arg: expr),*)) => {
@@ -134,12 +105,12 @@ macro_rules! impl_task {
             }
 
 
-            pub async fn new(task: &str, db: impl SqliteAcquire<'_>, tasks: &Table) -> Result<Self, TaskError> {
+            pub async fn new(task: &str, db: &mut impl AcquireClone, tasks: &Table, app_config: &AppConfig) -> Result<Self, TaskError> {
                 match task {
                     $(
                         $task::NAME => {
                             let config: <$task as BackgroundTask>::Config = tasks.get($task::NAME).map(|v| v.clone().try_into()).transpose()?.unwrap_or_default();
-                            let task = $task::new(db, &config).await.map_err(|e| TaskError::$task(e))?;
+                            let task = $task::new(db, &config, &app_config).await.map_err(|e| TaskError::$task(e))?;
                             Ok(Self::$task(task))
                         }
                     )*
@@ -147,7 +118,7 @@ macro_rules! impl_task {
                 }
             }
 
-            pub async fn run(&self, db: impl SqliteAcquire<'_>, media: &Media) -> Result<Box<dyn Debug>, TaskError> {
+            pub async fn run(&self, db: &mut impl AcquireClone, media: &Media) -> Result<Box<dyn Debug>, TaskError> {
                 match self {
                     $(
                         Task::$task(task) => {
@@ -157,11 +128,21 @@ macro_rules! impl_task {
                 }
             }
 
-            pub async fn run_and_store(&self, db: impl SqliteAcquire<'_>, media: &Media) -> Result<(), TaskError> {
+            pub async fn run_and_store(&self, db: &mut impl AcquireClone, media: &mut Media) -> Result<(), TaskError> {
                 match self {
                     $(
                         Task::$task(task) => {
                             task.run_and_store(db, media).await.map_err(|e| TaskError::$task(e))
+                        }
+                    )*
+                }
+            }
+
+            pub async fn outdated(&self, db: &mut impl AcquireClone, media: &Media) -> Result<bool, TaskError> {
+                match self {
+                    $(
+                        Task::$task(task) => {
+                            task.outdated(db, media).await.map_err(|e| TaskError::$task(e))
                         }
                     )*
                 }
@@ -172,7 +153,7 @@ macro_rules! impl_task {
 
 
 impl_task!(
-    [VideoDurationProcessor,],
+    [ThumbnailGenerator,],
     1
 );
 
@@ -180,8 +161,8 @@ impl_task!(
 pub enum TaskError {
     #[error("task not found: {0}")]
     TaskNotFound(String),
-    #[error("hello world task error: {0}")]
-    VideoDurationProcessor(String),
+    #[error("'thumbnail' task error: {0}")]
+    ThumbnailGenerator(<ThumbnailGenerator as BackgroundTask>::Error),
     #[error("error deserializing task data: {0}")]
     InvalidTaskData(#[from] serde_json::Error),
     #[error("error deserializing task config: {0}")]

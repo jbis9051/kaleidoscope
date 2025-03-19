@@ -9,8 +9,7 @@ use std::time::Duration;
 use image::{RgbImage};
 use serde::{Deserialize, Serialize};
 use sqlx::types::chrono;
-use common::format_type;
-use common::format_type::FormatType;
+use crate::format_type::FormatType;
 
 #[derive(Debug)]
 pub struct MediaMetadata {
@@ -53,7 +52,10 @@ pub trait Format<T> {
 
 #[macro_export]
 macro_rules! match_format {
-    ($format: expr, $call: tt($($arg: expr),*)) => {
+    ($format: expr, $call: tt($($arg: expr),*)) => {{
+        use $crate::format_type::FormatType;
+        use $crate::media_processors::format::*;
+        
         match $format {
             FormatType::Standard => standard::Standard::$call($($arg),*).into(),
             FormatType::Heif => heif::Heif::$call($($arg),*).into(),
@@ -61,8 +63,11 @@ macro_rules! match_format {
             FormatType::Raw => raw::Raw::$call($($arg),*).into(),
             _ => panic!("invalid format type: {:?}", $format),
         }
-    };
-    ($format: expr, $call: tt($($arg: expr),*), err) => {
+    }};
+    ($format: expr, $call: tt($($arg: expr),*), err) => {{
+        use $crate::format_type::FormatType;
+        use $crate::media_processors::format::*;
+        
         match $format {
             FormatType::Standard => standard::Standard::$call($($arg),*).map_err(|e| e.into()),
             FormatType::Heif => heif::Heif::$call($($arg),*).map_err(|e| e.into()),
@@ -70,8 +75,11 @@ macro_rules! match_format {
             FormatType::Raw => raw::Raw::$call($($arg),*).map_err(|e| e.into()),
             _ => panic!("invalid format type: {:?}", $format),
         }
-    };
-    ($format: expr, $assoc: ident) => {
+    }};
+    ($format: expr, $assoc: ident) => {{
+        use $crate::format_type::FormatType;
+        use $crate::media_processors::format::*;
+        
         match $format {
             FormatType::Standard => standard::Standard::$assoc,
             FormatType::Heif => heif::Heif::$assoc,
@@ -79,7 +87,7 @@ macro_rules! match_format {
             FormatType::Raw => raw::Raw::$assoc,
             _ => panic!("invalid format type: {:?}", $format),
         }
-    };
+    }};
 }
 
 pub struct AnyFormat {
@@ -88,7 +96,7 @@ pub struct AnyFormat {
 }
 
 impl AnyFormat {
-    pub fn new(path: PathBuf) -> Option<Self> {
+    pub fn try_new(path: PathBuf) -> Option<Self> {
         let format = {
             if standard::Standard::is_supported(&path) {
                 FormatType::Standard

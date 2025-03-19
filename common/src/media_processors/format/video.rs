@@ -1,5 +1,3 @@
-use crate::format::{resize_dimensions, Format, MediaMetadata};
-use common::models::system_time_to_naive_datetime;
 use ffmpeg_next::codec::Context;
 use ffmpeg_next::format::Pixel;
 use ffmpeg_next::software::scaling::{context::Context as ScaleContext, flag::Flags};
@@ -8,7 +6,9 @@ use image::RgbImage;
 use nom_exif::{MediaParser, MediaSource, TrackInfo};
 use std::path::Path;
 use std::time::Duration;
-use crate::exif::extract_exif_nom;
+use crate::media_processors::exif::extract_exif_nom;
+use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata};
+use crate::models::system_time_to_naive_datetime;
 
 pub struct Video;
 

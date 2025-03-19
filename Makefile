@@ -7,6 +7,9 @@ db:
 db-revert:
 	./db/sqlx.sh revert
 
+db-new:
+	./db/sqlx.sh new $(name)
+
 dev:
 	cd server && cargo run
 

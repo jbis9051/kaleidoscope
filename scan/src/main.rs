@@ -1,7 +1,4 @@
-mod format;
 mod media_operations;
-
-mod exif;
 
 use std::collections::HashSet;
 use crate::media_operations::{add_media, remove_media, update_media, AddMediaError};
@@ -15,9 +12,10 @@ use sqlx::{Connection, SqliteConnection};
 use std::env;
 use std::path::Path;
 use walkdir::WalkDir;
-use common::{debug_sql, question_marks, update_set};
+use common::{debug_sql, match_format, question_marks, update_set};
 use common::format_type::FormatType;
-use crate::format::*;
+use tasks::ops::{add_outdated_queues, add_to_compatible_queues};
+use tasks::tasks::Task;
 
 #[tokio::main]
 async fn main() {
@@ -74,7 +72,7 @@ async fn main() {
 
     import_id_kv.update_by_key(&mut db).await.unwrap();
 
-    println!("beginning import id: {}", import_id);
+    debug!("beginning import id: {}", import_id);
 
     let mut total = 0;
     for path in config.scan_paths.iter() {
@@ -87,16 +85,19 @@ async fn main() {
     info!("--- scanning complete, found {} new media, import_id: {} ---", total, import_id);
 
     info!("--- updating database ---");
+    info!("--- updating database: metadata ---");
     
     let formats =  [FormatType::Standard, FormatType::Raw, FormatType::Heif, FormatType::Video, FormatType::Unknown];
     let mut updated = vec![0; formats.len()];
     for (i, format) in formats.iter().enumerate() {
-       let (metadata_version, thumbnail_version) = match format {
-            FormatType::Unknown => (i32::MAX, i32::MAX),
-            _ => (match_format!(format, METADATA_VERSION), match_format!(format, THUMBNAIL_VERSION))
+       let metadata_version = match format {
+            FormatType::Unknown => continue,
+            _ => match_format!(format, METADATA_VERSION)
         };
         
-        let mut outdated = Media::outdated(&mut db, *format, metadata_version, thumbnail_version).await.unwrap();
+        // TODO: i don't think format changes are actually being detected
+        
+        let mut outdated = Media::outdated(&mut db, *format, metadata_version).await.unwrap();
         
         for media in outdated.iter_mut() {
             match update_media(media, &config, &mut db).await {
@@ -113,7 +114,17 @@ async fn main() {
     
     let report = formats.iter().zip(updated.iter()).map(|(f, u)| format!("{:?}[{}]", f, u)).collect::<Vec<String>>().join("|");
     
-    info!("--- updating database complete report: {} ---", report);
+    info!("--- updating metadata complete report: {} ---", report);
+
+    info!("--- updating database: tasks ---");
+
+    let media = Media::all(&mut db).await.unwrap();
+
+    let report = add_outdated_queues(&mut db, &media, &Task::TASK_NAMES, &config.tasks, &config).await.unwrap();
+    
+    let report = report.iter().map(|(t, c)| format!("{}[{}]", t, c)).collect::<Vec<String>>().join("|");
+    
+    info!("--- updating database: tasks complete queuing report: {} ---", report);
 
     info!("--- verifying database ---");
 
@@ -133,16 +144,6 @@ async fn main() {
         if !path.exists() {
             warn!("missing media: {:?}", m.path);
             remove_media(m, &mut db, &config).await;
-        }
-
-        let path = Path::new(&config.data_dir).join(format!("{:?}-thumb.jpg", m.uuid));
-        if !path.exists() {
-            warn!("missing thumbnail: {:?}", path);
-        }
-
-        let path = Path::new(&config.data_dir).join(format!("{:?}-full.jpg", m.uuid));
-        if !path.exists() {
-            warn!("missing full: {:?}", path);
         }
     }
 

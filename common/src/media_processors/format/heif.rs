@@ -2,9 +2,9 @@ use std::path::{Path, PathBuf};
 use image::{RgbImage};
 use image::imageops::thumbnail;
 use libheif_rs::{ColorSpace, HeifContext, ItemId, LibHeif, RgbChroma};
-use common::models::system_time_to_naive_datetime;
-use crate::exif::extract_exif;
-use crate::format::{Format, MediaMetadata, resize_dimensions};
+use crate::media_processors::exif::extract_exif;
+use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata};
+use crate::models::system_time_to_naive_datetime;
 
 pub struct Heif;
 

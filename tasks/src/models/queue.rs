@@ -9,7 +9,7 @@ use serde::Serialize;
 use common::sqlize;
 use common::types::SqliteAcquire;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct Queue {
     pub id: i32,
     pub media_id: i32,
@@ -64,6 +64,16 @@ impl Queue {
         let mut conn = db.acquire().await?;
         sqlx::query("DELETE FROM queue WHERE id = ?")
             .bind(self.id)
+            .execute(&mut *conn)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_by_media_id(db: impl SqliteAcquire<'_>, task: &str, media_id: i32) -> Result<(), sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        sqlx::query("DELETE FROM queue WHERE media_id = ? AND task = ?")
+            .bind(media_id)
+            .bind(task)
             .execute(&mut *conn)
             .await?;
         Ok(())

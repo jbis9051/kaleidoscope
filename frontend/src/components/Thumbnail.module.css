@@ -1,0 +1,28 @@
+.container {
+    height: 100%;
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.iconContainer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 70%;
+}
+
+.icon {
+    height: 100%;
+}
+
+.textContainer {
+    background: red;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 0;
+}

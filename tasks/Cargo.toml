@@ -14,3 +14,4 @@ toml = "0.8"
 
 clap = { version = "4.5.23", features = ["derive"] }
 tokio = { version = "1.37", features = ["full"] }
+log = "0.4.22"

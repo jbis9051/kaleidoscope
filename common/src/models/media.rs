@@ -46,6 +46,8 @@ pub struct Media {
     pub longitude: Option<f64>,
     pub latitude: Option<f64>,
 
+    pub has_thumbnail: bool,
+
     pub format: FormatType,
     pub metadata_version: i32,
     pub thumbnail_version: i32,
@@ -72,7 +74,8 @@ sqlize!(Media, "media", id, [
     latitude,
     metadata_version,
     thumbnail_version,
-    import_id
+    import_id,
+    has_thumbnail
 ]);
 
 impl Media {
@@ -147,11 +150,10 @@ impl Media {
     }
 
 
-    pub async fn outdated<'a>(db: impl SqliteExecutor<'a>, format_type: FormatType, metadata_version: i32, thumbnail_version: i32) -> Result<Vec<Self>, sqlx::Error> {
-        Ok(sqlx::query("SELECT * FROM media WHERE format = $1 AND (metadata_version < $2 OR thumbnail_version < $3);")
+    pub async fn outdated<'a>(db: impl SqliteExecutor<'a>, format_type: FormatType, metadata_version: i32) -> Result<Vec<Self>, sqlx::Error> {
+        Ok(sqlx::query("SELECT * FROM media WHERE format = $1 AND metadata_version < $2")
             .bind(format_type)
             .bind(metadata_version)
-            .bind(thumbnail_version)
             .fetch_all(db)
             .await?
             .iter()

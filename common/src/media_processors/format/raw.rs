@@ -2,11 +2,8 @@ use std::path::Path;
 use image::imageops::thumbnail;
 use image::RgbImage;
 use imagepipe::Pipeline;
-use nom_exif::{ExifIter, MediaParser, MediaSource, TrackInfo};
-use walkdir::DirEntry;
-use common::models::system_time_to_naive_datetime;
-use crate::exif::extract_exif_nom;
-use crate::format::{Format, MediaMetadata, resize_dimensions};
+use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata};
+use crate::models::system_time_to_naive_datetime;
 
 pub struct Raw;
 

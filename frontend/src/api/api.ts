@@ -19,6 +19,7 @@ export interface Media {
     latitude: number | null;
     format: FormatType;
     import_id: number;
+    has_thumbnail: boolean;
 }
 
 export type FormatType = 'standard' | 'heif' | 'video' | 'raw' | 'unknown';
