@@ -5,7 +5,7 @@ use common::scan_config::AppConfig;
 use sqlx::{Connection, Pool, SqliteConnection};
 use tokio::sync::mpsc;
 use common::types::AcquireClone;
-use tasks::models::queue::Queue;
+use common::models::queue::Queue;
 use tasks::ops::{add_to_compatible_queues, run_queue, RunProgress};
 use tasks::tasks::Task;
 

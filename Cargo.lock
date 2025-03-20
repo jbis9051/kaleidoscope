@@ -790,10 +790,12 @@ version = "0.1.0"
 dependencies = [
  "common",
  "nix",
+ "once_cell",
+ "serde",
  "serde_json",
  "sqlx",
+ "tasks",
  "tokio",
- "tokio-util",
 ]
 
 [[package]]

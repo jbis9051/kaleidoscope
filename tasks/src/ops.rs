@@ -1,10 +1,12 @@
-use crate::models::queue::Queue;
+use serde::{Deserialize, Serialize};
+use common::models::queue::Queue;
 use crate::tasks::{BackgroundTask, Task, TaskError};
 use common::models::media::Media;
 use common::scan_config::AppConfig;
 use common::types::AcquireClone;
 use tokio::sync::mpsc;
 use toml::Table;
+use common::ipc::RunProgressSer;
 
 #[derive(Debug, thiserror::Error)]
 pub enum TaskOperationError {
@@ -20,6 +22,16 @@ pub struct RunProgress {
     pub total: u32,
     pub queue: Queue,
     pub error: Option<TaskError>,
+}
+impl From<RunProgress> for RunProgressSer {
+    fn from(progress: RunProgress) -> Self {
+        Self {
+            index: progress.index,
+            total: progress.total,
+            queue: progress.queue,
+            error: progress.error.map(|e| e.to_string()),
+        }
+    }
 }
 
 impl RunProgress {

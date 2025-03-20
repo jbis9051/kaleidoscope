@@ -1,7 +1,9 @@
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWriteExt, BufReader, BufWriter, Take};
 use tokio::net::unix::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::UnixStream;
-use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest};
+use common::ipc::{IpcFileRequest, IpcFileResponse, IpcQueueProgressResponse, IpcRequest};
 use common::models::media::Media;
 
 pub struct BufUnixStream {
@@ -20,7 +22,7 @@ impl BufUnixStream {
 
 
 // sends a request to the UnixStream and returns the response, stream can be reused
-async fn req_res(stream: &mut BufUnixStream, req: IpcRequest) -> Result<IpcFileResponse, String> {
+async fn req_res<T: DeserializeOwned>(stream: &mut BufUnixStream, req: IpcRequest) -> Result<T, String> {
     let mut req = serde_json::to_vec(&req).expect("Unable to serialize IpcRequest");
     req.push(b'\n');
     stream.writer.write_all(&req).await.expect("Unable to write to socket");
@@ -28,7 +30,7 @@ async fn req_res(stream: &mut BufUnixStream, req: IpcRequest) -> Result<IpcFileR
 
     let mut res = String::new();
     stream.reader.read_line(&mut res).await.expect("Unable to read from socket");
-    let res: IpcFileResponse = serde_json::from_str(&res).map_err(|e| format!("Unable to deserialize IpcFileResponse: {} | {}", e, res)).unwrap();
+    let res: T = serde_json::from_str(&res).map_err(|e| format!("Unable to deserialize ipc response: {} | {}", e, res)).unwrap();
     Ok(res)
 }
 
@@ -84,4 +86,10 @@ pub async fn request_file(stream: &mut BufUnixStream, media: &Media, start: u64,
     }
     
     Ok( response_size )
+}
+
+pub async fn request_queue_progress(stream: &mut BufUnixStream) -> Result<IpcQueueProgressResponse, String> {
+    let req = IpcRequest::QueueProgress;
+    let res: IpcQueueProgressResponse = req_res(stream, req).await?;
+    Ok( res )
 }

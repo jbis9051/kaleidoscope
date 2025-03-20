@@ -2,14 +2,14 @@ use std::borrow::Borrow;
 use sqlx::{Executor, Row, Sqlite};
 use sqlx::SqliteExecutor;
 use sqlx::sqlite::SqliteRow;
-use common::update_set;
-use common::question_marks;
-use common::models::date;
-use serde::Serialize;
-use common::sqlize;
-use common::types::SqliteAcquire;
+use crate::update_set;
+use crate::question_marks;
+use crate::models::date;
+use serde::{Deserialize, Serialize};
+use crate::sqlize;
+use crate::types::SqliteAcquire;
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone, Deserialize)]
 pub struct Queue {
     pub id: i32,
     pub media_id: i32,

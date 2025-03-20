@@ -98,6 +98,24 @@ export interface TimelineHour extends TimelineDay {
 export type TimelineInterval = 'month' | 'day' | 'hour';
 
 export type TimelineIntervalData<T extends TimelineInterval> = T extends 'month' ? TimelineMonth : T extends 'day' ? TimelineDay : TimelineHour;
+export interface QueueStatusProgress {
+    status: 'Progress';
+    index: number;
+    total: number;
+    queue: {
+        id: number;
+        media_id: number;
+        task: string;
+        created_at: number;
+    };
+    error: null | string;
+}
+
+export interface QueueStatusEmpty {
+    status: 'Empty';
+}
+
+export type QueueStatus = QueueStatusProgress | QueueStatusEmpty;
 
 export class Api {
     url: string;
@@ -194,5 +212,8 @@ export class Api {
     info(): Promise<Info> {
         return fetch(`${this.url}/info`).then(response => response.json())
     }
-    
+
+    queue_status(): Promise<QueueStatus> {
+        return fetch(`${this.url}/queue-status`).then(response => response.json())
+    }
 }

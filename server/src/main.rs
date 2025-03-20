@@ -27,6 +27,7 @@ use common::types::DbPool;
 use tokio_util::io::ReaderStream;
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_ID_DB_KEY};
 use common::env::EnvVar;
+use common::ipc::{IpcQueueProgressResponse, QueueProgress, RunProgressSer};
 use common::media_query::{MediaQuery, MediaQueryType};
 use common::models::kv::Kv;
 use common::models::media_view::MediaView;
@@ -60,7 +61,6 @@ async fn main() {
 
     let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
 
-
     if ENV.db_migrate {
         println!("Migrating database");
         sqlx::migrate!("../db/migrations").run(&pool).await.expect("Failed to migrate database");
@@ -91,6 +91,7 @@ async fn main() {
         .route("/media_view", get(media_view_index).post(media_view_create).delete(media_view_delete))
         .route("/directory_tree", get(directory_tree))
         .route("/info", get(info))
+        .route("/queue-status", get(queue_status))
         .layer(Extension(pool))
         .layer(cors);
 
@@ -411,6 +412,39 @@ async fn timeline(conn: &DbPool, media_query: &MediaQuery, interval: &str, album
         }
         _ => {
             Err((StatusCode::BAD_REQUEST, "invalid interval, options: 'month|day|hour'".to_string()))
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(tag = "status")]
+pub enum QueueStatus {
+    Empty,
+    Progress(RunProgressSer),
+    Done {
+        succeeded: u32,
+        failed: u32,
+    }
+}
+
+async fn queue_status() -> Json<QueueStatus> {
+    let stream = UnixStream::connect(&CONFIG.socket_path).await.unwrap();
+    let mut buf_stream = BufUnixStream::new(stream);
+    let status = ipc::request_queue_progress(&mut buf_stream).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("ipc error requesting queue progress: {:?}", e))).unwrap();
+
+    match status {
+        None => {
+            Json(QueueStatus::Empty)
+        }
+        Some(progress) => {
+            let status = match progress {
+                QueueProgress::Progress(p) => QueueStatus::Progress(p),
+                QueueProgress::Done(d) => {
+                    let (succeeded, failed) = d.expect("queue running failed terminally");
+                    QueueStatus::Done { succeeded, failed }
+                }
+            };
+            Json(status)
         }
     }
 }

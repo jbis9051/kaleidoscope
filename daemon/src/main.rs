@@ -1,18 +1,27 @@
-use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest};
+use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest, QueueProgress};
 use common::models::media::Media;
 use common::scan_config::AppConfig;
 use nix::libc::pid_t;
+use once_cell::sync::Lazy;
 use sqlx::SqlitePool;
-use std::fmt::Debug;
 use std::fs::Permissions;
-use std::io::{Error, SeekFrom};
+use std::io::{SeekFrom};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
+use std::sync::{Arc};
+use tasks::ops::{RunProgress};
+use tasks::tasks::{Task};
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, Take};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Command;
+use tokio::sync::{mpsc, RwLock};
 use tokio::sync::oneshot::Receiver;
+use serde::{Deserialize, Serialize};
+use common::models::queue::Queue;
+
+static QUEUE_PROGRESS: Lazy<Arc<RwLock<Option<QueueProgress>>>> =
+    Lazy::new(|| Arc::new(RwLock::new(None)));
 
 #[tokio::main]
 async fn main() {
@@ -60,7 +69,9 @@ async fn main() {
 
     let config2 = config.clone();
     println!("starting unix socket server");
-    let mut handle = tokio::spawn(start_server(pool, config2, rx, env_var.dev_mode));
+    let mut handle = tokio::spawn(start_server(pool.clone(), config2, rx, env_var.dev_mode));
+
+    let _ = tokio::spawn(queue_runner(pool, config.clone()));
 
     let my_path = std::env::current_exe().unwrap();
     let my_dir = my_path.parent().unwrap();
@@ -123,7 +134,7 @@ pub async fn start_server(pool: SqlitePool, config: AppConfig, rx: Receiver<u32>
                 connecting_pid, slave_pid
             );
         }
-        
+
         tokio::spawn(handle_slave(config.clone(), pool.clone(), stream, dev_mode));
     }
 }
@@ -144,7 +155,12 @@ macro_rules! return_on_err {
     };
 }
 
-pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixStream, dev_mode: bool) {
+pub async fn handle_slave(
+    config: AppConfig,
+    pool: SqlitePool,
+    mut stream: UnixStream,
+    dev_mode: bool,
+) {
     let (reader, mut writer) = stream.split();
     let mut reader = BufReader::new(reader).lines();
 
@@ -154,15 +170,19 @@ pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixS
             .unwrap();
 
         match req {
-            IpcRequest::FileData {file, start, end} => {
-                let (res, file) = match handle_file_request(&config, &pool, &file, start, end).await {
+            IpcRequest::FileData { file, start, end } => {
+                let (res, file) = match handle_file_request(&config, &pool, &file, start, end).await
+                {
                     Ok((res, file)) => (res, Some(file)),
                     Err(res) => (res, None),
                 };
 
-                return_on_err!(writer
-                    .write_all(serde_json::to_string(&res).unwrap().as_bytes())
-                    .await, dev_mode);
+                return_on_err!(
+                    writer
+                        .write_all(serde_json::to_string(&res).unwrap().as_bytes())
+                        .await,
+                    dev_mode
+                );
 
                 return_on_err!(writer.write_all(b"\n").await, dev_mode);
 
@@ -170,12 +190,31 @@ pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixS
                     return_on_err!(tokio::io::copy(&mut file, &mut writer).await, dev_mode);
                 }
             }
-            IpcRequest::FileSize { file} => {
-                let res = handle_file_size_request(&config, &pool, &file).await.unwrap_or_else(|res| res);
+            IpcRequest::FileSize { file } => {
+                let res = handle_file_size_request(&config, &pool, &file)
+                    .await
+                    .unwrap_or_else(|res| res);
 
-                return_on_err!(writer
-                    .write_all(serde_json::to_string(&res).unwrap().as_bytes())
-                    .await, dev_mode);
+                return_on_err!(
+                    writer
+                        .write_all(serde_json::to_string(&res).unwrap().as_bytes())
+                        .await,
+                    dev_mode
+                );
+
+                return_on_err!(writer.write_all(b"\n").await, dev_mode);
+            },
+            IpcRequest::QueueProgress => {
+                let lock = QUEUE_PROGRESS.read().await;
+                let res = lock.clone();
+                drop(lock);
+
+                return_on_err!(
+                    writer
+                        .write_all(serde_json::to_string(&res).unwrap().as_bytes())
+                        .await,
+                    dev_mode
+                );
 
                 return_on_err!(writer.write_all(b"\n").await, dev_mode);
             }
@@ -183,10 +222,11 @@ pub async fn handle_slave(config: AppConfig, pool: SqlitePool, mut stream: UnixS
     }
 }
 
-
-pub async fn file_request_permissions(app_config: &AppConfig,
-                                          pool: &SqlitePool,
-                                          req: &IpcFileRequest) -> Result<(Media, File), IpcFileResponse> {
+pub async fn file_request_permissions(
+    app_config: &AppConfig,
+    pool: &SqlitePool,
+    req: &IpcFileRequest,
+) -> Result<(Media, File), IpcFileResponse> {
     if !app_config.path_matches(&req.path) {
         // extra security check 1: ensure the path is in the config and not some random path, config is trusted given above permission checks
         return Err(IpcFileResponse::Error {
@@ -212,12 +252,10 @@ pub async fn file_request_permissions(app_config: &AppConfig,
     Ok((media, file))
 }
 
-
-
 pub async fn handle_file_size_request(
     app_config: &AppConfig,
     pool: &SqlitePool,
-    req: &IpcFileRequest
+    req: &IpcFileRequest,
 ) -> Result<IpcFileResponse, IpcFileResponse> {
     let (media, file) = file_request_permissions(app_config, pool, req).await?;
 
@@ -239,7 +277,6 @@ pub async fn handle_file_size_request(
     })
 }
 
-
 pub async fn handle_file_request(
     app_config: &AppConfig,
     pool: &SqlitePool,
@@ -257,9 +294,11 @@ pub async fn handle_file_request(
         })?
         .len();
 
-    file.seek(SeekFrom::Start(start)).await.map_err(|e| IpcFileResponse::Error {
-        error: format!("couldn't seek to start: {} - {:?}", media.path, e),
-    })?;
+    file.seek(SeekFrom::Start(start))
+        .await
+        .map_err(|e| IpcFileResponse::Error {
+            error: format!("couldn't seek to start: {} - {:?}", media.path, e),
+        })?;
 
     let take = file.take(end - start);
 
@@ -274,4 +313,33 @@ pub async fn handle_file_request(
         },
         take,
     ))
+}
+
+pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
+    let (progress_tx, mut progress_rx) = mpsc::channel(10);
+
+    let tasks = Task::TASK_NAMES;
+    let config = app_config.tasks.clone();
+
+    let handle = tokio::spawn(async move {
+        tasks::ops::run_queue(&mut &pool, &tasks, &config, &app_config, Some(progress_tx)).await
+    });
+
+    while let Some(progress) = progress_rx.recv().await {
+        let done = progress.done();
+        let mut lock = QUEUE_PROGRESS
+            .write()
+            .await;
+        *lock = Some(QueueProgress::Progress(progress.into()));
+        if done {
+            break;
+        }
+    }
+
+    let (success, failed) = handle.await.unwrap().unwrap();
+
+    let mut lock = QUEUE_PROGRESS
+        .write()
+        .await;
+    *lock = Some(QueueProgress::Done(Ok((success, failed))));
 }
