@@ -3,7 +3,7 @@ use common::media_processors::format::{AnyFormat, MetadataError};
 use common::media_processors::RgbImage;
 use common::models::media::Media;
 use common::scan_config::AppConfig;
-use common::types::{AcquireClone, SqliteAcquire};
+use common::types::{AcquireClone};
 use log::debug;
 use crate::tasks::{BackgroundTask};
 
@@ -46,7 +46,10 @@ impl BackgroundTask for ThumbnailGenerator {
     async fn compatible(media: &Media) -> bool {
         let path = PathBuf::from(&media.path);
         let format = AnyFormat::try_new(path);
-        format.is_some()
+        if let Some(format) = format {
+            return format.thumbnailable();
+        }
+        false
     }
 
     async fn outdated(&self, db: &mut impl AcquireClone, media: &Media) -> Result<bool, Self::Error> {

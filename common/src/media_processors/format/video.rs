@@ -7,7 +7,7 @@ use nom_exif::{MediaParser, MediaSource, TrackInfo};
 use std::path::Path;
 use std::time::Duration;
 use crate::media_processors::exif::extract_exif_nom;
-use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata};
+use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Video;
@@ -15,8 +15,6 @@ pub struct Video;
 impl Format<VideoError> for Video {
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
     const METADATA_VERSION: i32 = 2;
-    const THUMBNAIL_VERSION: i32 = 1;
-
     fn is_photo() -> bool {
         false
     }
@@ -60,6 +58,10 @@ impl Format<VideoError> for Video {
         })
     }
 
+}
+
+impl Thumbnailable<VideoError> for Video {
+    const THUMBNAIL_VERSION: i32 = 1;
     fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, VideoError> {
         ffmpeg_next::init().unwrap();
         let mut context = ffmpeg_next::format::input(&path)?;
@@ -108,7 +110,7 @@ impl Format<VideoError> for Video {
             decoder.height(),
             rgb_frame.data(0).to_vec(),
         )
-        .unwrap();
+            .unwrap();
 
         let (nw, nh) = resize_dimensions(round_width, decoder.height(), width, height, false);
 
@@ -117,6 +119,7 @@ impl Format<VideoError> for Video {
         Ok(thumbnail)
     }
 }
+
 
 #[derive(Debug, thiserror::Error)]
 pub enum VideoError {

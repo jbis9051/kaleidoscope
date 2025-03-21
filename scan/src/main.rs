@@ -87,13 +87,12 @@ async fn main() {
     info!("--- updating database ---");
     info!("--- updating database: metadata ---");
     
-    let formats =  [FormatType::Standard, FormatType::Raw, FormatType::Heif, FormatType::Video, FormatType::Unknown];
+    let formats =  FormatType::all();
     let mut updated = vec![0; formats.len()];
     for (i, format) in formats.iter().enumerate() {
        let metadata_version = match format {
-            FormatType::Unknown => continue,
-            _ => match_format!(format, METADATA_VERSION)
-        };
+            _ => match_format!(format, |ActualFormat| { <ActualFormat as Format<_>>::METADATA_VERSION })
+       };
         
         // TODO: i don't think format changes are actually being detected
         

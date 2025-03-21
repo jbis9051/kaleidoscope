@@ -1,7 +1,7 @@
 use image::{RgbImage};
 use std::path::Path;
 use crate::media_processors::exif::extract_exif;
-use crate::media_processors::format::{Format, MediaMetadata};
+use crate::media_processors::format::{Format, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Standard;
@@ -9,8 +9,6 @@ pub struct Standard;
 impl Format<StandardError> for Standard {
     const EXTENSIONS: &'static [&'static str] = &["jpeg", "jpg", "png"];
     const METADATA_VERSION: i32 = 1;
-    const THUMBNAIL_VERSION: i32 = 0;
-
     fn is_photo() -> bool {
         true
     }
@@ -38,11 +36,17 @@ impl Format<StandardError> for Standard {
         })
     }
 
+
+}
+impl Thumbnailable<StandardError> for Standard {
+    const THUMBNAIL_VERSION: i32 = 0;
+
     fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, StandardError> {
         let image = image::open(path)?;
         let thumbnail = image.thumbnail(width, height);
         Ok(thumbnail.to_rgb8())
     }
+
 }
 
 #[derive(thiserror::Error, Debug)]

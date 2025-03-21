@@ -28,7 +28,6 @@ pub trait Format<T> {
     const EXTENSIONS: &'static [&'static str];
 
     const METADATA_VERSION: i32; // bump this if the metadata format changes
-    const THUMBNAIL_VERSION: i32; // bump this if the thumbnail format changes
 
     fn is_supported(path: &Path) -> bool {
         let ext = path.extension().unwrap_or_default().to_str().unwrap_or_default().to_lowercase();
@@ -38,6 +37,10 @@ pub trait Format<T> {
     fn is_photo() -> bool;
 
     fn get_metadata(path: &Path) -> Result<MediaMetadata, T>;
+}
+
+pub trait Thumbnailable<T>: Format<T> {
+    const THUMBNAIL_VERSION: i32; // bump this if the thumbnail format changes
 
     fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, T>;
 
@@ -52,40 +55,57 @@ pub trait Format<T> {
 
 #[macro_export]
 macro_rules! match_format {
-    ($format: expr, $call: tt($($arg: expr),*)) => {{
+    ($format: expr, |$format_type: ident| $code: block) => {{
         use $crate::format_type::FormatType;
         use $crate::media_processors::format::*;
-        
+
         match $format {
-            FormatType::Standard => standard::Standard::$call($($arg),*).into(),
-            FormatType::Heif => heif::Heif::$call($($arg),*).into(),
-            FormatType::Video => video::Video::$call($($arg),*).into(),
-            FormatType::Raw => raw::Raw::$call($($arg),*).into(),
+            FormatType::Standard => {
+                type $format_type = standard::Standard;
+                $code
+            },
+            FormatType::Heif => {
+                type $format_type = heif::Heif;
+                $code
+            },
+            FormatType::Video => {
+                type $format_type = video::Video;
+                $code
+            },
+            FormatType::Raw => {
+                type $format_type = raw::Raw;
+                $code
+            },
             _ => panic!("invalid format type: {:?}", $format),
         }
     }};
-    ($format: expr, $call: tt($($arg: expr),*), err) => {{
+
+    (thumbnailable $format: expr, |$format_type: ident| $code: block) => {
+        match_format!(thumbnailable $format, |$format_type| $code, { panic!("invalid format type, not thumbnailable: {:?}", $format) })
+    };
+
+    (thumbnailable $format: expr, |$format_type: ident| $code: block, $code_not_thumbnailable: block) => {{
         use $crate::format_type::FormatType;
         use $crate::media_processors::format::*;
-        
+
         match $format {
-            FormatType::Standard => standard::Standard::$call($($arg),*).map_err(|e| e.into()),
-            FormatType::Heif => heif::Heif::$call($($arg),*).map_err(|e| e.into()),
-            FormatType::Video => video::Video::$call($($arg),*).map_err(|e| e.into()),
-            FormatType::Raw => raw::Raw::$call($($arg),*).map_err(|e| e.into()),
-            _ => panic!("invalid format type: {:?}", $format),
-        }
-    }};
-    ($format: expr, $assoc: ident) => {{
-        use $crate::format_type::FormatType;
-        use $crate::media_processors::format::*;
-        
-        match $format {
-            FormatType::Standard => standard::Standard::$assoc,
-            FormatType::Heif => heif::Heif::$assoc,
-            FormatType::Video => video::Video::$assoc,
-            FormatType::Raw => raw::Raw::$assoc,
-            _ => panic!("invalid format type: {:?}", $format),
+            FormatType::Standard => {
+                type $format_type = standard::Standard;
+                $code
+            },
+            FormatType::Heif => {
+                type $format_type = heif::Heif;
+                $code
+            },
+            FormatType::Video => {
+                type $format_type = video::Video;
+                $code
+            },
+            FormatType::Raw => {
+                type $format_type = raw::Raw;
+                $code
+            }
+            _ => $code_not_thumbnailable,
         }
     }};
 }
@@ -122,29 +142,32 @@ impl AnyFormat {
     }
 
     pub fn is_photo(&self) -> bool {
-        match_format!(self.format, is_photo())
+        match_format!(self.format, |ActualFormat| { <ActualFormat as Format<_>>::is_photo()})
+    }
+
+    pub fn thumbnailable(&self) -> bool {
+        match_format!(thumbnailable  self.format, |ActualFormat| { true }, { false })
     }
 
     pub fn get_metadata(&self) -> Result<MediaMetadata, MetadataError> {
-        match_format!(self.format, get_metadata(&self.path), err)
+        match_format!(self.format, |ActualFormat| { <ActualFormat as Format<_>>::get_metadata(&self.path).map_err(|e| e.into()) })
     }
 
     pub fn generate_thumbnail(&self, width: u32, height: u32) -> Result<RgbImage, MetadataError> {
-        match_format!(self.format, generate_thumbnail(&self.path, width, height), err)
+        match_format!(thumbnailable  self.format, |ActualFormat| { <ActualFormat as Thumbnailable<_>>::generate_thumbnail(&self.path, width, height).map_err(|e| e.into()) })
     }
 
     pub fn generate_full(&self) -> Result<RgbImage, MetadataError> {
-        match_format!(self.format, generate_full(&self.path), err)
+        match_format!(thumbnailable self.format, |ActualFormat| { <ActualFormat as Thumbnailable<_>>::generate_full(&self.path).map_err(|e| e.into()) })
     }
 
     pub fn metadata_version(&self) -> i32 {
-        match_format!(self.format, METADATA_VERSION)
+        match_format!(self.format, |ActualFormat| { <ActualFormat as Format<_>>::METADATA_VERSION })
     }
 
     pub fn thumbnail_version(&self) -> i32 {
-        match_format!(self.format, THUMBNAIL_VERSION)
+        match_format!(thumbnailable self.format, |ActualFormat| { <ActualFormat as Thumbnailable<_>>::THUMBNAIL_VERSION })
     }
-
 }
 
 

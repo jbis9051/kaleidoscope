@@ -3,7 +3,7 @@ use image::{RgbImage};
 use image::imageops::thumbnail;
 use libheif_rs::{ColorSpace, HeifContext, ItemId, LibHeif, RgbChroma};
 use crate::media_processors::exif::extract_exif;
-use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata};
+use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Heif;
@@ -11,12 +11,10 @@ pub struct Heif;
 impl Format<HeifError> for Heif {
     const EXTENSIONS: &'static [&'static str] = &["heif", "heic"];
     const METADATA_VERSION: i32 = 1;
-    const THUMBNAIL_VERSION: i32 = 0;
-
     fn is_photo() -> bool {
         true
     }
-    
+
     fn get_metadata(path: &Path) -> Result<MediaMetadata, HeifError> {
         let file_meta = path.metadata()?;
 
@@ -33,14 +31,14 @@ impl Format<HeifError> for Heif {
             let metadata = handle.metadata(meta_ids[0])?;
 
             // heic has some funky offset stuff, see here https://github.com/ImageMagick/ImageMagick/commit/bb4018a4dc61147b37d3c42d85e5893ca5e2a279#diff-cf133db60a54549531dbba5cb2d17dc34f7171cabd115ec7c85c6d3f1e84fb2b
-            
+
             let mut offset = 0;
             offset |= (metadata[0] as u32) << 24;
             offset |= (metadata[1] as u32) << 16;
             offset |= (metadata[2] as u32) << 8;
             offset |= metadata[3] as u32;
             offset += 4;
-            
+
             let metadata = metadata[offset as usize..].to_vec();
             let reader = exif::Reader::new();
             let exif = reader.read_raw(metadata)?;
@@ -61,6 +59,10 @@ impl Format<HeifError> for Heif {
             is_screenshot: exif_metadata.as_ref().map(|e| e.is_screenshot).unwrap_or(false),
         })
     }
+}
+
+impl Thumbnailable<HeifError> for Heif {
+    const THUMBNAIL_VERSION: i32 = 0;
 
     fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, HeifError> {
         let lib_heif = LibHeif::new();

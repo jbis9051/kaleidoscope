@@ -2,7 +2,7 @@ use std::path::Path;
 use image::imageops::thumbnail;
 use image::RgbImage;
 use imagepipe::Pipeline;
-use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata};
+use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Raw;
@@ -10,8 +10,6 @@ pub struct Raw;
 impl Format<RawError> for Raw {
     const EXTENSIONS: &'static [&'static str] = &["raf"];
     const METADATA_VERSION: i32 = 0;
-    const THUMBNAIL_VERSION: i32 = 0;
-
     fn is_photo() -> bool {
         true
     }
@@ -36,7 +34,10 @@ impl Format<RawError> for Raw {
         })
 
     }
+}
 
+impl Thumbnailable<RawError> for Raw {
+    const THUMBNAIL_VERSION: i32 = 0;
     fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, RawError> {
         let mut image = Pipeline::new_from_file(path).map_err(RawError::PipelineError)?;
         let srgb = image.output_8bit(None).map_err(RawError::PipelineError)?;
@@ -48,8 +49,8 @@ impl Format<RawError> for Raw {
 
         Ok(thumbnail)
     }
-
 }
+
 
 #[derive(thiserror::Error, Debug)]
 pub enum RawError {
