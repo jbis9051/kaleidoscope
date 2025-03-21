@@ -9,6 +9,7 @@ use std::time::Duration;
 use image::{RgbImage};
 use serde::{Deserialize, Serialize};
 use sqlx::types::chrono;
+use strum::EnumString;
 
 #[derive(Debug)]
 pub struct MediaMetadata {
@@ -21,6 +22,18 @@ pub struct MediaMetadata {
     pub longitude: Option<f64>,
     pub latitude: Option<f64>,
     pub is_screenshot: bool,
+    pub media_type: MediaType,
+}
+
+
+#[derive(Debug, Copy, Clone, Serialize, Deserialize, PartialEq, EnumString, sqlx::Type)]
+#[serde(rename_all = "kebab-case")]
+#[strum(serialize_all = "kebab-case")]
+#[sqlx(type_name = "format_type", rename_all = "kebab-case")]
+pub enum MediaType {
+    Photo,
+    Video,
+    Other
 }
 
 pub trait Format<T> {
@@ -34,9 +47,7 @@ pub trait Format<T> {
         let ext = path.extension().unwrap_or_default().to_str().unwrap_or_default().to_lowercase();
         Self::EXTENSIONS.contains(&ext.as_str())
     }
-
-    fn is_photo() -> bool;
-
+    
     fn get_metadata(path: &Path) -> Result<MediaMetadata, T>;
 }
 
@@ -162,10 +173,6 @@ impl AnyFormat {
 
     pub fn format_type(&self) -> FormatType {
         self.format
-    }
-
-    pub fn is_photo(&self) -> bool {
-        match_format!(&self.format, |ActualFormat| { <ActualFormat as Format<_>>::is_photo()})
     }
 
     pub fn thumbnailable(&self) -> bool {

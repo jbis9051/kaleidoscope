@@ -8,7 +8,7 @@ export interface Media {
     height: number;
     path: string;
     liked: boolean;
-    is_photo: boolean;
+    media_type: MediaType;
     added_at: number;
     duration: number | null;
     hash: string;
@@ -23,6 +23,12 @@ export interface Media {
 }
 
 export type FormatType = 'standard' | 'heif' | 'video' | 'raw' | 'unknown';
+
+export enum MediaType {
+    Photo = 'photo',
+    Video = 'video',
+    Other = 'other'
+}
 
 export interface Album {
     id: number;

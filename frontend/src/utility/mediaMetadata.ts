@@ -38,6 +38,10 @@ export function durationHumanReadable(milliseconds: number) {
     return `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
 }
 
+export function capitalize(s: string) {
+    return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 
 export default function mediaToMetadata(media: Media): Record<string, string> {
     return {
@@ -49,7 +53,7 @@ export default function mediaToMetadata(media: Media): Record<string, string> {
         "Size": bytesHumanReadable(media.size),
         "Path": media.path,
         "Liked": media.liked.toString(),
-        "Type": media.is_photo ? "Photo" : "Video",
+        "Type": capitalize(media.media_type),
         "Added At": timestampToDate(media.added_at),
         "Duration": media.duration ? durationHumanReadable(media.duration) : "N/A",
         "Screenshot": media.is_screenshot ? "Yes" : "No",

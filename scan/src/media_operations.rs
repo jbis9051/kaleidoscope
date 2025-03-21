@@ -40,7 +40,6 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
     let uuid = Uuid::new_v4();
 
     let hash = hash(path);
-    let is_photo = format.is_photo();
 
     let mut media = Media {
         id: 0,
@@ -52,7 +51,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
         size: metadata.size,
         path: path_str.to_string(),
         liked: false,
-        is_photo,
+        media_type: metadata.media_type,
         added_at: Utc::now().naive_utc(),
         duration: metadata.duration.map(|d| d.as_millis() as u32),
         hash,

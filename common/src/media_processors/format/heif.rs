@@ -3,7 +3,7 @@ use image::{RgbImage};
 use image::imageops::thumbnail;
 use libheif_rs::{ColorSpace, HeifContext, ItemId, LibHeif, RgbChroma};
 use crate::media_processors::exif::extract_exif;
-use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, Thumbnailable};
+use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Heif;
@@ -12,10 +12,6 @@ impl Format<HeifError> for Heif {
     const FORMAT_TYPE: FormatType = FormatType::Heif;
     const EXTENSIONS: &'static [&'static str] = &["heif", "heic"];
     const METADATA_VERSION: i32 = 1;
-    fn is_photo() -> bool {
-        true
-    }
-
     fn get_metadata(path: &Path) -> Result<MediaMetadata, HeifError> {
         let file_meta = path.metadata()?;
 
@@ -58,6 +54,7 @@ impl Format<HeifError> for Heif {
             longitude: exif_metadata.as_ref().and_then(|e| e.longitude),
             latitude: exif_metadata.as_ref().and_then(|e| e.latitude),
             is_screenshot: exif_metadata.as_ref().map(|e| e.is_screenshot).unwrap_or(false),
+            media_type: MediaType::Photo,
         })
     }
 }

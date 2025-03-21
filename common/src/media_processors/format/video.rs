@@ -7,7 +7,7 @@ use nom_exif::{MediaParser, MediaSource, TrackInfo};
 use std::path::Path;
 use std::time::Duration;
 use crate::media_processors::exif::extract_exif_nom;
-use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, Thumbnailable};
+use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Video;
@@ -16,10 +16,6 @@ impl Format<VideoError> for Video {
     const FORMAT_TYPE: FormatType = FormatType::Video;
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
     const METADATA_VERSION: i32 = 2;
-    fn is_photo() -> bool {
-        false
-    }
-
     fn get_metadata(path: &Path) -> Result<MediaMetadata, VideoError> {
         let file_meta = path.metadata()?;
         ffmpeg_next::init().unwrap();
@@ -56,6 +52,7 @@ impl Format<VideoError> for Video {
             latitude: metadata.as_ref().and_then(|e| e.latitude),
             longitude: metadata.as_ref().and_then(|e| e.longitude),
             is_screenshot: metadata.as_ref().map(|e| e.is_screenshot).unwrap_or(false),
+            media_type: MediaType::Video,
         })
     }
 

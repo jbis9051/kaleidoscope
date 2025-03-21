@@ -8,7 +8,7 @@ use uuid::{Uuid};
 use crate::media_query::MediaQuery;
 use crate::models::{date, MediaError};
 use crate::{sqlize, update_set};
-use crate::media_processors::format::FormatType;
+use crate::media_processors::format::{FormatType, MediaType};
 use crate::types::{DbPool, SqliteAcquire};
 
 
@@ -31,7 +31,7 @@ pub struct Media {
     pub height: u32,
     pub path: String,
     pub liked: bool,
-    pub is_photo: bool,
+    pub media_type: MediaType,
     #[serde(with = "date")]
     pub added_at: NaiveDateTime,
     pub duration: Option<u32>,
@@ -63,7 +63,7 @@ sqlize!(Media, "media", id, [
     size,
     path,
     liked,
-    is_photo,
+    media_type,
     added_at,
     duration,
     hash,
@@ -81,7 +81,7 @@ sqlize!(Media, "media", id, [
 impl Media {
     pub fn safe_column(name: &str) -> Result<(), sqlx::Error> {
         match name {
-            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "is_photo" | "added_at" | "duration" | "import_id" => Ok(()),
+            "id" | "uuid" | "name" | "created_at" | "width" | "height" | "size" | "path" | "liked" | "media_type" | "added_at" | "duration" | "import_id" => Ok(()),
             _ => Err(sqlx::Error::ColumnNotFound(name.to_string()))
         }
     }

@@ -1,7 +1,7 @@
 use image::{RgbImage};
 use std::path::Path;
 use crate::media_processors::exif::extract_exif;
-use crate::media_processors::format::{Format, FormatType, MediaMetadata, Thumbnailable};
+use crate::media_processors::format::{Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Standard;
@@ -10,9 +10,6 @@ impl Format<StandardError> for Standard {
     const FORMAT_TYPE: FormatType = FormatType::Standard;
     const EXTENSIONS: &'static [&'static str] = &["jpeg", "jpg", "png"];
     const METADATA_VERSION: i32 = 1;
-    fn is_photo() -> bool {
-        true
-    }
 
     fn get_metadata(path: &Path) -> Result<MediaMetadata, StandardError> {
         let file_meta = path.metadata()?;
@@ -34,6 +31,7 @@ impl Format<StandardError> for Standard {
             longitude: exif_metadata.as_ref().and_then(|e| e.longitude),
             latitude: exif_metadata.as_ref().and_then(|e| e.latitude),
             is_screenshot: exif_metadata.as_ref().map(|e| e.is_screenshot).unwrap_or(false),
+            media_type: MediaType::Photo,
         })
     }
 

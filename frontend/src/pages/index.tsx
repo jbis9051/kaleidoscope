@@ -1,7 +1,7 @@
 import styles from "./index.module.css";
 import {useEffect, useState} from "react";
 import {API_URL} from "@/global";
-import {AlbumIndex, Api, Media, MediaQuery, MediaView} from "@/api/api";
+import {AlbumIndex, Api, Media, MediaQuery, MediaType, MediaView} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata from "@/utility/mediaMetadata";
@@ -17,7 +17,7 @@ import Map from "@/components/Map/Map";
 import MapViewer from "@/components/MapViewer";
 import Filter from "@/utility/Filter";
 import FilterPanel from "@/components/FilterPanel";
-import Timeline, {getInterval} from "@/components/Timeline";
+import Timeline from "@/components/Timeline";
 import Thumbnail from "@/components/Thumbnail";
 
 export interface MediaViewFilter extends MediaView {
@@ -212,8 +212,8 @@ export default function Index() {
                 }
             }}>
                 <div className={styles.previewWrapper}>
-                    {preview.is_photo && !preview.has_thumbnail && <Thumbnail media={preview} size={25}/>}
-                    {preview.is_photo ? (preview.has_thumbnail && <MediaImg media={preview}/>) : <video src={`${API_URL}/media/${preview.uuid}/raw`} controls/>}
+                    {preview.media_type === MediaType.Photo && !preview.has_thumbnail && <Thumbnail media={preview} size={25}/>}
+                    {preview.media_type === MediaType.Photo ? (preview.has_thumbnail && <MediaImg media={preview}/>) : <video src={`${API_URL}/media/${preview.uuid}/raw`} controls/>}
                     <button onClick={() => setPreview(null)}>X</button>
                 </div>
             </div>}
@@ -384,7 +384,7 @@ export default function Index() {
                                         <FontAwesomeIcon className={styles.downloadButton} icon={faFloppyDisk}
                                                          onClick={() => downloadItem(`${API_URL}/media/${m.uuid}/raw`, m.name)}/>
                                     </div>
-                                    {m.is_photo ? (m.has_thumbnail && <MediaImg draggable={false} blur={false} media={m}/>) : <video src={`${API_URL}/media/${m.uuid}/raw`} controls/>}
+                                    {m.media_type === MediaType.Photo ? (m.has_thumbnail && <MediaImg draggable={false} blur={false} media={m}/>) : <video src={`${API_URL}/media/${m.uuid}/raw`} controls/>}
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>
