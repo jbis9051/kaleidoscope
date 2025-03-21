@@ -2,12 +2,13 @@ use std::path::Path;
 use image::imageops::thumbnail;
 use image::RgbImage;
 use imagepipe::Pipeline;
-use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata, Thumbnailable};
+use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Raw;
 
 impl Format<RawError> for Raw {
+    const FORMAT_TYPE: FormatType = FormatType::Raw;
     const EXTENSIONS: &'static [&'static str] = &["raf"];
     const METADATA_VERSION: i32 = 0;
     fn is_photo() -> bool {

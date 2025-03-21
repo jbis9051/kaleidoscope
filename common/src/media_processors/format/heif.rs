@@ -3,12 +3,13 @@ use image::{RgbImage};
 use image::imageops::thumbnail;
 use libheif_rs::{ColorSpace, HeifContext, ItemId, LibHeif, RgbChroma};
 use crate::media_processors::exif::extract_exif;
-use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata, Thumbnailable};
+use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Heif;
 
 impl Format<HeifError> for Heif {
+    const FORMAT_TYPE: FormatType = FormatType::Heif;
     const EXTENSIONS: &'static [&'static str] = &["heif", "heic"];
     const METADATA_VERSION: i32 = 1;
     fn is_photo() -> bool {

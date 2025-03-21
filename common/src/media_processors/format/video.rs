@@ -7,12 +7,13 @@ use nom_exif::{MediaParser, MediaSource, TrackInfo};
 use std::path::Path;
 use std::time::Duration;
 use crate::media_processors::exif::extract_exif_nom;
-use crate::media_processors::format::{resize_dimensions, Format, MediaMetadata, Thumbnailable};
+use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Video;
 
 impl Format<VideoError> for Video {
+    const FORMAT_TYPE: FormatType = FormatType::Video;
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
     const METADATA_VERSION: i32 = 2;
     fn is_photo() -> bool {

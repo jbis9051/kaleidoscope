@@ -1,12 +1,13 @@
 use image::{RgbImage};
 use std::path::Path;
 use crate::media_processors::exif::extract_exif;
-use crate::media_processors::format::{Format, MediaMetadata, Thumbnailable};
+use crate::media_processors::format::{Format, FormatType, MediaMetadata, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 
 pub struct Standard;
 
 impl Format<StandardError> for Standard {
+    const FORMAT_TYPE: FormatType = FormatType::Standard;
     const EXTENSIONS: &'static [&'static str] = &["jpeg", "jpg", "png"];
     const METADATA_VERSION: i32 = 1;
     fn is_photo() -> bool {

@@ -4,6 +4,5 @@ pub mod scan_config;
 pub mod types;
 pub mod ipc;
 pub mod directory_tree;
-pub mod format_type;
 pub mod env;
 pub mod media_processors;

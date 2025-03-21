@@ -12,8 +12,8 @@ use sqlx::{Connection, SqliteConnection};
 use std::env;
 use std::path::Path;
 use walkdir::WalkDir;
-use common::{debug_sql, match_format, question_marks, update_set};
-use common::format_type::FormatType;
+use common::{debug_sql, question_marks, update_set};
+use common::media_processors::format::{match_format, FormatType};
 use tasks::ops::{add_outdated_queues, add_to_compatible_queues};
 use tasks::tasks::Task;
 

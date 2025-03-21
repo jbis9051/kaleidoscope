@@ -44,27 +44,6 @@ pub trait BackgroundTask: Sized {
     async fn remove_data(&self, db: &mut impl AcquireClone, media: &mut Media) -> Result<(), Self::Error>;
 }
 
-macro_rules! match_task {
-    ($task: expr, $call: tt($($arg: expr),*)) => {
-        match $task {
-            Task::HelloWorld => HelloWorldTask::$call($($arg),*).into(),
-            Task::HelloWorld2 => HelloWorldTask2::$call($($arg),*).into(),
-        }
-    };
-    ($task: expr, $call: tt($($arg: expr),*), err) => {
-        match $task {
-            Task::HelloWorld => HelloWorldTask::$call($($arg),*).map_err(|e| e.into()),
-            Task::HelloWorld2 => HelloWorldTask2::$call($($arg),*).map_err(|e| e.into()),
-        }
-    };
-    ($task: expr, $assoc: ident) => {
-        match $task {
-            Task::HelloWorld => HelloWorldTask::$assoc,
-            Task::HelloWorld2 => HelloWorldTask2::$assoc,
-        }
-    };
-}
-
 macro_rules! impl_task {
     ([$($task: ident,)*], $size: literal) => {
         pub enum Task {

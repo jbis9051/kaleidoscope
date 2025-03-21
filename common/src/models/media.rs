@@ -8,7 +8,7 @@ use uuid::{Uuid};
 use crate::media_query::MediaQuery;
 use crate::models::{date, MediaError};
 use crate::{sqlize, update_set};
-use crate::format_type::FormatType;
+use crate::media_processors::format::FormatType;
 use crate::types::{DbPool, SqliteAcquire};
 
 
