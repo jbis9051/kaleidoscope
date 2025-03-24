@@ -62,7 +62,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
         has_thumbnail: false,
         format: format.format_type(),
         metadata_version: format.metadata_version(),
-        thumbnail_version: format.thumbnail_version(),
+        thumbnail_version: -1,
         import_id,
     };
 

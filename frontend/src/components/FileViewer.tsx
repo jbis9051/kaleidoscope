@@ -8,7 +8,6 @@ import {API_URL} from "@/global";
 import {tree} from "next/dist/build/templates/app-page";
 import {ViewType} from "@/components/GalleryStateSelector";
 import Filter from "@/utility/Filter";
-import Thumbnail from "@/components/Thumbnail";
 import MediaDisplay from "@/components/MediaDisplay";
 
 interface FileViewerProps {

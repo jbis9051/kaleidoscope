@@ -1,8 +1,6 @@
 import {Media} from "@/api/api";
 import styles from "./Gallery.module.css";
-import {API_URL} from "@/global";
 import {useEffect, useRef, useState} from "react";
-import Thumbnail from "@/components/Thumbnail";
 import MediaDisplay from "@/components/MediaDisplay";
 
 
@@ -72,7 +70,7 @@ export default function Gallery({media, size, open, selected, select, setLayout}
             className={`${styles.imageContainer} ${selected.includes(m.uuid) && styles.selected}`}
             style={{width: `${width}px`, height: `${height}px`}} key={m.id}>
             <div className={styles.imageWrapper}>
-                <MediaDisplay media={m} preferThumbnail={true} forceThumbnail={true} imgProps={{draggable: false, className: styles.image}}/>
+                <MediaDisplay media={m} preferThumbnail={true} forceThumbnail={true} imgProps={{draggable: false, className: styles.image}} faProps={{className: styles.fa}}/>
             </div>
             <div className={styles.fileName}>{m.name}</div>
         </div>

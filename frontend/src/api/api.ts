@@ -28,6 +28,7 @@ export enum MediaType {
     Photo = 'photo',
     Video = 'video',
     Pdf = 'pdf',
+    Audio = 'audio',
     Other = 'other'
 }
 

@@ -3,6 +3,7 @@ pub mod heif;
 pub mod video;
 pub mod raw;
 pub mod pdf;
+pub mod audio;
 
 use std::cmp::max;
 use std::path::{Path, PathBuf};
@@ -35,6 +36,7 @@ pub enum MediaType {
     Photo,
     Video,
     Pdf,
+    Audio,
     Other
 }
 
@@ -164,9 +166,10 @@ all_formats!({
         Heif => heif::Heif,
         Video => video::Video,
         Raw => raw::Raw,
-        Pdf => pdf::Pdf
+        Pdf => pdf::Pdf,
+        Audio => audio::Audio
     },
-    all: [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf],
+    all: [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf, audio::Audio],
     thumbnailable:  [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf]
 });
 
@@ -218,6 +221,8 @@ pub enum MetadataError {
     Raw(#[from] raw::RawError),
     #[error("pdf format error: {0}")]
     Pdf(#[from] pdf::PdfError),
+    #[error("audio format error: {0}")]
+    Audio(#[from] audio::AudioError),
 }
 
 

@@ -1,6 +1,8 @@
-import React, {useEffect} from "react";
+import React, {SVGAttributes, useEffect} from "react";
 import {Media, MediaType} from "@/api/api";
 import {API_URL} from "@/global";
+import {FontAwesomeIcon, FontAwesomeIconProps} from "@fortawesome/react-fontawesome";
+import {faFileAudio} from "@fortawesome/free-solid-svg-icons";
 
 export interface MediaImgProps {
     media: Media,
@@ -8,10 +10,12 @@ export interface MediaImgProps {
     forceThumbnail?: boolean
     imgProps?: React.ImgHTMLAttributes<HTMLImageElement>,
     videoProps?: React.VideoHTMLAttributes<HTMLVideoElement>,
+    audioProps?: React.AudioHTMLAttributes<HTMLAudioElement>,
     objectProps?: React.ObjectHTMLAttributes<HTMLObjectElement>
+    faProps?: Omit<FontAwesomeIconProps, 'icon'>
 }
 
-export default function MediaDisplay({media, preferThumbnail, forceThumbnail, imgProps, videoProps, objectProps}: MediaImgProps) {
+export default function MediaDisplay({media, preferThumbnail, forceThumbnail, imgProps, videoProps, objectProps, faProps, audioProps}: MediaImgProps) {
     // this element uses the thumbnail until the full image is loaded
     const [loadedFull, setLoadedFull] = React.useState(false);
 
@@ -29,7 +33,6 @@ export default function MediaDisplay({media, preferThumbnail, forceThumbnail, im
 
     if(media.media_type !== MediaType.Photo){
         useThumbnail = false;
-        useThumbnail = false;
     }
 
     useThumbnail ||= forceThumbnail;
@@ -39,9 +42,14 @@ export default function MediaDisplay({media, preferThumbnail, forceThumbnail, im
     }, [media]);
 
     if (useThumbnail) {
+        if (media.media_type === MediaType.Audio) {
+            return <FontAwesomeIcon icon={faFileAudio} {...faProps}/>
+        }
+        
         if (!media.has_thumbnail) {
             return <img src={"/missing.svg"} alt={media.name} {...imgProps}/>
         }
+        
         if(forceThumbnail){
             return <img
                 alt={media.name}
@@ -88,6 +96,12 @@ export default function MediaDisplay({media, preferThumbnail, forceThumbnail, im
             return <object data={rawUrl} type="application/pdf" {...objectProps}>
                 <p>Your browser does not support PDFs. <a href={rawUrl}>Download the PDF</a>.</p>
             </object>
+        case MediaType.Audio:
+            return <audio
+                src={rawUrl}
+                controls
+                {...audioProps}
+            />
         default:
             return <p>Unsupported media type</p>
     }

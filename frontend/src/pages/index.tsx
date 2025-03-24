@@ -18,7 +18,6 @@ import MapViewer from "@/components/MapViewer";
 import Filter from "@/utility/Filter";
 import FilterPanel from "@/components/FilterPanel";
 import Timeline from "@/components/Timeline";
-import Thumbnail from "@/components/Thumbnail";
 
 export interface MediaViewFilter extends MediaView {
     filter: Filter | null;
@@ -212,7 +211,7 @@ export default function Index() {
                 }
             }}>
                 <div className={styles.previewWrapper}>
-                    <MediaDisplay media={preview} preferThumbnail={false} objectProps={{className: styles.pdfObject}}/>
+                    <MediaDisplay media={preview} preferThumbnail={false} objectProps={{className: styles.pdfObject}} audioProps={{className: styles.audioElement}}/>
                     <button onClick={() => setPreview(null)}>X</button>
                 </div>
             </div>}
@@ -383,7 +382,7 @@ export default function Index() {
                                         <FontAwesomeIcon className={styles.downloadButton} icon={faFloppyDisk}
                                                          onClick={() => downloadItem(`${API_URL}/media/${m.uuid}/raw`, m.name)}/>
                                     </div>
-                                    <MediaDisplay imgProps={{draggable: false}} preferThumbnail={true} media={m} objectProps={{className: styles.pdfObjectMax}}/>
+                                    <MediaDisplay imgProps={{draggable: false}} preferThumbnail={true} media={m} objectProps={{className: styles.pdfObjectMax}} audioProps={{className: styles.audioElementMax}} />
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>
