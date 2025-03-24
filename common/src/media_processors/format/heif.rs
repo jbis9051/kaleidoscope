@@ -5,14 +5,16 @@ use libheif_rs::{ColorSpace, HeifContext, ItemId, LibHeif, RgbChroma};
 use crate::media_processors::exif::extract_exif;
 use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
+use crate::scan_config::AppConfig;
 
 pub struct Heif;
 
-impl Format<HeifError> for Heif {
+impl Format for Heif {
+    type Error = HeifError;
     const FORMAT_TYPE: FormatType = FormatType::Heif;
     const EXTENSIONS: &'static [&'static str] = &["heif", "heic"];
     const METADATA_VERSION: i32 = 1;
-    fn get_metadata(path: &Path) -> Result<MediaMetadata, HeifError> {
+    fn get_metadata(path: &Path, _: &AppConfig) -> Result<MediaMetadata, HeifError> {
         let file_meta = path.metadata()?;
 
         let path_str = path.to_str().ok_or(HeifError::PathToString(path.to_path_buf()))?;
@@ -59,10 +61,10 @@ impl Format<HeifError> for Heif {
     }
 }
 
-impl Thumbnailable<HeifError> for Heif {
+impl Thumbnailable for Heif {
     const THUMBNAIL_VERSION: i32 = 0;
 
-    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, HeifError> {
+    fn generate_thumbnail(path: &Path, width: u32, height: u32, _: &AppConfig) -> Result<RgbImage, Self::Error> {
         let lib_heif = LibHeif::new();
         let path_str = path.to_str().ok_or(HeifError::PathToString(path.to_path_buf()))?;
         let ctx = HeifContext::read_from_file(path_str)?;

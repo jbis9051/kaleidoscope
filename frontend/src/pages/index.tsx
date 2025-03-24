@@ -10,7 +10,7 @@ import {QueryState, useQueryState} from "@/hooks/useQueryState";
 import GalleryStateSelector, {ViewType} from "@/components/GalleryStateSelector";
 import {useMediaSelector} from "@/hooks/useMediaSelector";
 import FileViewer from "@/components/FileViewer";
-import MediaImg from "@/components/MediaImg";
+import MediaDisplay from "@/components/MediaDisplay";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
 import {faDownload, faFloppyDisk} from "@fortawesome/free-solid-svg-icons";
 import Map from "@/components/Map/Map";
@@ -212,8 +212,7 @@ export default function Index() {
                 }
             }}>
                 <div className={styles.previewWrapper}>
-                    {preview.media_type === MediaType.Photo && !preview.has_thumbnail && <Thumbnail media={preview} size={25}/>}
-                    {preview.media_type === MediaType.Photo ? (preview.has_thumbnail && <MediaImg media={preview}/>) : <video src={`${API_URL}/media/${preview.uuid}/raw`} controls/>}
+                    <MediaDisplay media={preview} preferThumbnail={false} objectProps={{className: styles.pdfObject}}/>
                     <button onClick={() => setPreview(null)}>X</button>
                 </div>
             </div>}
@@ -384,7 +383,7 @@ export default function Index() {
                                         <FontAwesomeIcon className={styles.downloadButton} icon={faFloppyDisk}
                                                          onClick={() => downloadItem(`${API_URL}/media/${m.uuid}/raw`, m.name)}/>
                                     </div>
-                                    {m.media_type === MediaType.Photo ? (m.has_thumbnail && <MediaImg draggable={false} blur={false} media={m}/>) : <video src={`${API_URL}/media/${m.uuid}/raw`} controls/>}
+                                    <MediaDisplay imgProps={{draggable: false}} preferThumbnail={true} media={m} objectProps={{className: styles.pdfObjectMax}}/>
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>

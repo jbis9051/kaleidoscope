@@ -3,6 +3,7 @@ import styles from "./Gallery.module.css";
 import {API_URL} from "@/global";
 import {useEffect, useRef, useState} from "react";
 import Thumbnail from "@/components/Thumbnail";
+import MediaDisplay from "@/components/MediaDisplay";
 
 
 
@@ -71,7 +72,7 @@ export default function Gallery({media, size, open, selected, select, setLayout}
             className={`${styles.imageContainer} ${selected.includes(m.uuid) && styles.selected}`}
             style={{width: `${width}px`, height: `${height}px`}} key={m.id}>
             <div className={styles.imageWrapper}>
-                <Thumbnail media={m} draggable={false} className={styles.image}/>
+                <MediaDisplay media={m} preferThumbnail={true} forceThumbnail={true} imgProps={{draggable: false, className: styles.image}}/>
             </div>
             <div className={styles.fileName}>{m.name}</div>
         </div>
@@ -87,12 +88,12 @@ export default function Gallery({media, size, open, selected, select, setLayout}
              ref={containerRef}
         >
             {layout.map((row, i) => (
-                <div className={styles.row} style={{margin: `0 ${leftOver/2}px`}} key={i} onClick={e => {
+                <div className={styles.row} style={{margin: `0 ${leftOver/2}px`}} key={row.map(m => m.id).join('|')} onClick={e => {
                     if (e.target === e.currentTarget) {
                         select(null);
                     }
                 }}>
-                    {row.map(m => <Media m={m} key={m.id}/>)}
+                    {row.map(m => <Media m={m} key={m.uuid}/>)}
                 </div>
             ))}
         </div>

@@ -9,14 +9,16 @@ use std::time::Duration;
 use crate::media_processors::exif::extract_exif_nom;
 use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
+use crate::scan_config::AppConfig;
 
 pub struct Video;
 
-impl Format<VideoError> for Video {
+impl Format for Video {
+    type Error = VideoError;
     const FORMAT_TYPE: FormatType = FormatType::Video;
     const EXTENSIONS: &'static [&'static str] = &["mp4", "mov"];
     const METADATA_VERSION: i32 = 2;
-    fn get_metadata(path: &Path) -> Result<MediaMetadata, VideoError> {
+    fn get_metadata(path: &Path, _: &AppConfig) -> Result<MediaMetadata, Self::Error> {
         let file_meta = path.metadata()?;
         ffmpeg_next::init().unwrap();
         let context = ffmpeg_next::format::input(&path)?;
@@ -58,9 +60,9 @@ impl Format<VideoError> for Video {
 
 }
 
-impl Thumbnailable<VideoError> for Video {
+impl Thumbnailable for Video {
     const THUMBNAIL_VERSION: i32 = 1;
-    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, VideoError> {
+    fn generate_thumbnail(path: &Path, width: u32, height: u32, _: &AppConfig) -> Result<RgbImage, Self::Error> {
         ffmpeg_next::init().unwrap();
         let mut context = ffmpeg_next::format::input(&path)?;
         let stream = context

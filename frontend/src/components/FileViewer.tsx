@@ -9,6 +9,7 @@ import {tree} from "next/dist/build/templates/app-page";
 import {ViewType} from "@/components/GalleryStateSelector";
 import Filter from "@/utility/Filter";
 import Thumbnail from "@/components/Thumbnail";
+import MediaDisplay from "@/components/MediaDisplay";
 
 interface FileViewerProps {
     api: Api
@@ -184,7 +185,7 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
                                  onMouseUp={() => select(m)}
                             >
                                 <div className={styles.imageWrapper}>
-                                    <Thumbnail media={m} size={1.8} draggable={false} className={styles.image}/>
+                                    <MediaDisplay media={m} preferThumbnail={true} forceThumbnail={true} imgProps={{ draggable: false, className: styles.image}}/>
                                 </div>
                                 <div className={styles.fileName}>{m.name}</div>
                             </div>

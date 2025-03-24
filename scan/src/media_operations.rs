@@ -27,7 +27,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
         remove_media(&mut media, db, config).await; // file has changed, remove the old media
     }
 
-    let metadata = format.get_metadata()?;
+    let metadata = format.get_metadata(config)?;
 
     if let Some(mut media) = Media::from_path(&mut *db, &path_str).await.unwrap() {
         if media.created_at == metadata.created_at && media.size == metadata.size {
@@ -88,7 +88,7 @@ pub async fn update_media(media: &mut Media, config: &AppConfig, db: &mut Sqlite
     
     if media.metadata_version < format.metadata_version() || format_change {
         debug!("          updating metadata for {:?}: {} --> {}", media.uuid, media.metadata_version, format.metadata_version());
-        let metadata = format.get_metadata()?;
+        let metadata = format.get_metadata(config)?;
         media.width = metadata.width;
         media.height = metadata.height;
         media.size = metadata.size;

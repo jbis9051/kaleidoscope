@@ -9,7 +9,8 @@ use crate::tasks::{BackgroundTask};
 
 pub struct ThumbnailGenerator {
     config: VideoDurationProcessorConfig,
-    data_dir: PathBuf
+    data_dir: PathBuf,
+    app_config: AppConfig
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, Default, Clone)]
@@ -39,6 +40,7 @@ impl BackgroundTask for ThumbnailGenerator {
         Ok(ThumbnailGenerator {
             config: config.clone(),
             data_dir: PathBuf::from(&app_config.data_dir),
+            app_config: app_config.clone(),
         })
     }
 
@@ -63,21 +65,23 @@ impl BackgroundTask for ThumbnailGenerator {
         let path = PathBuf::from(&media.path);
         let format = AnyFormat::try_new(path).expect("media format is not, you should have checked it was compatible");
 
-        let metadata = format.get_metadata()?;
+        let metadata = format.get_metadata(&self.app_config)?;
 
         // we want to generate a thumbnail while maintaining the aspect ratio, using thumb_size as the max size
 
         let mut twidth = self.config.thumb_size;
         let mut theight = self.config.thumb_size;
-
-        if metadata.width > metadata.height {
-            theight = (metadata.height as f32 / metadata.width as f32 * twidth as f32) as u32;
-        } else {
-            twidth = (metadata.width as f32 / metadata.height as f32 * theight as f32) as u32;
+        
+        if metadata.width > 0 && metadata.height > 0 {
+            if metadata.width > metadata.height {
+                theight = (metadata.height as f32 / metadata.width as f32 * twidth as f32) as u32;
+            } else {
+                twidth = (metadata.width as f32 / metadata.height as f32 * theight as f32) as u32;
+            }
         }
 
-        let thumbnail = format.generate_thumbnail(twidth, theight)?;
-        let full = format.generate_full()?;
+        let thumbnail = format.generate_thumbnail(twidth, theight, &self.app_config)?;
+        let full = format.generate_full(&self.app_config)?;
 
         Ok((thumbnail, full, format.thumbnail_version()))
     }

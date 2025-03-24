@@ -4,14 +4,17 @@ use image::RgbImage;
 use imagepipe::Pipeline;
 use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
+use crate::scan_config::AppConfig;
 
 pub struct Raw;
 
-impl Format<RawError> for Raw {
+impl Format for Raw {
+    type Error = RawError;
+    
     const FORMAT_TYPE: FormatType = FormatType::Raw;
     const EXTENSIONS: &'static [&'static str] = &["raf"];
     const METADATA_VERSION: i32 = 0;
-    fn get_metadata(path: &Path) -> Result<MediaMetadata, RawError> {
+    fn get_metadata(path: &Path, _: &AppConfig) -> Result<MediaMetadata, RawError> {
         let file_meta = path.metadata()?;
 
         let native = file_meta.created().unwrap();
@@ -34,9 +37,9 @@ impl Format<RawError> for Raw {
     }
 }
 
-impl Thumbnailable<RawError> for Raw {
+impl Thumbnailable for Raw {
     const THUMBNAIL_VERSION: i32 = 0;
-    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, RawError> {
+    fn generate_thumbnail(path: &Path, width: u32, height: u32, _: &AppConfig) -> Result<RgbImage, RawError> {
         let mut image = Pipeline::new_from_file(path).map_err(RawError::PipelineError)?;
         let srgb = image.output_8bit(None).map_err(RawError::PipelineError)?;
 

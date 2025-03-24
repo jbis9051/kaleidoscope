@@ -91,7 +91,7 @@ async fn main() {
     let mut updated = vec![0; formats.len()];
     for (i, format) in formats.iter().enumerate() {
        let metadata_version = match format {
-            _ => match_format!(format, |ActualFormat| { <ActualFormat as Format<_>>::METADATA_VERSION })
+            _ => match_format!(format, |ActualFormat| { <ActualFormat as Format>::METADATA_VERSION })
        };
         
         // TODO: i don't think format changes are actually being detected

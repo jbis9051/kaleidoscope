@@ -3,7 +3,7 @@ import Leaflet from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {MapContainer, Marker, Popup, TileLayer, Tooltip, useMap, useMapEvent} from "react-leaflet";
 import {Media} from "@/api/api";
-import MediaImg from "@/components/MediaImg";
+import MediaDisplay from "@/components/MediaDisplay";
 import {API_URL} from "@/global";
 import styles from "./DynamicMap.module.css";
 import {number} from "prop-types";

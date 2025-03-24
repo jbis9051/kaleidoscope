@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use toml::Table;
+use crate::media_processors::format::pdf::PdfConfig;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct AppConfig {
@@ -15,6 +16,13 @@ pub struct AppConfig {
     pub socket_path: String,
 
     pub tasks: Table,
+    
+    pub formats: FormatConfig,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct FormatConfig {
+    pub pdf: PdfConfig,
 }
 
 impl AppConfig {

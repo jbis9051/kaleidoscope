@@ -28,6 +28,7 @@ use tokio_util::io::ReaderStream;
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_ID_DB_KEY};
 use common::env::EnvVar;
 use common::ipc::{IpcQueueProgressResponse, QueueProgress, RunProgressSer};
+use common::media_processors::format::MediaType;
 use common::media_query::{MediaQuery, MediaQueryType};
 use common::models::kv::Kv;
 use common::models::media_view::MediaView;
@@ -61,7 +62,7 @@ async fn main() {
 
     let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
 
-    if ENV.db_migrate {
+    if ENV.db_migrate { // TODO: this needs to be moved to daemon
         println!("Migrating database");
         sqlx::migrate!("../db/migrations").run(&pool).await.expect("Failed to migrate database");
         println!("Migration complete");
@@ -135,7 +136,8 @@ async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> R
 async fn media_raw(Extension(conn): Extension<DbPool>, range: Option<TypedHeader<Range>>, path: Path<MediaParams>) -> Result<Response, (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
     let name = media.name.clone();
-    
+    let media_type = media.media_type;
+
     let stream = UnixStream::connect(&CONFIG.socket_path).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("ipc error connecting to socket: {:?}", e)))?;
     let mut buf_stream = BufUnixStream::new(stream);
     
@@ -151,8 +153,12 @@ async fn media_raw(Extension(conn): Extension<DbPool>, range: Option<TypedHeader
     let ranged = Ranged::new(range, body);
     
     let mut res = ranged.into_response();
-    
-    res.headers_mut().insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{}\"", name)).unwrap());
+
+    if media_type == MediaType::Pdf {
+        res.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("application/pdf"));
+    } else {
+        res.headers_mut().insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{}\"", name)).unwrap());
+    }
 
     Ok(res)
 }

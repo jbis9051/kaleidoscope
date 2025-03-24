@@ -27,6 +27,7 @@ export type FormatType = 'standard' | 'heif' | 'video' | 'raw' | 'unknown';
 export enum MediaType {
     Photo = 'photo',
     Video = 'video',
+    Pdf = 'pdf',
     Other = 'other'
 }
 

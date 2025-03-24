@@ -2,6 +2,7 @@ pub mod standard;
 pub mod heif;
 pub mod video;
 pub mod raw;
+pub mod pdf;
 
 use std::cmp::max;
 use std::path::{Path, PathBuf};
@@ -33,10 +34,13 @@ pub struct MediaMetadata {
 pub enum MediaType {
     Photo,
     Video,
+    Pdf,
     Other
 }
 
-pub trait Format<T> {
+pub trait Format {
+    type Error;
+
     const FORMAT_TYPE: FormatType;
 
     const EXTENSIONS: &'static [&'static str];
@@ -48,19 +52,19 @@ pub trait Format<T> {
         Self::EXTENSIONS.contains(&ext.as_str())
     }
     
-    fn get_metadata(path: &Path) -> Result<MediaMetadata, T>;
+    fn get_metadata(path: &Path, app_config: &AppConfig) -> Result<MediaMetadata, Self::Error>;
 }
 
-pub trait Thumbnailable<T>: Format<T> {
+pub trait Thumbnailable: Format {
     const THUMBNAIL_VERSION: i32; // bump this if the thumbnail format changes
 
-    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, T>;
+    fn generate_thumbnail(path: &Path, width: u32, height: u32, app_config: &AppConfig) -> Result<RgbImage, Self::Error>;
 
-    fn generate_full(path: &Path) -> Result<RgbImage, T> {
-        let metadata = Self::get_metadata(path)?;
+    fn generate_full(path: &Path, app_config: &AppConfig) -> Result<RgbImage, Self::Error> {
+        let metadata = Self::get_metadata(path, app_config)?;
         let width = metadata.width;
         let height = metadata.height;
-        Self::generate_thumbnail(path, width, height)
+        Self::generate_thumbnail(path, width, height, app_config)
     }
 }
 
@@ -83,13 +87,13 @@ macro_rules! all_formats {
         impl FormatType {
             pub const fn all() -> &'static [FormatType] {
                 &[
-                    $( <$format_a as Format<_>>::FORMAT_TYPE, )*
+                    $( <$format_a as Format>::FORMAT_TYPE, )*
                 ]
             }
 
             pub const fn thumbnailable() -> &'static [FormatType] {
                 &[
-                    $( <$format_a as Format<_>>::FORMAT_TYPE, )*
+                    $( <$format_a as Format>::FORMAT_TYPE, )*
                 ]
             }
         }
@@ -101,7 +105,7 @@ macro_rules! all_formats {
                         unreachable!()
                     }
                     $(
-                        else if <$format_a as Format<_>>::is_supported(&path) {
+                        else if <$format_a as Format>::is_supported(&path) {
                             FormatType::$name
                         }
                     )*
@@ -122,7 +126,7 @@ macro_rules! all_formats {
                 ($format: expr, |$format_type: ident| $code: block) => {{
                     use $crate::media_processors::format::*;
                     match $format {
-                        $( &<$all as Format<_>>::FORMAT_TYPE => {
+                        $( &<$all as Format>::FORMAT_TYPE => {
                             type $format_type = $all;
                             $code
                         }, )*
@@ -138,7 +142,7 @@ macro_rules! all_formats {
                     use $crate::media_processors::format::*;
 
                     match $format {
-                        $( &<$thumbnailable as Format<_>>::FORMAT_TYPE => {
+                        $( &<$thumbnailable as Format>::FORMAT_TYPE => {
                             type $format_type = $thumbnailable;
                             $code
                         }, )*
@@ -152,16 +156,18 @@ macro_rules! all_formats {
 }
 
 pub use match_format::match_format as match_format;
+use crate::scan_config::AppConfig;
 
 all_formats!({
     map: {
         Standard => standard::Standard,
         Heif => heif::Heif,
         Video => video::Video,
-        Raw => raw::Raw
+        Raw => raw::Raw,
+        Pdf => pdf::Pdf
     },
-    all: [standard::Standard, heif::Heif, video::Video, raw::Raw],
-    thumbnailable:  [standard::Standard, heif::Heif, video::Video, raw::Raw]
+    all: [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf],
+    thumbnailable:  [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf]
 });
 
 pub struct AnyFormat {
@@ -179,24 +185,24 @@ impl AnyFormat {
         match_format!(thumbnailable: &self.format, |ActualFormat| { true }, { false })
     }
 
-    pub fn get_metadata(&self) -> Result<MediaMetadata, MetadataError> {
-        match_format!(&self.format, |ActualFormat| { <ActualFormat as Format<_>>::get_metadata(&self.path).map_err(|e| e.into()) })
+    pub fn get_metadata(&self, app_config: &AppConfig) -> Result<MediaMetadata, MetadataError> {
+        match_format!(&self.format, |ActualFormat| { <ActualFormat as Format>::get_metadata(&self.path, app_config).map_err(|e| e.into()) })
     }
 
-    pub fn generate_thumbnail(&self, width: u32, height: u32) -> Result<RgbImage, MetadataError> {
-        match_format!(thumbnailable: &self.format, |ActualFormat| { <ActualFormat as Thumbnailable<_>>::generate_thumbnail(&self.path, width, height).map_err(|e| e.into()) })
+    pub fn generate_thumbnail(&self, width: u32, height: u32, app_config: &AppConfig) -> Result<RgbImage, MetadataError> {
+        match_format!(thumbnailable: &self.format, |ActualFormat| { <ActualFormat as Thumbnailable>::generate_thumbnail(&self.path, width, height, app_config).map_err(|e| e.into()) })
     }
 
-    pub fn generate_full(&self) -> Result<RgbImage, MetadataError> {
-        match_format!(thumbnailable: &self.format, |ActualFormat| { <ActualFormat as Thumbnailable<_>>::generate_full(&self.path).map_err(|e| e.into()) })
+    pub fn generate_full(&self, app_config: &AppConfig) -> Result<RgbImage, MetadataError> {
+        match_format!(thumbnailable: &self.format, |ActualFormat| { <ActualFormat as Thumbnailable>::generate_full(&self.path, app_config).map_err(|e| e.into()) })
     }
 
     pub fn metadata_version(&self) -> i32 {
-        match_format!(&self.format, |ActualFormat| { <ActualFormat as Format<_>>::METADATA_VERSION })
+        match_format!(&self.format, |ActualFormat| { <ActualFormat as Format>::METADATA_VERSION })
     }
 
     pub fn thumbnail_version(&self) -> i32 {
-        match_format!(thumbnailable: &self.format, |ActualFormat| { <ActualFormat as Thumbnailable<_>>::THUMBNAIL_VERSION })
+        match_format!(thumbnailable: &self.format, |ActualFormat| { <ActualFormat as Thumbnailable>::THUMBNAIL_VERSION })
     }
 }
 
@@ -210,6 +216,8 @@ pub enum MetadataError {
     Video(#[from] video::VideoError),
     #[error("raw format error: {0}")]
     Raw(#[from] raw::RawError),
+    #[error("pdf format error: {0}")]
+    Pdf(#[from] pdf::PdfError),
 }
 
 

@@ -3,15 +3,17 @@ use std::path::Path;
 use crate::media_processors::exif::extract_exif;
 use crate::media_processors::format::{Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
+use crate::scan_config::AppConfig;
 
 pub struct Standard;
 
-impl Format<StandardError> for Standard {
+impl Format for Standard {
+    type Error = StandardError;
     const FORMAT_TYPE: FormatType = FormatType::Standard;
     const EXTENSIONS: &'static [&'static str] = &["jpeg", "jpg", "png"];
     const METADATA_VERSION: i32 = 1;
 
-    fn get_metadata(path: &Path) -> Result<MediaMetadata, StandardError> {
+    fn get_metadata(path: &Path, _: &AppConfig) -> Result<MediaMetadata, Self::Error> {
         let file_meta = path.metadata()?;
         let (width, height) = image::image_dimensions(path)?;
 
@@ -37,10 +39,10 @@ impl Format<StandardError> for Standard {
 
 
 }
-impl Thumbnailable<StandardError> for Standard {
+impl Thumbnailable for Standard {
     const THUMBNAIL_VERSION: i32 = 0;
 
-    fn generate_thumbnail(path: &Path, width: u32, height: u32) -> Result<RgbImage, StandardError> {
+    fn generate_thumbnail(path: &Path, width: u32, height: u32, _: &AppConfig) -> Result<RgbImage, Self::Error> {
         let image = image::open(path)?;
         let thumbnail = image.thumbnail(width, height);
         Ok(thumbnail.to_rgb8())
