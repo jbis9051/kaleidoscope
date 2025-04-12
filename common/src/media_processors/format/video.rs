@@ -7,7 +7,7 @@ use nom_exif::{MediaParser, MediaSource, TrackInfo};
 use std::path::Path;
 use std::time::Duration;
 use crate::media_processors::exif::extract_exif_nom;
-use crate::media_processors::format::{resize_dimensions, Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
+use crate::media_processors::format::{resize_dimensions, Audioable, Format, FormatType, MediaMetadata, MediaType, Thumbnailable};
 use crate::models::system_time_to_naive_datetime;
 use crate::scan_config::AppConfig;
 
@@ -120,6 +120,8 @@ impl Thumbnailable for Video {
     }
 }
 
+
+impl Audioable for Video {}
 
 #[derive(Debug, thiserror::Error)]
 pub enum VideoError {

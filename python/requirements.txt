@@ -1,0 +1,3 @@
+# fw-transcribe
+
+faster_whisper==1.1.1

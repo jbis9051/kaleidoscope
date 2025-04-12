@@ -34,6 +34,7 @@ use common::models::kv::Kv;
 use common::models::media_view::MediaView;
 use common::models::timeline::Timeline;
 use common::scan_config::AppConfig;
+use tasks::tasks::thumbnail::ThumbnailGenerator;
 use crate::ipc::BufUnixStream;
 use crate::stream::RemoteMediaFile;
 
@@ -165,13 +166,13 @@ async fn media_raw(Extension(conn): Extension<DbPool>, range: Option<TypedHeader
 
 async fn media_full(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
-    let path = std::path::Path::new(&CONFIG.data_dir).join(format!("{}-full.jpg", media.uuid));
+    let path = ThumbnailGenerator::full_path(&media, &CONFIG);
     Ok(serve_file(&path, "image/jpeg".to_string()).await)
 }
 
 async fn media_thumb(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<(HeaderMap, Body), (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
-    let path = std::path::Path::new(&CONFIG.data_dir).join(format!("{}-thumb.jpg", media.uuid));
+    let path = ThumbnailGenerator::thumb_path(&media, &CONFIG);
     Ok(serve_file(&path, "image/jpeg".to_string()).await)
 }
 

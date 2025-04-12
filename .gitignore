@@ -9,3 +9,4 @@ dev
 frontend/out
 scan/src/lib.rs
 scan/tests
+.venv

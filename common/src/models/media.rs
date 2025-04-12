@@ -9,6 +9,7 @@ use crate::media_query::MediaQuery;
 use crate::models::{date, MediaError};
 use crate::{sqlize, update_set};
 use crate::media_processors::format::{FormatType, MediaType};
+use crate::models::media_extra::MediaExtra;
 use crate::types::{DbPool, SqliteAcquire};
 
 
@@ -167,6 +168,15 @@ impl Media {
             .execute(db)
             .await?;
         Ok(())
+    }
+    
+    pub async fn extra(&self, db: impl SqliteAcquire<'_>) -> Result<Option<MediaExtra>, sqlx::Error>{
+        let mut conn = db.acquire().await?;
+        Ok(sqlx::query("SELECT * FROM media_extra WHERE media_id = $1;")
+            .bind(self.id)
+            .fetch_optional(&mut *conn)
+            .await?
+            .map(|row| row.borrow().into()))
     }
 }
 

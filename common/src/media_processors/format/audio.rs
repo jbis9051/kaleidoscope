@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::time::Duration;
-use crate::media_processors::format::{Format, FormatType, MediaMetadata, MediaType};
+use crate::media_processors::format::{Audioable, Format, FormatType, MediaMetadata, MediaType};
 use crate::models::system_time_to_naive_datetime;
 use crate::scan_config::AppConfig;
 
@@ -9,7 +9,7 @@ pub struct Audio;
 impl Format for Audio {
     type Error = AudioError;
     const FORMAT_TYPE: FormatType = FormatType::Audio;
-    const EXTENSIONS: &'static [&'static str] = &["mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "aiff", "alac"];
+    const EXTENSIONS: &'static [&'static str] = &["mp3", "wav", "flac", "ogg", "m4a", "aac", "wma", "aiff", "alac", "m4a"];
     const METADATA_VERSION: i32 = 1;
 
     fn get_metadata(path: &Path, _: &AppConfig) -> Result<MediaMetadata, Self::Error> {
@@ -39,9 +39,9 @@ impl Format for Audio {
             media_type: MediaType::Audio,
         })
     }
-
-
 }
+
+impl Audioable for Audio {}
 
 #[derive(thiserror::Error, Debug)]
 pub enum AudioError {

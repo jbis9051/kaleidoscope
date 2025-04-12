@@ -7,6 +7,7 @@ pub mod audio;
 
 use std::cmp::max;
 use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 use std::time::Duration;
 use image::{RgbImage};
 use serde::{Deserialize, Serialize};
@@ -53,7 +54,7 @@ pub trait Format {
         let ext = path.extension().unwrap_or_default().to_str().unwrap_or_default().to_lowercase();
         Self::EXTENSIONS.contains(&ext.as_str())
     }
-    
+
     fn get_metadata(path: &Path, app_config: &AppConfig) -> Result<MediaMetadata, Self::Error>;
 }
 
@@ -70,13 +71,33 @@ pub trait Thumbnailable: Format {
     }
 }
 
+pub trait Audioable: Format {
+    fn convert_to_mp3(from: &Path, to: &Path, app_config: &AppConfig) -> Result<Output, Self::Error>
+    where <Self as Format>::Error :From<std::io::Error>
+    {
+        Ok(Command::new(&app_config.ffmpeg_path)
+            .args(&["-i", from.to_string_lossy().to_string().as_str(), to.to_string_lossy().to_string().as_str()])
+            .output()?)
+    }
+
+    fn convert_to_wav(from: &Path, to: &Path, app_config: &AppConfig) -> Result<Output, Self::Error>
+    where <Self as Format>::Error :From<std::io::Error>
+    {
+        Ok(Command::new(&app_config.ffmpeg_path)
+            .args(&["-i", from.to_string_lossy().to_string().as_str(), to.to_string_lossy().to_string().as_str()])
+            .output()?)
+    }
+}
+
+
 macro_rules! all_formats {
     ({
         map: {
             $( $name:ident => $format_a:ty ),*
         },
         all: [$( $all:ty ),*],
-        thumbnailable: [$( $thumbnailable:ty ),*]
+        thumbnailable: [$( $thumbnailable:ty ),*],
+        audioable: [$( $audioable:ty ),*]
     }) => {
         #[derive(Debug, Copy, Clone, Serialize, sqlx::Type, Deserialize, PartialEq)]
         #[serde(rename_all = "kebab-case")]
@@ -95,7 +116,13 @@ macro_rules! all_formats {
 
             pub const fn thumbnailable() -> &'static [FormatType] {
                 &[
-                    $( <$format_a as Format>::FORMAT_TYPE, )*
+                    $( <$thumbnailable as Format>::FORMAT_TYPE, )*
+                ]
+            }
+
+            pub const fn audioable() -> &'static [FormatType] {
+                &[
+                    $( <$audioable as Format>::FORMAT_TYPE, )*
                 ]
             }
         }
@@ -151,6 +178,22 @@ macro_rules! all_formats {
                         _ => $code_not_thumbnailable,
                     }
                 }};
+
+                (audioable: $format: expr, |$format_type: ident| $code: block) => {
+                    match_format!(audioable: $format, |$format_type| $code, { panic!("invalid format type, not audioable: {:?}", $format) })
+                };
+
+                (audioable: $format: expr, |$format_type: ident| $code: block, $code_not_audioable: block) => {{
+                    use $crate::media_processors::format::*;
+
+                    match $format {
+                        $( &<$audioable as Format>::FORMAT_TYPE => {
+                            type $format_type = $audioable;
+                            $code
+                        }, )*
+                        _ => $code_not_audioable,
+                    }
+                }};
             }
             pub use _match_format as match_format;
         }
@@ -170,7 +213,8 @@ all_formats!({
         Audio => audio::Audio
     },
     all: [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf, audio::Audio],
-    thumbnailable:  [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf]
+    thumbnailable:  [standard::Standard, heif::Heif, video::Video, raw::Raw, pdf::Pdf],
+    audioable: [video::Video, audio::Audio]
 });
 
 pub struct AnyFormat {
@@ -186,6 +230,10 @@ impl AnyFormat {
 
     pub fn thumbnailable(&self) -> bool {
         match_format!(thumbnailable: &self.format, |ActualFormat| { true }, { false })
+    }
+    
+    pub fn audioable(&self) -> bool {
+        match_format!(audioable: &self.format, |ActualFormat| { true }, { false })
     }
 
     pub fn get_metadata(&self, app_config: &AppConfig) -> Result<MediaMetadata, MetadataError> {
@@ -207,6 +255,16 @@ impl AnyFormat {
     pub fn thumbnail_version(&self) -> i32 {
         match_format!(thumbnailable: &self.format, |ActualFormat| { <ActualFormat as Thumbnailable>::THUMBNAIL_VERSION })
     }
+    
+    pub fn convert_to_mp3(&self, to: &Path, app_config: &AppConfig) -> Result<Output, MetadataError> {
+        match_format!(audioable: &self.format, |ActualFormat| { <ActualFormat as Audioable>::convert_to_mp3(&self.path, to, app_config).map_err(|e| e.into()) })
+    }
+    
+    pub fn convert_to_wav(&self, to: &Path, app_config: &AppConfig) -> Result<Output, MetadataError> {
+        match_format!(audioable: &self.format, |ActualFormat| { <ActualFormat as Audioable>::convert_to_wav(&self.path, to, app_config).map_err(|e| e.into()) })
+    }
+    
+    
 }
 
 #[derive(Debug, thiserror::Error)]

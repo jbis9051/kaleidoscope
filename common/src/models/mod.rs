@@ -8,6 +8,7 @@ pub mod media_view;
 pub mod sqlize;
 pub mod timeline;
 pub mod queue;
+pub mod media_extra;
 
 pub mod date {
     use serde::{self, Deserialize, Serializer};

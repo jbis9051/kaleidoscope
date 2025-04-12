@@ -1653,6 +1653,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tasks",
  "tokio",
  "tokio-util",
  "tower 0.4.13",
@@ -3005,6 +3006,7 @@ dependencies = [
  "thiserror 1.0.60",
  "tokio",
  "toml 0.8.12",
+ "uuid",
 ]
 
 [[package]]

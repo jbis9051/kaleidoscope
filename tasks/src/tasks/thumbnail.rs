@@ -7,39 +7,41 @@ use common::types::{AcquireClone};
 use log::debug;
 use crate::tasks::{BackgroundTask};
 
+const THUMBNAIL_DIR: &str = "thumbnails";
+
 pub struct ThumbnailGenerator {
-    config: VideoDurationProcessorConfig,
-    data_dir: PathBuf,
+    config: ThumbnailGenerationConfig,
     app_config: AppConfig
 }
 
 #[derive(Debug, serde::Deserialize, serde::Serialize, Default, Clone)]
-pub struct VideoDurationProcessorConfig {
+pub struct ThumbnailGenerationConfig {
     pub thumb_size: u32,
 }
 
 impl ThumbnailGenerator {
-    fn thumb_path(&self, media: &Media) -> PathBuf {
-        self.data_dir.join(format!("{:?}-thumb.jpg", media.uuid))
+    pub fn thumb_path(media: &Media, app_config: &AppConfig) -> PathBuf {
+        let thumb_dir = PathBuf::from(&app_config.data_dir).join(THUMBNAIL_DIR);
+        thumb_dir.join(format!("{:?}-thumb.jpg", media.uuid))
     }
     
-    fn full_path(&self, media: &Media) -> PathBuf {
-        self.data_dir.join(format!("{:?}-full.jpg", media.uuid))
+    pub fn full_path(media: &Media, app_config: &AppConfig) -> PathBuf {
+        let thumb_dir = PathBuf::from(&app_config.data_dir).join(THUMBNAIL_DIR);
+        thumb_dir.join(format!("{:?}-full.jpg", media.uuid))
     }
 }
 
 impl BackgroundTask for ThumbnailGenerator {
     type Error = MetadataError;
     const NAME: &'static str = "thumbnail";
-    const VERSION: u32 = 0;
-
     type Data = (RgbImage, RgbImage, i32);
-    type Config = VideoDurationProcessorConfig;
+    type Config = ThumbnailGenerationConfig;
 
     async fn new(db: &mut impl AcquireClone, config: &Self::Config, app_config: &AppConfig) -> Result<Self, Self::Error> {
+        let thumb_dir = PathBuf::from(&app_config.data_dir).join(THUMBNAIL_DIR);
+        tokio::fs::create_dir_all(&thumb_dir).await.expect("failed to create thumbnail directory");
         Ok(ThumbnailGenerator {
             config: config.clone(),
-            data_dir: PathBuf::from(&app_config.data_dir),
             app_config: app_config.clone(),
         })
     }
@@ -89,8 +91,8 @@ impl BackgroundTask for ThumbnailGenerator {
     async fn run_and_store(&self, db: &mut impl AcquireClone, media: &mut Media) -> Result<(), Self::Error> {
         let (thumbnail, full, thumbnail_version) = self.run(db, media).await?;
 
-        let thumb_path = self.thumb_path(media);
-        let full_path = self.full_path(media);
+        let thumb_path = Self::thumb_path(media, &self.app_config);
+        let full_path = Self::full_path(media, &self.app_config);
 
         // write thumbnail to disk
         debug!("          writing thumbnail: {:?}", thumb_path);
@@ -108,8 +110,8 @@ impl BackgroundTask for ThumbnailGenerator {
     }
 
     async fn remove_data(&self, db: &mut impl AcquireClone, media: &mut Media) -> Result<(), Self::Error> {
-        let thumb_path = self.thumb_path(media);
-        let full_path = self.full_path(media);
+        let thumb_path = Self::thumb_path(media, &self.app_config);
+        let full_path = Self::full_path(media, &self.app_config);
         
         // TODO: handle errors
         std::fs::remove_file(thumb_path);

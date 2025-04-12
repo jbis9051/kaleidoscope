@@ -1,22 +1,23 @@
 pub mod thumbnail;
+pub mod whisper;
 
 use common::models::media::Media;
-use common::types::{AcquireClone, SqliteAcquire};
+use common::types::{AcquireClone};
 use serde::{Serialize};
-use sqlx::{Row, SqliteExecutor};
-use std::borrow::Borrow;
 use std::fmt::Debug;
 use serde::de::DeserializeOwned;
 use toml::Table;
 use common::scan_config::AppConfig;
 use crate::tasks::thumbnail::ThumbnailGenerator;
+use crate::tasks::whisper::Whisper;
+
+
+const MODEL_DIR: &str = "models";
 
 pub trait BackgroundTask: Sized {
     type Error: Debug;
 
     const NAME: &'static str;
-    const VERSION: u32;
-
     type Data: Debug;
 
     type Config: Serialize + DeserializeOwned + Default;
@@ -132,8 +133,8 @@ macro_rules! impl_task {
 
 
 impl_task!(
-    [ThumbnailGenerator,],
-    1
+    [ThumbnailGenerator, Whisper,],
+    2
 );
 
 #[derive(Debug, thiserror::Error)]
@@ -142,6 +143,8 @@ pub enum TaskError {
     TaskNotFound(String),
     #[error("'thumbnail' task error: {0}")]
     ThumbnailGenerator(<ThumbnailGenerator as BackgroundTask>::Error),
+    #[error("'whisper' task error: {0}")]
+    Whisper(<Whisper as BackgroundTask>::Error),
     #[error("error deserializing task data: {0}")]
     InvalidTaskData(#[from] serde_json::Error),
     #[error("error deserializing task config: {0}")]

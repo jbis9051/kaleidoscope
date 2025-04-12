@@ -18,6 +18,10 @@ pub struct AppConfig {
     pub tasks: Table,
     
     pub formats: FormatConfig,
+
+    pub python_path: String,
+    pub ffmpeg_path: String,
+    pub scripts_dir: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

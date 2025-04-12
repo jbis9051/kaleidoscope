@@ -16,3 +16,9 @@ dev:
 prod:
 	cargo build --release
 	cd frontend && yarn && yarn build && cd ..
+
+setup-python:
+	# virtual env
+	python3 -m venv .
+	# install dependencies
+	./.venv/bin/pip install -r python/requirements.txt
