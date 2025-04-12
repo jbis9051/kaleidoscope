@@ -99,10 +99,30 @@
     max-width: 80%;
     background: #1d1d1d;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     padding: 20px;
     position: relative;
 }
+
+.previewMedia {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.previewTranscript {
+    width: 450px;
+    align-self: stretch;
+    overflow: auto;
+}
+
+.transcriptContent {
+    overflow: auto;
+    padding: 10px;
+}
+
+
 .previewWrapper button {
     position: absolute;
     top: -7px;

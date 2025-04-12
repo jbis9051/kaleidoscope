@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use std::time::{Duration, Instant};
 use common::models::queue::Queue;
 use crate::tasks::{BackgroundTask, Task, TaskError};
 use common::models::media::Media;
@@ -22,6 +22,7 @@ pub struct RunProgress {
     pub total: u32,
     pub queue: Queue,
     pub error: Option<TaskError>,
+    pub time: Duration, // time taken to run the task in seconds
 }
 impl From<RunProgress> for RunProgressSer {
     fn from(progress: RunProgress) -> Self {
@@ -30,6 +31,7 @@ impl From<RunProgress> for RunProgressSer {
             total: progress.total,
             queue: progress.queue,
             error: progress.error.map(|e| e.to_string()),
+            time: progress.time.as_secs() as u32,
         }
     }
 }
@@ -70,6 +72,7 @@ pub async fn run_queue(
             queue.delete(db.acquire_clone()).await?;
 
             let mut media = Media::from_id(db.acquire_clone(), &queue.media_id).await?;
+            let start = Instant::now();
             match task.run_and_store(db, &mut media).await {
                 Ok(_) => {
                     if let Some(progress) = &progress {
@@ -78,6 +81,7 @@ pub async fn run_queue(
                             total,
                             queue,
                             error: None,
+                            time: start.elapsed(),
                         }) {
                             eprintln!("error sending progress: {:?}", e);
                         }
@@ -94,6 +98,7 @@ pub async fn run_queue(
                             total,
                             queue,
                             error: Some(e),
+                            time: start.elapsed(),
                         }) {
                             eprintln!("error sending progress: {:?}", e);
                         }

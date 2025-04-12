@@ -117,6 +117,7 @@ export interface QueueStatusProgress {
         created_at: number;
     };
     error: null | string;
+    time: number // in seconds
 }
 
 export interface QueueStatusEmpty {
@@ -125,10 +126,36 @@ export interface QueueStatusEmpty {
 
 export type QueueStatus = QueueStatusProgress | QueueStatusEmpty;
 
+export interface MediaExtra {
+    id: number;
+    media_id: number;
+    whisper_version: string;
+    whisper_confidence: number | null;
+    whisper_transcript: string | null;
+}
+
+export interface MediaDirectResponseWithoutExtra {
+    media: Media,
+    extra: null;
+}
+
+export interface MediaDirectResponseWithExtra {
+    media: Media,
+    extra: MediaExtra;
+}
+
+export type MediaDirectResponse = MediaDirectResponseWithoutExtra | MediaDirectResponseWithExtra;
+
 export class Api {
     url: string;
     constructor(url: string) {
         this.url = url;
+    }
+
+    media(uuid:string, extra: true) : Promise<MediaDirectResponseWithExtra>;
+    media(uuid:string, extra: false) : Promise<MediaDirectResponseWithoutExtra>;
+    media(uuid: string, extra: boolean = false): Promise<MediaDirectResponse> {
+        return fetch(`${this.url}/media/${uuid}${extra ? '?extra=true' : ''}`).then(response=> response.json())
     }
 
     media_index(mediaQuery: MediaQuery): Promise<MediaIndexResponse> {

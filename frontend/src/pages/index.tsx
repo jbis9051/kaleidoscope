@@ -1,7 +1,7 @@
 import styles from "./index.module.css";
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {API_URL} from "@/global";
-import {AlbumIndex, Api, Media, MediaQuery, MediaType, MediaView} from "@/api/api";
+import {AlbumIndex, Api, Media, MediaExtra, MediaQuery, MediaType, MediaView} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata from "@/utility/mediaMetadata";
@@ -18,6 +18,7 @@ import MapViewer from "@/components/MapViewer";
 import Filter from "@/utility/Filter";
 import FilterPanel from "@/components/FilterPanel";
 import Timeline from "@/components/Timeline";
+import Transcript from "@/components/Transcript";
 
 export interface MediaViewFilter extends MediaView {
     filter: Filter | null;
@@ -55,8 +56,12 @@ export default function Index() {
     const [size, setSize] = useState(200);
 
     const [preview, setPreview] = useState<Media | null>(null);
+    const previewRef = useRef<HTMLVideoElement | HTMLAudioElement>(null);
 
     const [layout, setLayout] = useState<Media[][] | null>(null);
+
+    const [selectedMediaExtra, setSelectedMediaExtra] = useState<MediaExtra | null>(null);
+
 
     const {
         selected: selectedMedia,
@@ -70,6 +75,13 @@ export default function Index() {
         if (preview && selectMediaTarget?.uuid !== preview.uuid) {
             setPreview(selectMediaTarget);
         }
+
+        if (selectMediaTarget) {
+            api.media(selectMediaTarget.uuid, true).then((response) => {
+                setSelectedMediaExtra(response.extra);
+            });
+        }
+
     }, [selectMediaTarget]);
 
     // initially load the gallery state from the URL
@@ -211,7 +223,19 @@ export default function Index() {
                 }
             }}>
                 <div className={styles.previewWrapper}>
-                    <MediaDisplay media={preview} preferThumbnail={false} objectProps={{className: styles.pdfObject}} audioProps={{className: styles.audioElement}}/>
+                    <div className={styles.previewMedia}>
+                        <MediaDisplay media={preview} preferThumbnail={false}
+                                      mediaRef={previewRef}
+                                      objectProps={{className: styles.pdfObject}}
+                                      audioProps={{className: styles.audioElement}}/>
+                    </div>
+                    {selectedMediaExtra?.whisper_transcript &&
+                        <div className={styles.previewTranscript}>
+                            <div className={styles.transcriptContent}>
+                                <Transcript mediaRef={previewRef} transcript={selectedMediaExtra.whisper_transcript}/>
+                            </div>
+                        </div>
+                    }
                     <button onClick={() => setPreview(null)}>X</button>
                 </div>
             </div>}
@@ -314,14 +338,14 @@ export default function Index() {
                             }}
                         />
                         {initialLoaded &&
-                        <Timeline
-                            filter={galleryState.filter}
-                            selectedAlbum={galleryState.selectedAlbum}
-                            api={api}
-                            setGalleryState={setGalleryState}
-                            mediaRange={ oldest && newest ? [oldest.created_at, newest.created_at] : null}
-                            limit={galleryState.limit}
-                        />}
+                            <Timeline
+                                filter={galleryState.filter}
+                                selectedAlbum={galleryState.selectedAlbum}
+                                api={api}
+                                setGalleryState={setGalleryState}
+                                mediaRange={oldest && newest ? [oldest.created_at, newest.created_at] : null}
+                                limit={galleryState.limit}
+                            />}
                     </div>
                     <div className={styles.mainSectionContent}>
                         {initialLoaded && viewType === ViewType.FileBrowser &&
@@ -382,11 +406,13 @@ export default function Index() {
                                         <FontAwesomeIcon className={styles.downloadButton} icon={faFloppyDisk}
                                                          onClick={() => downloadItem(`${API_URL}/media/${m.uuid}/raw`, m.name)}/>
                                     </div>
-                                    <MediaDisplay imgProps={{draggable: false}} preferThumbnail={true} media={m} objectProps={{className: styles.pdfObjectMax}} audioProps={{className: styles.audioElementMax}} />
+                                    <MediaDisplay imgProps={{draggable: false}} preferThumbnail={true} media={m}
+                                                  objectProps={{className: styles.pdfObjectMax}}
+                                                  audioProps={{className: styles.audioElementMax}}/>
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>
-                                        <MetadataTable metadata={mediaToMetadata(m)}/>
+                                        <MetadataTable metadata={mediaToMetadata(m, selectedMediaExtra)}/>
                                         {m.latitude && m.longitude &&
                                             <Map
                                                 center={[m.latitude, m.longitude]}

@@ -138,7 +138,7 @@ impl BackgroundTask for Whisper {
                 to_path.to_str().unwrap(),
             ],
         )?;
-        
+
         // delete the temporary file
         std::fs::remove_file(&to_path)?;
 

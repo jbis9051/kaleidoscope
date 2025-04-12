@@ -31,6 +31,7 @@ use common::ipc::{IpcQueueProgressResponse, QueueProgress, RunProgressSer};
 use common::media_processors::format::MediaType;
 use common::media_query::{MediaQuery, MediaQueryType};
 use common::models::kv::Kv;
+use common::models::media_extra::MediaExtra;
 use common::models::media_view::MediaView;
 use common::models::timeline::Timeline;
 use common::scan_config::AppConfig;
@@ -129,9 +130,30 @@ struct MediaParams {
     uuid: Uuid
 }
 
-async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>) -> Result<Json<Media>, (StatusCode, String)> {
+#[derive(Debug, Deserialize)]
+struct MediaDirectQuery {
+    extra: Option<bool>
+}
+
+#[derive(Debug, Serialize)]
+pub struct MediaDirectResponse {
+    media: Media,
+    extra: Option<MediaExtra>,
+}
+
+async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>, query: Query<MediaDirectQuery>) -> Result<Json<MediaDirectResponse>, (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
-    Ok(Json(media))
+    
+    let extra = if query.extra.unwrap_or(false) {
+        Some(media.extra(&conn).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "problem with media_extra query".to_string()))?)
+    } else {
+        None
+    }.flatten();
+    
+    Ok(Json(MediaDirectResponse{
+        media,
+        extra,
+    }))
 }
 
 async fn media_raw(Extension(conn): Extension<DbPool>, range: Option<TypedHeader<Range>>, path: Path<MediaParams>) -> Result<Response, (StatusCode, String)> {

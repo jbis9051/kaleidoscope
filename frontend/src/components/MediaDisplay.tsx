@@ -13,9 +13,10 @@ export interface MediaImgProps {
     audioProps?: React.AudioHTMLAttributes<HTMLAudioElement>,
     objectProps?: React.ObjectHTMLAttributes<HTMLObjectElement>
     faProps?: Omit<FontAwesomeIconProps, 'icon'>
+    mediaRef?: React.RefObject<HTMLVideoElement|HTMLAudioElement>
 }
 
-export default function MediaDisplay({media, preferThumbnail, forceThumbnail, imgProps, videoProps, objectProps, faProps, audioProps}: MediaImgProps) {
+export default function MediaDisplay({media, preferThumbnail, forceThumbnail, imgProps, videoProps, objectProps, faProps, audioProps, mediaRef}: MediaImgProps) {
     // this element uses the thumbnail until the full image is loaded
     const [loadedFull, setLoadedFull] = React.useState(false);
 
@@ -83,6 +84,7 @@ export default function MediaDisplay({media, preferThumbnail, forceThumbnail, im
         case MediaType.Video:
             return <video
                 src={rawUrl}
+                ref={mediaRef as React.RefObject<HTMLVideoElement>}
                 controls
                 {...videoProps}
             />
@@ -99,6 +101,7 @@ export default function MediaDisplay({media, preferThumbnail, forceThumbnail, im
         case MediaType.Audio:
             return <audio
                 src={rawUrl}
+                ref={mediaRef as React.RefObject<HTMLAudioElement>}
                 controls
                 {...audioProps}
             />

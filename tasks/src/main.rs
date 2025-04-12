@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::time::Instant;
 use clap::{Parser, ValueEnum};
 use common::models::media::Media;
 use common::scan_config::AppConfig;
@@ -41,10 +42,10 @@ async fn progress_handler(mut recv: mpsc::Receiver<RunProgress>, mut db: impl Ac
 
         match &progress.error {
             Some(e) => {
-                eprintln!("({}/{}) - task '{}' - media {}: failed {:?}", progress.index+1, progress.total, progress.queue.task, media.path, e);
+                eprintln!("({}/{}) - task '{}' - media {}: failed {:?}, took: {:?}", progress.index+1, progress.total, progress.queue.task, media.path, e, progress.time);
             }
             None => {
-                println!("({}/{}) - task '{}' - media {}: succeeded", progress.index+1, progress.total, progress.queue.task, media.path);
+                println!("({}/{}) - task '{}' - media {}: succeeded, took: {:?}", progress.index+1, progress.total, progress.queue.task, media.path, progress.time);
             }
         }
 
@@ -199,7 +200,8 @@ async fn main() {
                     let queue = Queue::from_media_id(&mut db, &task.name(), media.id)
                         .await
                         .expect("error getting queue");
-
+                    
+                    let start = Instant::now();
                     let res = if store {
                         task.run_and_store(&mut db, &mut media).await.expect("error running task");
                         None
@@ -207,14 +209,16 @@ async fn main() {
                         Some(task.run(&mut db, &media).await
                             .expect("error running task"))
                     };
-
-
-                    if let Some(queue) = queue {
-                        queue.delete(&mut db).await.expect("error deleting queue");
+                    
+                    let end = start.elapsed();
+                    
+                    if store {
+                        if let Some(queue) = queue {
+                            queue.delete(&mut db).await.expect("error deleting queue");
+                        }
                     }
 
-
-                    println!("task '{}' succeeded, result: {:?}", task.name(), res);
+                    println!("task '{}' succeeded, took: {:?}, result: {:?}", task.name(), end, res);
                 }
             }
         }

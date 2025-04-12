@@ -1,0 +1,29 @@
+.container {
+    background: #191919;
+    padding: 10px;
+    height: 100%;
+    width: 100%;
+}
+
+.transcript {
+    background: #191919;
+    border-bottom: 1px solid #1d1d1d;
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    cursor: pointer;
+}
+
+.time {
+    text-wrap: nowrap;
+    padding: 0 15px;
+}
+
+
+.text {
+    flex: 1;
+}
+
+.active {
+   color: #00b4ff;
+}

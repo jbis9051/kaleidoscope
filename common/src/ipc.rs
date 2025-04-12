@@ -44,6 +44,7 @@ pub struct RunProgressSer {
     pub total: u32,
     pub queue: Queue,
     pub error: Option<String>,
+    pub time: u32, // time taken to run the task in seconds
 }
 
 

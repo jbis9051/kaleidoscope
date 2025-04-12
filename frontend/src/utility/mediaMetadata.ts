@@ -1,4 +1,4 @@
-import {Media} from "@/api/api";
+import {Media, MediaExtra} from "@/api/api";
 
 export function timestampToDate(timestamp: number) {
     // timestamp is in seconds
@@ -43,7 +43,7 @@ export function capitalize(s: string) {
 }
 
 
-export default function mediaToMetadata(media: Media): Record<string, string> {
+export default function mediaToMetadata(media: Media, extra: MediaExtra | null): Record<string, string> {
     return {
         "ID": media.id.toString(),
         "Name": media.name,
@@ -58,5 +58,6 @@ export default function mediaToMetadata(media: Media): Record<string, string> {
         "Duration": media.duration ? durationHumanReadable(media.duration) : "N/A",
         "Screenshot": media.is_screenshot ? "Yes" : "No",
         "GPS": (media.longitude && media.latitude) ? GPSFormat(media.longitude, media.latitude) : "N/A",
+        "Has Whisper Transcription": (extra && extra.whisper_transcript) ? "Yes" : "No",
     }
 }
