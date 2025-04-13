@@ -19,6 +19,6 @@ prod:
 
 setup-python:
 	# virtual env
-	python3 -m venv .
+	python3 -m venv .venv
 	# install dependencies
 	./.venv/bin/pip install -r python/requirements.txt
