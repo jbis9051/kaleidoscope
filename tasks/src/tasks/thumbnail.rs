@@ -20,13 +20,22 @@ pub struct ThumbnailGenerationConfig {
 }
 
 impl ThumbnailGenerator {
-    pub fn thumb_path(media: &Media, app_config: &AppConfig) -> PathBuf {
+    fn uuid_dir(media: &Media, app_config: &AppConfig) -> PathBuf {
         let thumb_dir = PathBuf::from(&app_config.data_dir).join(THUMBNAIL_DIR);
-        thumb_dir.join(format!("{:?}-thumb.jpg", media.uuid))
+        let uuid = media.uuid.to_string();
+        let mut chars = uuid.chars();
+        let a = chars.next().unwrap();
+        let b = chars.next().unwrap();
+        thumb_dir.join(a.to_string()).join(b.to_string())
+    }
+    
+    pub fn thumb_path(media: &Media, app_config: &AppConfig) -> PathBuf {
+        let uuid_dir = Self::uuid_dir(media, app_config);
+        uuid_dir.join(format!("{:?}-thumb.jpg", media.uuid))
     }
     
     pub fn full_path(media: &Media, app_config: &AppConfig) -> PathBuf {
-        let thumb_dir = PathBuf::from(&app_config.data_dir).join(THUMBNAIL_DIR);
+        let thumb_dir = Self::uuid_dir(media, app_config);
         thumb_dir.join(format!("{:?}-full.jpg", media.uuid))
     }
 }
@@ -90,6 +99,10 @@ impl BackgroundTask for ThumbnailGenerator {
 
     async fn run_and_store(&self, db: &mut impl AcquireClone, media: &mut Media) -> Result<(), Self::Error> {
         let (thumbnail, full, thumbnail_version) = self.run(db, media).await?;
+        
+        let uuid_dir = Self::uuid_dir(media, &self.app_config);
+        // create the directory if it doesn't exist
+        tokio::fs::create_dir_all(&uuid_dir).await.expect("failed to create thumbnail directory");
 
         let thumb_path = Self::thumb_path(media, &self.app_config);
         let full_path = Self::full_path(media, &self.app_config);
@@ -116,6 +129,8 @@ impl BackgroundTask for ThumbnailGenerator {
         // TODO: handle errors
         std::fs::remove_file(thumb_path);
         std::fs::remove_file(full_path);
+        
+        // TODO: cleanup the UUID directory if empty
         
         media.has_thumbnail = false;
         media.thumbnail_version = -1;
