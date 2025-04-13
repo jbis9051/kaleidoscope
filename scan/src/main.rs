@@ -1,6 +1,6 @@
 mod media_operations;
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use crate::media_operations::{add_media, remove_media, update_media, AddMediaError};
 use common::directory_tree::{DirectoryTree, DIRECTORY_TREE_DB_KEY, LAST_IMPORT_ID_DB_KEY};
 use common::models::kv::Kv;
@@ -72,16 +72,19 @@ async fn main() {
 
     import_id_kv.update_by_key(&mut db).await.unwrap();
 
-    debug!("beginning import id: {}", import_id);
-
+    debug!("--- beginning import id: {} ---", import_id);
     let mut total = 0;
-    for path in config.scan_paths.iter() {
-        info!("scanning path: {:?}", path);
-        let count = scan_dir(path, &config, import_id, &mut db).await;
-        info!("  found {} new media", count);
-        total += count;
-    }
+    {
+        let mut media_map: HashMap<String, Media> = Media::all(&mut db).await.unwrap().into_iter().map(|m| (m.path.clone(), m)).collect();
 
+        for path in config.scan_paths.iter() {
+            info!("scanning path: {:?}", path);
+            let count = scan_dir(path, &config, import_id, &mut media_map, &mut db).await;
+            info!("  found {} new media", count);
+            total += count;
+        }
+       
+    } // drop the media_map
     info!("--- scanning complete, found {} new media, import_id: {} ---", total, import_id);
 
     info!("--- updating database ---");
@@ -210,7 +213,7 @@ async fn main() {
 }
 
 
-async fn scan_dir(path: &str, config: &AppConfig, import_id: i32, db: &mut SqliteConnection) -> u32 {
+async fn scan_dir(path: &str, config: &AppConfig, import_id: i32, media_map: &mut HashMap<String, Media>, db: &mut SqliteConnection) -> u32 {
     let mut count = 0;
     for entry in WalkDir::new(path) {
         if let Ok(entry) = entry {
@@ -227,13 +230,16 @@ async fn scan_dir(path: &str, config: &AppConfig, import_id: i32, db: &mut Sqlit
                 debug!("      skipping symlink: {:?}", entry.path());
                 continue;
             }
-            match add_media(entry.path(), config, import_id, db).await {
+            match add_media(entry.path(), config, import_id, media_map, db).await {
                 Ok(_) => {
                     info!("      found new file: {:?}", entry.path());
                     count += 1;
                 }
                 Err(AddMediaError::AlreadyExists(_)) => {
                     debug!("      file already exists: {:?}", entry.path());
+                }
+                Err(AddMediaError::UnsupportedFormat) => {
+                    debug!("      unsupported format: {:?}", entry.path());
                 }
                 Err(e) => {
                     error!("      error adding file: {} - {:?}", e, entry.path());

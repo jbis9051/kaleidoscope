@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 use log::{debug, error};
 use sha1::Digest;
@@ -12,29 +13,31 @@ use tasks::ops::add_to_compatible_queues;
 use tasks::tasks::{BackgroundTask, Task};
 use tasks::tasks::thumbnail::ThumbnailGenerator;
 
-pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
+pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, media_map: &mut HashMap<String, Media>, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
     let format = AnyFormat::try_new(path.to_path_buf()).ok_or(AddMediaError::UnsupportedFormat)?;
 
     let file_created_at = system_time_to_naive_datetime(path.metadata()?.created()?);
     let path_str = path.canonicalize()?.to_string_lossy().to_string();
 
     // do a cheap check immediately to see if the media already exists
-    if let Some(mut media) = Media::from_path(&mut *db, &path_str).await.unwrap() {
+    if let Some(media) = media_map.get(&path_str) {
         let file_size = path.metadata()?.len() as u32;
         if media.file_created_at == file_created_at && media.size == file_size {
             return Err(AddMediaError::AlreadyExists(1));
         }
-        remove_media(&mut media, db, config).await; // file has changed, remove the old media
+        remove_media(&media, db, config).await; // file has changed, remove the old media
+        media_map.remove(&path_str);
     }
 
     let metadata = format.get_metadata(config)?;
 
-    if let Some(mut media) = Media::from_path(&mut *db, &path_str).await.unwrap() {
+    if let Some(media) = media_map.get(&path_str) {
         if media.created_at == metadata.created_at && media.size == metadata.size {
             // this shouldn't really happen, but it could if (1) there's a different date in the media metadata as opposed to the file metadata and (2) the file was modified while keeping the file metadata the same (including the size)
             return Err(AddMediaError::AlreadyExists(2));
         }
-        remove_media(&mut media, db, config).await;
+        remove_media(&media, db, config).await;
+        media_map.remove(&path_str);
     }
 
     let uuid = Uuid::new_v4();
@@ -67,6 +70,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, db: &mut
     };
 
     media.create(&mut *db).await.unwrap();
+    media_map.insert(path_str.to_string(), media.clone());
 
     add_to_compatible_queues(&mut *db, &media, &Task::TASK_NAMES).await.unwrap();
 
@@ -126,7 +130,7 @@ pub enum AddMediaError {
     Metadata(#[from] MetadataError),
 }
 
-pub async fn remove_media(media: &mut Media, db: &mut SqliteConnection, config: &AppConfig) {
+pub async fn remove_media(media: &Media, db: &mut SqliteConnection, config: &AppConfig) {
     media.delete(&mut *db).await.unwrap();
     let thumb = Path::new(&config.data_dir).join(format!("{:?}-thumb.jpg", media.uuid));
     let full = Path::new(&config.data_dir).join(format!("{:?}-full.jpg", media.uuid));
