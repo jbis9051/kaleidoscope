@@ -8,7 +8,7 @@ use crate::{sqlize, update_set};
 use crate::types::{DbPool, SqliteAcquire};
 
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Clone, Default)]
 pub struct MediaExtra {
     pub id: i32,
     pub media_id: i32,

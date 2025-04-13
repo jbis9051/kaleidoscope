@@ -6,5 +6,6 @@ CREATE TABLE media_extra (
     whisper_language TEXT DEFAULT NULL,
     whisper_confidence REAL DEFAULT NULL,
     whisper_transcript TEXT DEFAULT NULL,
-    FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE
+    FOREIGN KEY (media_id) REFERENCES media(id) ON DELETE CASCADE,
+    UNIQUE (media_id) ON CONFLICT ABORT
 )

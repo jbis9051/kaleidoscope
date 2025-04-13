@@ -1,17 +1,13 @@
 use crate::run_python::run_python;
 use crate::tasks::{BackgroundTask, MODEL_DIR};
 use common::media_processors::format::{AnyFormat, MetadataError};
-use common::media_processors::RgbImage;
 use common::models::media::Media;
-use common::models::media_extra::MediaExtra;
 use common::scan_config::AppConfig;
 use common::types::AcquireClone;
-use log::debug;
 use serde::{Deserialize, Serialize};
 use sqlx::types::uuid;
 use std::fmt::{Debug, Pointer};
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 use uuid::Uuid;
 
 // where the transcription files are stored
@@ -185,18 +181,28 @@ impl BackgroundTask for Whisper {
         media: &mut Media,
     ) -> Result<(), Self::Error> {
         let output = self.run(db, media).await?;
-        let mut whisper_extra = MediaExtra {
-            id: 0,
-            media_id: media.id,
-            whisper_version: VERSION,
-            whisper_language: Some(output.langauge),
-            whisper_confidence: Some(output.confidence),
-            whisper_transcript: Some(
-                serde_json::to_string(&output.transcript)
-                    .map_err(|_| WhisperError::OutputParseError)?,
-            ),
-        };
-        whisper_extra.create_no_bug(db.acquire_clone()).await?;
+        
+        let extra = media.extra(db.acquire_clone()).await?;
+        
+        let create = extra.is_none();
+        
+        let mut media_extra = extra.unwrap_or_default();
+        
+        media_extra.media_id = media.id;
+        media_extra.whisper_version = VERSION;
+        media_extra.whisper_language = Some(output.langauge);
+        media_extra.whisper_confidence = Some(output.confidence);
+        media_extra.whisper_transcript = Some(
+            serde_json::to_string(&output.transcript)
+                .map_err(|_| WhisperError::OutputParseError)?,
+        );
+        
+        if create {
+            media_extra.create_no_bug(db.acquire_clone()).await?;
+        } else {
+            media_extra.update_by_id(db.acquire_clone()).await?;
+        }
+        
         Ok(())
     }
 

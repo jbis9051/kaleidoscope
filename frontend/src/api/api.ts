@@ -139,12 +139,10 @@ export interface MediaDirectResponseWithoutExtra {
     extra: null;
 }
 
-export interface MediaDirectResponseWithExtra {
+export interface MediaDirectResponse {
     media: Media,
-    extra: MediaExtra;
+    extra: MediaExtra | null;
 }
-
-export type MediaDirectResponse = MediaDirectResponseWithoutExtra | MediaDirectResponseWithExtra;
 
 export class Api {
     url: string;
@@ -152,8 +150,8 @@ export class Api {
         this.url = url;
     }
 
-    media(uuid:string, extra: true) : Promise<MediaDirectResponseWithExtra>;
     media(uuid:string, extra: false) : Promise<MediaDirectResponseWithoutExtra>;
+    media(uuid:string, extra: true) : Promise<MediaDirectResponse>;
     media(uuid: string, extra: boolean = false): Promise<MediaDirectResponse> {
         return fetch(`${this.url}/media/${uuid}${extra ? '?extra=true' : ''}`).then(response=> response.json())
     }
