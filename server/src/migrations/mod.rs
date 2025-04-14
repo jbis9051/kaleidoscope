@@ -13,7 +13,7 @@ pub struct MigrationManager;
 
 impl MigrationManager {
     pub async fn current_version<'a>(db: impl SqliteExecutor<'a>) -> Result<u32, sqlx::Error> {
-        let version = sqlx::query_scalar("SELECT value FROM settings WHERE key = ?")
+        let version = sqlx::query_scalar("SELECT value FROM kv WHERE key = ?")
             .bind(MIGRATION_VERSION_DB_KEY)
             .fetch_one(db)
             .await?;

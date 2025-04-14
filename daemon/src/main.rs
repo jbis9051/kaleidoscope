@@ -1,24 +1,24 @@
 use common::ipc::{IpcFileRequest, IpcFileResponse, IpcRequest, QueueProgress};
 use common::models::media::Media;
+use common::models::queue::Queue;
 use common::scan_config::AppConfig;
 use nix::libc::pid_t;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use std::fs::Permissions;
-use std::io::{SeekFrom};
+use std::io::SeekFrom;
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
-use std::sync::{Arc};
-use tasks::ops::{RunProgress};
-use tasks::tasks::{Task};
+use std::sync::Arc;
+use tasks::ops::RunProgress;
+use tasks::tasks::Task;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, Take};
 use tokio::net::{UnixListener, UnixStream};
 use tokio::process::Command;
-use tokio::sync::{mpsc, RwLock};
 use tokio::sync::oneshot::Receiver;
-use serde::{Deserialize, Serialize};
-use common::models::queue::Queue;
+use tokio::sync::{mpsc, RwLock};
 
 static QUEUE_PROGRESS: Lazy<Arc<RwLock<Option<QueueProgress>>>> =
     Lazy::new(|| Arc::new(RwLock::new(None)));
@@ -61,9 +61,18 @@ async fn main() {
         .await
         .unwrap();
 
+    if env_var.db_migrate {
+        println!("Migrating database");
+        sqlx::migrate!("../db/migrations")
+            .run(&pool)
+            .await
+            .expect("Failed to migrate database");
+        println!("Migration complete");
+    }
+
     config.canonicalize();
 
-    let server_binary = "kaleidoscope";
+    let server_binary = "kaleidoscope-server";
 
     let (tx, rx) = tokio::sync::oneshot::channel();
 
@@ -85,8 +94,6 @@ async fn main() {
         .env_clear()
         .env("CONFIG", serde_json::to_string(&config).unwrap())
         .env("dev_mode", env_var.dev_mode.to_string())
-        .env("db_migrate", env_var.db_migrate.to_string())
-        .env("migrate", env_var.migrate.to_string())
         .stdin(std::process::Stdio::null())
         .spawn()
         .expect("failed to start server");
@@ -203,7 +210,7 @@ pub async fn handle_slave(
                 );
 
                 return_on_err!(writer.write_all(b"\n").await, dev_mode);
-            },
+            }
             IpcRequest::QueueProgress => {
                 let lock = QUEUE_PROGRESS.read().await;
                 let res = lock.clone();
@@ -327,9 +334,7 @@ pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
 
     while let Some(progress) = progress_rx.recv().await {
         let done = progress.done();
-        let mut lock = QUEUE_PROGRESS
-            .write()
-            .await;
+        let mut lock = QUEUE_PROGRESS.write().await;
         *lock = Some(QueueProgress::Progress(progress.into()));
         if done {
             break;
@@ -338,8 +343,6 @@ pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
 
     let (success, failed) = handle.await.unwrap().unwrap();
 
-    let mut lock = QUEUE_PROGRESS
-        .write()
-        .await;
+    let mut lock = QUEUE_PROGRESS.write().await;
     *lock = Some(QueueProgress::Done(Ok((success, failed))));
 }

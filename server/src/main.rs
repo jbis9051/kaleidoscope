@@ -64,13 +64,6 @@ async fn main() {
 
     let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
 
-    if ENV.db_migrate { // TODO: this needs to be moved to daemon
-        println!("Migrating database");
-        sqlx::migrate!("../db/migrations").run(&pool).await.expect("Failed to migrate database");
-        println!("Migration complete");
-    }
-
-
     println!("Listening on: {}", &CONFIG.listen_addr);
 
 

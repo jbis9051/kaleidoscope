@@ -808,20 +808,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "daemon"
-version = "0.1.0"
-dependencies = [
- "common",
- "nix",
- "once_cell",
- "serde",
- "serde_json",
- "sqlx",
- "tasks",
- "tokio",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1638,7 +1624,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "kaleidoscope"
+name = "kaleidoscope-daemon"
+version = "0.1.0"
+dependencies = [
+ "common",
+ "nix",
+ "once_cell",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tasks",
+ "tokio",
+]
+
+[[package]]
+name = "kaleidoscope-server"
 version = "0.1.0"
 dependencies = [
  "axum 0.8.1",
