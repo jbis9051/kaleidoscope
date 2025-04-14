@@ -22,7 +22,7 @@ export default class Filter {
                 throw new Error(`invalid filter '${filter}'`);
             }
 
-            const match = rest.match(/([=<>!%]+)(.+)/);
+            const match = rest.match(/((?:[><!]=?)|%|=)(.+)/);
             if (!match || match.length !== 3) {
                 throw new Error(`invalid filter '${filter}'`);
             }
@@ -64,9 +64,13 @@ export default class Filter {
                     curr += 1;
                     break;
                 case c === '"' || c === "'":
-                    if (quote === c) {
-                        quote = null;
-                    } else if (quote === null) {
+                    if (quote !== null){
+                        if (quote === c) {
+                            quote = null;
+                        } else {
+                            currFilter += c;
+                        }
+                    } else {
                         quote = c;
                     }
                     break;
@@ -101,8 +105,17 @@ export default class Filter {
 
     private static valueToString(value: Value): string {
         if (typeof value === 'string') {
-            if (value.includes(' ')) {
-                return `"${value}"`;
+            const includesDoubleQuotes = value.includes('"');
+            const includesSingleQuotes = value.includes("'");
+            const includesWhitespace = value.includes(' ');
+
+            switch (true) {
+                case !includesDoubleQuotes:
+                    return `"${value}"`;
+                case !includesSingleQuotes:
+                    return `'${value}'`;
+                default:
+                    return `"${value.replace(/"/g, '\\"')}"`;
             }
         }
         return value.toString();

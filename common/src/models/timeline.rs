@@ -91,25 +91,29 @@ pub struct Timeline;
 impl Timeline {
     async fn timeline<T: for<'a> From<&'a SqliteRow>>(db: &DbPool, media_query: &MediaQuery, album_id: Option<i32>, interval_query: &str) -> Result<Vec<T>, MediaError> {
         let mut query = if let Some(album_id) = album_id {
-            let mut query = sqlx::QueryBuilder::new(format!(
-                "SELECT
-                    {} AS interval,
-                    COUNT(*) AS count
-                 FROM media
-                 INNER JOIN album_media ON media.id = album_media.media_id
-                 WHERE album_media.album_id = ", interval_query));
-            query.push_bind(album_id);
-            query
-        } else {
             sqlx::QueryBuilder::new(format!(
                 "SELECT
                     {} AS interval,
                     COUNT(*) AS count
                  FROM media
-                 WHERE 1=1", interval_query))
+                 INNER JOIN album_media ON media.id = album_media.media_id
+                 ", interval_query))
+        } else {
+            sqlx::QueryBuilder::new(format!(
+                "SELECT
+                    {} AS interval,
+                    COUNT(*) AS count
+                 FROM media ", interval_query))
         };
 
-        media_query.sqlize(&mut query)?;
+        media_query.add_tables(&mut query);
+        
+        if let Some(album_id) = album_id {
+            query.push(" AND album_media.album_id = ");
+            query.push_bind(album_id);
+        }
+        
+        media_query.add_queries(&mut query)?;
 
         query.push(" GROUP BY interval \
         ORDER BY interval ASC");

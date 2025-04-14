@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use crate::media_query::macros::{format_value, parse_filter};
 use sqlx::{QueryBuilder, Sqlite};
 use sqlx::types::chrono::{DateTime, NaiveDateTime, Utc};
@@ -8,6 +9,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::{self, Visitor};
 use std::fmt;
 use chrono::{NaiveDate, NaiveTime, TimeZone};
+use toml::Table;
 use crate::media_query::macros::DSLType;
 
 dsl_types! {
@@ -116,20 +118,35 @@ impl DSLDate {
 
 query_dsl! {
     MediaQuery(MediaQueryType){
-        order_by(string, OrderBy),
-        asc(bool, Asc),
-        limit(integer, Limit),
-        page(integer, Page),
-        path(string, Path),
-        created_at(date, CreatedAt),
-        is_screenshot(bool, IsScreenshot),
-        media_type(string, MediaType),
-        has_gps(bool, HasGps),
-        import_id(integer, ImportId),
-        longitude(float, Longitude),
-        latitude(float, Latitude),
+        order_by(string, OrderBy, []),
+        asc(bool, Asc, []),
+        limit(integer, Limit, []),
+        page(integer, Page, []),
+        path(string, Path, []),
+        created_at(date, CreatedAt, []),
+        is_screenshot(bool, IsScreenshot,[]),
+        media_type(string, MediaType, []),
+        has_gps(bool, HasGps, []),
+        import_id(integer, ImportId, []),
+        longitude(float, Longitude, []),
+        latitude(float, Latitude, []),
+        transcript(string, Transcript, [MediaExtra,]),
     }
 }
+
+#[derive(PartialEq, Debug, Hash, Eq)]
+pub enum JoinableTable {
+    MediaExtra
+}
+
+impl JoinableTable {
+    pub fn join_statement(&self) -> &'static str {
+        match self {
+            JoinableTable::MediaExtra => " INNER JOIN media_extra ON media.id = media_extra.media_id "
+        }
+    }
+}
+
 impl MediaQuery {
     pub fn new() -> Self {
         Self {
@@ -227,8 +244,30 @@ impl MediaQuery {
 
     }
     
-    pub fn sqlize(&self, query: &mut QueryBuilder<Sqlite>) -> Result<(), MediaQueryError>{
+    // joins all necessary tables for this query
+    pub fn add_tables(&self, query: &mut QueryBuilder<Sqlite>) {
+        let mut tables = HashSet::new();
+        for filter in &self.filters {
+            tables.extend(filter.tables());
+        }
+        for table in tables {
+           query.push(table.join_statement());
+        }
+    }
+    
+    pub fn sqlize(&self, query: &mut QueryBuilder<Sqlite>) -> Result<(), MediaQueryError> {
+        self.add_tables(query);
+        self.add_queries(query)?;
+        Ok(())
+    }
+    
+    
+    pub fn add_queries(&self, query: &mut QueryBuilder<Sqlite>) -> Result<(), MediaQueryError>{
         self.validate()?;
+        
+        if !query.sql().contains("WHERE") {
+            query.push(" WHERE 1=1 ");
+        }
 
         for filter in &self.filters {
             match filter {
@@ -266,7 +305,7 @@ impl MediaQuery {
                 }
                 MediaQueryType::ImportId(op, import_id) => {
                     query
-                        .push(" AND import_id ")
+                        .push(" AND media.import_id ")
                         .push(op.to_sql_string())
                         .push_bind(import_id.clone());
                 }
@@ -282,7 +321,11 @@ impl MediaQuery {
                         .push(op.to_sql_string())
                         .push_bind(latitude.clone());
                 }
-
+                MediaQueryType::Transcript(op, search) => {
+                    query.push(" AND media_extra.whisper_transcript ")
+                        .push(op.to_sql_string())
+                        .push_bind(search.clone());
+                }
                 MediaQueryType::OrderBy(_, col) => {
                     Media::safe_column(col).expect("unknown column for order by, this should have been caught in validation");
                     query

@@ -88,7 +88,7 @@ impl Media {
     }
 
     pub async fn get_all(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Self>, MediaError> {
-        let mut query = sqlx::QueryBuilder::new("SELECT * FROM media WHERE 1=1");
+        let mut query = sqlx::QueryBuilder::new("SELECT * FROM media ");
 
         media_query.sqlize(&mut query)?;
 
@@ -103,7 +103,7 @@ impl Media {
     }
 
     pub async fn count(db: &DbPool, media_query: &MediaQuery) -> Result<u32, MediaError> {
-        let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media WHERE 1=1");
+        let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media ");
 
         media_query.sqlize(&mut query)?;
 

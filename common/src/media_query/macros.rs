@@ -1,6 +1,7 @@
 use chrono::format::parse;
 use std::fmt::Display;
 use serde_json::json;
+use crate::media_query::JoinableTable;
 
 pub trait DSLType {
     type RustType;
@@ -97,6 +98,8 @@ pub fn parse_filter(query_string: &str) -> Result<Vec<String>, String> {
                 if let Some(q) = quote {
                     if q == c {
                         quote = None;
+                    } else {
+                        curr_filter.push(c);
                     }
                 } else {
                     quote = Some(c);
@@ -139,7 +142,11 @@ pub fn format_value(value: &str) -> String {
 #[macro_export]
 macro_rules! query_dsl {
 
-    ($name: ident($enum_name:ident) { $($field:tt($dsl:tt, $variant:ident),)* }) => {
+    (
+        $name: ident($enum_name:ident) { 
+            $($field:tt($dsl:tt, $variant:ident, [$($table:ident,)*]),)* 
+        }
+    ) => {
         #[derive(Clone)]
         pub struct $name {
             filters: Vec<$enum_name>
@@ -175,6 +182,16 @@ macro_rules! query_dsl {
                     out.push_str(dsl_types.join(", ").as_str());
                     out.push_str("}}");
                     out
+            }
+            
+            pub fn tables(&self) -> Vec<JoinableTable> { 
+                match self {
+                    $(
+                        $enum_name::$variant(_, _) => {
+                            vec![$(JoinableTable::$table),*]
+                        }
+                    )*
+                }
             }
 
         }

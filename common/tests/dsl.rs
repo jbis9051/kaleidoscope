@@ -1,10 +1,12 @@
+use common::media_query::JoinableTable;
 use chrono::{DateTime, NaiveDate, TimeZone, Utc};
-use common::media_query::macros::{parse_filter, format_value};
 use common::media_query::macros::DSLType;
+use common::media_query::macros::{format_value, parse_filter};
 use common::{dsl_types, query_dsl};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
+
 
 #[test]
 pub fn test_parse_filter() {
@@ -24,7 +26,12 @@ pub fn test_parse_filter() {
             vec!["str:%foo", "date:=2020-01-01"],
         ),
         (r#"str:%'\' foo \''"#, vec![r#"str:%' foo '"#]),
+        (r#"str:%"foo foo""#, vec![r#"str:%foo foo"#]),
         ("", vec![]),
+        (
+            r#"str:%"foo's""#,
+            vec![r#"str:%foo's"#],
+        )
     ];
 
     for (input, expected) in tests.iter() {
@@ -32,7 +39,7 @@ pub fn test_parse_filter() {
         assert_eq!(parsed, *expected, "input: {}", input);
     }
 
-    let errors =["str:'foo", "str:foo'", r#"str:j\"#];
+    let errors = ["str:'foo", "str:foo'", r#"str:j\"#];
 
     for input in errors.iter() {
         let parsed = parse_filter(input);
@@ -73,9 +80,9 @@ pub fn test_dsl() {
     }
     query_dsl!(
         TestDSLQuery(TestDSLQueryEnum) {
-            num(number, Num),
-            str(string, Str),
-            date(date, Date),
+            num(number, Num, []),
+            str(string, Str, []),
+            date(date, Date, []),
         }
     );
 
@@ -85,43 +92,56 @@ pub fn test_dsl() {
             vec![
                 TestDSLQueryEnum::Num(DSLNum::GreaterEqual, 10),
                 TestDSLQueryEnum::Str(DSLString::Like, "foo".to_string()),
-                TestDSLQueryEnum::Date(DSLDate::Equal, NaiveDate::parse_from_str("2020-01-01", "%Y-%m-%d").unwrap()),
-            ]
+                TestDSLQueryEnum::Date(
+                    DSLDate::Equal,
+                    NaiveDate::parse_from_str("2020-01-01", "%Y-%m-%d").unwrap(),
+                ),
+            ],
         ),
         (
             "num:<10 str:=foo date:>1955-01-01",
             vec![
                 TestDSLQueryEnum::Num(DSLNum::Less, 10),
                 TestDSLQueryEnum::Str(DSLString::Equal, "foo".to_string()),
-                TestDSLQueryEnum::Date(DSLDate::After, NaiveDate::parse_from_str("1955-01-01", "%Y-%m-%d").unwrap()),
-            ]
+                TestDSLQueryEnum::Date(
+                    DSLDate::After,
+                    NaiveDate::parse_from_str("1955-01-01", "%Y-%m-%d").unwrap(),
+                ),
+            ],
         ),
         (
             "num:<=10 str:%foo",
             vec![
                 TestDSLQueryEnum::Num(DSLNum::LessEqual, 10),
                 TestDSLQueryEnum::Str(DSLString::Like, "foo".to_string()),
-            ]
+            ],
         ),
         (
             "str:='foo' date:=2020-01-01",
             vec![
                 TestDSLQueryEnum::Str(DSLString::Equal, "foo".to_string()),
-                TestDSLQueryEnum::Date(DSLDate::Equal, NaiveDate::parse_from_str("2020-01-01", "%Y-%m-%d").unwrap()),
-            ]
+                TestDSLQueryEnum::Date(
+                    DSLDate::Equal,
+                    NaiveDate::parse_from_str("2020-01-01", "%Y-%m-%d").unwrap(),
+                ),
+            ],
         ),
         (
             "  str:%\"foo\"  date:=2020-01-01",
             vec![
                 TestDSLQueryEnum::Str(DSLString::Like, "foo".to_string()),
-                TestDSLQueryEnum::Date(DSLDate::Equal, NaiveDate::parse_from_str("2020-01-01", "%Y-%m-%d").unwrap()),
-            ]
+                TestDSLQueryEnum::Date(
+                    DSLDate::Equal,
+                    NaiveDate::parse_from_str("2020-01-01", "%Y-%m-%d").unwrap(),
+                ),
+            ],
         ),
         (
             r#"str:%'\' foo \''"#,
-            vec![
-                TestDSLQueryEnum::Str(DSLString::Like, r#"' foo '"#.to_string()),
-            ]
+            vec![TestDSLQueryEnum::Str(
+                DSLString::Like,
+                r#"' foo '"#.to_string(),
+            )],
         ),
         (
             "str:%foo str:!%bar num:=5 num:=2",
@@ -130,11 +150,48 @@ pub fn test_dsl() {
                 TestDSLQueryEnum::Str(DSLString::NotLike, "bar".to_string()),
                 TestDSLQueryEnum::Num(DSLNum::Equal, 5),
                 TestDSLQueryEnum::Num(DSLNum::Equal, 2),
-            ]
-        )
+            ],
+        ),
+        (
+            r#"str:%"foo\'s""#,
+            vec![TestDSLQueryEnum::Str(
+                DSLString::Like,
+                r#"foo's"#.to_string(),
+            )],
+        ),
+        (
+            r#"str:%"fo\o\'s""#,
+            vec![TestDSLQueryEnum::Str(
+                DSLString::Like,
+                r#"foo's"#.to_string(),
+            )],
+        ),
+        (
+            r#"str:%"foo's""#,
+            vec![TestDSLQueryEnum::Str(
+                DSLString::Like,
+                r#"foo's"#.to_string(),
+            )],
+        ),
+        (
+            r#"str:%"%foo%""#,
+            vec![TestDSLQueryEnum::Str(
+                DSLString::Like,
+                r#"%foo%"#.to_string(),
+            )],
+        ),
+        
     ];
 
-    let errors = ["str:='foo", "str:=foo'", r#"str:=j\"#, "num:=foo", "date:=foo", "num:3", "str:%foo str:!%bar num=5 num=2",];
+    let errors = [
+        "str:='foo",
+        "str:=foo'",
+        r#"str:=j\"#,
+        "num:=foo",
+        "date:=foo",
+        "num:3",
+        "str:%foo str:!%bar num=5 num=2",
+    ];
 
     println!("{}", TestDSLQueryEnum::describe());
 
@@ -148,14 +205,14 @@ pub fn test_dsl() {
         let parsed: Result<TestDSLQuery, _> = input.parse();
         assert!(parsed.is_err(), "input: {}", input);
     }
-    
+
     // test json serialization
-    
+
     #[derive(Debug, Serialize, Deserialize)]
     struct TestStruct {
         query: TestDSLQuery,
     }
-    
+
     let input = "num:>=10 str:%foo date:=2020-01-01";
     let good: TestDSLQuery = input.parse().expect("failed to parse query");
     let json = format!(r#"{{"query":"{}"}}"#, input);
@@ -164,7 +221,7 @@ pub fn test_dsl() {
 }
 
 #[test]
-pub fn media_query_validation(){
+pub fn media_query_validation() {
     let tests = [(
          "created_at:>2020-01-01 is_screenshot:=false has_gps:=true filter_path:%'foo%' filter_path:!%'%.jpg' order_by:=created_at asc:=true limit:=10 page:=1",
           true
@@ -195,6 +252,12 @@ pub fn media_query_validation(){
         let parsed = input.parse::<common::media_query::media_query::MediaQuery>();
         assert!(parsed.is_ok(), "input: {:?} - {}", parsed, input);
         let validate = parsed.unwrap().validate();
-        assert_eq!(validate.is_ok(), *expected, "input: {:?} - {}", validate, input);
+        assert_eq!(
+            validate.is_ok(),
+            *expected,
+            "input: {:?} - {}",
+            validate,
+            input
+        );
     }
 }

@@ -82,14 +82,17 @@ impl Album {
 
     pub async fn count_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<u32, MediaError> {
         let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media \
-            INNER JOIN album_media ON media.id = album_media.media_id \
-            WHERE album_media.album_id = ");
+            INNER JOIN album_media ON media.id = album_media.media_id ");
+        
+        media_query.add_tables(&mut query);
+        
+        query.push(" WHERE album_media.album_id = ");
         
         query
             .push_bind(self.id);
-
-        media_query.sqlize(&mut query)?;
-
+        
+        media_query.add_queries(&mut query)?;
+        
         let query = query.build();
 
         Ok(query
@@ -101,15 +104,19 @@ impl Album {
     pub async fn get_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Media>, MediaError> {
 
         let mut query = sqlx::QueryBuilder::new("SELECT media.* FROM media \
-            INNER JOIN album_media ON media.id = album_media.media_id \
-            WHERE album_media.album_id = ");
+            INNER JOIN album_media ON media.id = album_media.media_id ");
         
+        media_query.add_tables(&mut query);
+
+        query.push(" WHERE album_media.album_id = ");
+
         query
             .push_bind(self.id);
         
-        media_query.sqlize(&mut query)?;
-
+        media_query.add_queries(&mut query)?;
+        
         let query = query.build();
+        
         Ok(query
             .fetch_all(db)
             .await?

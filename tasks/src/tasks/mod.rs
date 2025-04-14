@@ -5,6 +5,7 @@ use common::models::media::Media;
 use common::types::{AcquireClone};
 use serde::{Serialize};
 use std::fmt::Debug;
+use std::ops::Deref;
 use serde::de::DeserializeOwned;
 use toml::Table;
 use common::scan_config::AppConfig;
@@ -46,13 +47,15 @@ pub trait BackgroundTask: Sized {
 }
 
 macro_rules! impl_task {
-    ([$($task: ident,)*], $size: literal) => {
+    (
+        [$($task: ident,)*], 
+        $size: literal
+    ) => {
         pub enum Task {
             $(
                 $task($task),
             )*
         }
-
 
         impl Task {
             pub const TASK_NAMES: [&'static str; $size] = [$(<$task>::NAME,)*];
