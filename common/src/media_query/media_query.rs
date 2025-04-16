@@ -131,6 +131,7 @@ query_dsl! {
         longitude(float, Longitude, []),
         latitude(float, Latitude, []),
         transcript(string, Transcript, [MediaExtra,]),
+        vision_ocr(string, VisionOcr, [MediaExtra,]),
     }
 }
 
@@ -323,6 +324,11 @@ impl MediaQuery {
                 }
                 MediaQueryType::Transcript(op, search) => {
                     query.push(" AND media_extra.whisper_transcript ")
+                        .push(op.to_sql_string())
+                        .push_bind(search.clone());
+                }
+                MediaQueryType::VisionOcr(op, search) => {
+                    query.push(" AND media_extra.vision_ocr_result ")
                         .push(op.to_sql_string())
                         .push_bind(search.clone());
                 }
