@@ -16,6 +16,8 @@ pub struct MediaExtra {
     pub whisper_language: Option<String>,
     pub whisper_confidence: Option<f32>,
     pub whisper_transcript: Option<String>,
+    pub vision_ocr_version: i32,
+    pub vision_ocr_result: Option<String>,
 }
 
 sqlize!(MediaExtra, "media_extra", id, [
@@ -23,7 +25,9 @@ sqlize!(MediaExtra, "media_extra", id, [
     whisper_version,
     whisper_language,
     whisper_confidence,
-    whisper_transcript
+    whisper_transcript,
+    vision_ocr_version,
+    vision_ocr_result
 ]);
 
 impl MediaExtra {
@@ -31,12 +35,14 @@ impl MediaExtra {
     // see: https://github.com/launchbadge/sqlx/issues/2093, remove when fixed
     pub async fn create_no_bug(&mut self, db: impl SqliteAcquire<'_>) -> Result<(), sqlx::Error> {
         let mut conn = db.acquire().await?;
-        let res = sqlx::query("INSERT INTO media_extra (media_id, whisper_version, whisper_language, whisper_confidence, whisper_transcript) VALUES ($1, $2, $3, $4, $5) RETURNING id")
+        let res = sqlx::query("INSERT INTO media_extra (media_id, whisper_version, whisper_language, whisper_confidence, whisper_transcript, vision_ocr_version, vision_ocr_result) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id")
             .bind(&self.media_id)
             .bind(&self.whisper_version)
             .bind(&self.whisper_language)
             .bind(&self.whisper_confidence)
             .bind(&self.whisper_transcript)
+            .bind(&self.vision_ocr_version)
+            .bind(&self.vision_ocr_result)
             .fetch_one(&mut *conn)
             .await?;
         

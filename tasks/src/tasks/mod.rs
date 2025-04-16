@@ -1,5 +1,6 @@
 pub mod thumbnail;
 pub mod whisper;
+pub mod ocr;
 
 use common::models::media::Media;
 use common::types::{AcquireClone};
@@ -11,6 +12,7 @@ use toml::Table;
 use common::scan_config::AppConfig;
 use crate::tasks::thumbnail::ThumbnailGenerator;
 use crate::tasks::whisper::Whisper;
+use crate::tasks::ocr::VisionOCR;
 
 
 const MODEL_DIR: &str = "models";
@@ -136,8 +138,8 @@ macro_rules! impl_task {
 
 
 impl_task!(
-    [ThumbnailGenerator, Whisper,],
-    2
+    [ThumbnailGenerator, Whisper, VisionOCR,],
+    3
 );
 
 #[derive(Debug, thiserror::Error)]
@@ -148,6 +150,8 @@ pub enum TaskError {
     ThumbnailGenerator(<ThumbnailGenerator as BackgroundTask>::Error),
     #[error("'whisper' task error: {0}")]
     Whisper(<Whisper as BackgroundTask>::Error),
+    #[error("'vision_ocr' task error: {0}")]
+    VisionOCR(<VisionOCR as BackgroundTask>::Error),
     #[error("error deserializing task data: {0}")]
     InvalidTaskData(#[from] serde_json::Error),
     #[error("error deserializing task config: {0}")]
