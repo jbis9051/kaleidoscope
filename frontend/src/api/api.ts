@@ -129,9 +129,19 @@ export type QueueStatus = QueueStatusProgress | QueueStatusEmpty;
 export interface MediaExtra {
     id: number;
     media_id: number;
-    whisper_version: string;
+    whisper_version: number;
     whisper_confidence: number | null;
     whisper_transcript: string | null;
+    vision_ocr_version: number;
+    vision_ocr_result: string | null;
+}
+
+export interface VisionOCRResult {
+    text: string;
+    origin_x: number;
+    origin_y: number;
+    size_width: number;
+    size_height: number;
 }
 
 export interface MediaDirectResponseWithoutExtra {

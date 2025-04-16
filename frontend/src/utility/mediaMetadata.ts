@@ -59,5 +59,6 @@ export default function mediaToMetadata(media: Media, extra: MediaExtra | null):
         "Screenshot": media.is_screenshot ? "Yes" : "No",
         "GPS": (media.longitude && media.latitude) ? GPSFormat(media.longitude, media.latitude) : "N/A",
         "Has Whisper Transcription": (extra && extra.whisper_transcript) ? "Yes" : "No",
+        "Has Vision OCR": (extra && extra.vision_ocr_result) ? "Yes" : "No",
     }
 }

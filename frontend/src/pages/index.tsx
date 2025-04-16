@@ -19,6 +19,7 @@ import Filter from "@/utility/Filter";
 import FilterPanel from "@/components/FilterPanel";
 import Timeline from "@/components/Timeline";
 import Transcript from "@/components/Transcript";
+import Preview from "@/components/Preview";
 
 export interface MediaViewFilter extends MediaView {
     filter: Filter | null;
@@ -222,22 +223,7 @@ export default function Index() {
                     setPreview(null);
                 }
             }}>
-                <div className={styles.previewWrapper}>
-                    <div className={styles.previewMedia}>
-                        <MediaDisplay media={preview} preferThumbnail={false}
-                                      mediaRef={previewRef}
-                                      objectProps={{className: styles.pdfObject}}
-                                      audioProps={{className: styles.audioElement}}/>
-                    </div>
-                    {selectedMediaExtra?.whisper_transcript &&
-                        <div className={styles.previewTranscript}>
-                            <div className={styles.transcriptContent}>
-                                <Transcript mediaRef={previewRef} transcript={selectedMediaExtra.whisper_transcript}/>
-                            </div>
-                        </div>
-                    }
-                    <button onClick={() => setPreview(null)}>X</button>
-                </div>
+                <Preview preview={preview} previewRef={previewRef} selectedMediaExtra={selectedMediaExtra} onExit={() => setPreview(null)}/>
             </div>}
             <div className={styles.statusBar}>
                 <span className={styles.title}>Kaleidoscope</span>
