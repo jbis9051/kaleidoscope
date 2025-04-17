@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 use log::{debug, error};
-use sha1::Digest;
 use sqlx::SqliteConnection;
 use sqlx::types::chrono::Utc;
 use sqlx::types::Uuid;
@@ -139,10 +138,10 @@ pub async fn remove_media(media: &Media, db: &mut SqliteConnection, config: &App
 }
 
 pub fn hash(path: &Path) -> String {
-    let mut hasher = sha1::Sha1::new();
+    let mut hasher = blake3::Hasher::new();
     let mut file = std::fs::File::open(path).unwrap();
     std::io::copy(&mut file, &mut hasher).unwrap();
-    format!("{:x}", hasher.finalize())
+    hasher.finalize().to_hex().to_string()
 }
 
 

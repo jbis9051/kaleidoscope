@@ -7,7 +7,6 @@ use common::models::kv::Kv;
 use common::models::media::Media;
 use common::scan_config::AppConfig;
 use log::{debug, error, info, log, warn};
-use sha1::Digest;
 use sqlx::{Connection, SqliteConnection};
 use std::env;
 use std::path::Path;

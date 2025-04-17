@@ -9,10 +9,13 @@ use sqlx::types::uuid;
 use std::fmt::{Debug, Pointer};
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
-use crate::tasks::ocr::ffi::{vision_ocr, OCRResult};
 use crate::tasks::thumbnail::ThumbnailGenerator;
 
 mod ffi;
+
+pub use ffi::OCRResult;
+pub use ffi::vision_ocr;
+
 const VERSION: i32 = 0;
 
 pub struct VisionOCR {
