@@ -3,6 +3,7 @@
 dev.db
 dev.db-wal
 scan.toml
+remote.toml
 dev
 **/node_modules
 **/.next

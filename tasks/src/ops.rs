@@ -54,6 +54,7 @@ pub async fn run_queue(
     db: &mut impl AcquireClone,
     tasks: &[&str],
     config: &Table,
+    remote_configs: &Table,
     app_config: &AppConfig,
     progress: Option<mpsc::Sender<RunProgress>>,
 ) -> Result<(u32, u32), TaskOperationError> {
@@ -73,7 +74,7 @@ pub async fn run_queue(
 
             let mut media = Media::from_id(db.acquire_clone(), &queue.media_id).await?;
             let start = Instant::now();
-            match task.run_and_store(db, &mut media).await {
+            match task.run_and_store_anywhere(db, &mut media, remote_configs).await {
                 Ok(_) => {
                     if let Some(progress) = &progress {
                         if let Err(e) = progress.try_send(RunProgress {

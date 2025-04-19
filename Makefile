@@ -10,6 +10,16 @@ db-revert:
 db-new:
 	./db/sqlx.sh new $(name)
 
+db-remote:
+	touch ${DATABASE_URL}
+	./remote_runner/sqlx.sh migrate
+
+db-remote-new:
+	./remote_runner/sqlx.sh new $(name)
+
+db-remote-revert:
+	./remote_runner/sqlx.sh revert
+
 dev:
 	cd server && cargo run
 

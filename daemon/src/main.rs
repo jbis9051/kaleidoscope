@@ -326,10 +326,9 @@ pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
     let (progress_tx, mut progress_rx) = mpsc::channel(10);
 
     let tasks = Task::TASK_NAMES;
-    let config = app_config.tasks.clone();
 
     let handle = tokio::spawn(async move {
-        tasks::ops::run_queue(&mut &pool, &tasks, &config, &app_config, Some(progress_tx)).await
+        tasks::ops::run_queue(&mut &pool, &tasks, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx)).await
     });
 
     while let Some(progress) = progress_rx.recv().await {

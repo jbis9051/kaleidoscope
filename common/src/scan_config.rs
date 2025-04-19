@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use toml::map::Map;
 use toml::Table;
 use crate::media_processors::format::pdf::PdfConfig;
 
@@ -22,6 +24,9 @@ pub struct AppConfig {
     pub python_path: String,
     pub ffmpeg_path: String,
     pub scripts_dir: String,
+
+    #[serde(default)]
+    pub remote: Table
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

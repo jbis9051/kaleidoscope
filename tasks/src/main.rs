@@ -92,7 +92,7 @@ async fn main() {
                     return;
                 }
 
-                let queue = run_queue(&mut db, &Task::TASK_NAMES, &app_config.tasks, &app_config, Some(progress_tx))
+                let queue = run_queue(&mut db, &Task::TASK_NAMES, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx))
                     .await
                     .expect("error running queue");
                 join.await.expect("error joining progress handler");
@@ -128,7 +128,7 @@ async fn main() {
                         return;
                     }
 
-                    let queue = run_queue(&mut db, &[&task], &app_config.tasks, &app_config, Some(progress_tx))
+                    let queue = run_queue(&mut db, &[&task], &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx))
                         .await
                         .expect("error running queue");
                     join.await.expect("error joining progress handler");
@@ -203,10 +203,10 @@ async fn main() {
                     
                     let start = Instant::now();
                     let res = if store {
-                        task.run_and_store(&mut db, &mut media).await.expect("error running task");
+                        task.run_and_store_anywhere(&mut db, &mut media, &app_config.remote).await.expect("error running task");
                         None
                     } else {
-                        Some(task.run(&mut db, &media).await
+                        Some(task.run_anywhere(&mut db, &media, &app_config.remote).await
                             .expect("error running task"))
                     };
                     
