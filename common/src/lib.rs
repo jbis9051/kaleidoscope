@@ -7,3 +7,4 @@ pub mod directory_tree;
 pub mod env;
 pub mod media_processors;
 pub mod runner_config;
+pub mod remote_models;

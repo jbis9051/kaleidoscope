@@ -11,7 +11,7 @@ const FULL_SIZE: u32 = 1920;
 
 static PDFIUM: OnceCell<Pdfium> = OnceCell::new();
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PdfConfig {
     pub pdfium_path: String,
 }

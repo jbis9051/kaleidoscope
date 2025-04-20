@@ -52,7 +52,7 @@ impl<'a, T> SqliteAcquire<'a> for T where T: sqlx::Acquire<'a, Database = Sqlite
 // or they can pass it to another function like this: multiple(db)
 // note: if the model function needs to call another model function, it should accept (db: &mut impl AcquireClone)
 pub trait AcquireClone {
-    fn acquire_clone(&mut self) -> impl SqliteAcquire<'_>;
+    fn acquire_clone(&mut self) -> impl SqliteAcquire<'_> + Send;
 }
 
 impl AcquireClone for SqliteConnection {
@@ -70,5 +70,19 @@ impl AcquireClone for Transaction<'_, Sqlite> {
 impl AcquireClone for &SqlitePool {
     fn acquire_clone(&mut self) -> impl SqliteAcquire<'_> {
         *self
+    }
+}
+
+impl AcquireClone for &mut DbPool {
+    fn acquire_clone(&mut self) -> impl SqliteAcquire<'_> {
+        // bruh
+        &**self
+    }
+}
+
+
+impl AcquireClone for DbPool {
+    fn acquire_clone(&mut self) -> impl SqliteAcquire<'_> {
+        &*self
     }
 }

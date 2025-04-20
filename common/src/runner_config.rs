@@ -5,6 +5,7 @@ use toml::Table;
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RemoteRunnerConfig {
     pub db_path: String,
+    pub data_dir: String,
 
     pub listen_addr: String,
 
@@ -13,6 +14,9 @@ pub struct RemoteRunnerConfig {
     pub python_path: String,
     pub ffmpeg_path: String,
     pub scripts_dir: String,
+
+    pub password: Option<String>,
+
 }
 
 impl RemoteRunnerConfig {

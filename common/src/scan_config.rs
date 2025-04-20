@@ -5,7 +5,7 @@ use toml::map::Map;
 use toml::Table;
 use crate::media_processors::format::pdf::PdfConfig;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppConfig {
     pub scan_paths: Vec<String>,
     pub exclude_paths: Option<Vec<String>>,
@@ -29,7 +29,7 @@ pub struct AppConfig {
     pub remote: Table
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct FormatConfig {
     pub pdf: PdfConfig,
 }

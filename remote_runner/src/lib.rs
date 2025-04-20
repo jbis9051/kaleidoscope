@@ -2,12 +2,14 @@ use toml::Table;
 use common::models::media::Media;
 use std::fmt::Debug;
 use axum::extract::Request;
-use axum::response::Response;
+use axum::http::StatusCode;
+use axum::response::{ErrorResponse, IntoResponse, Response};
 use ::tasks::tasks::BackgroundTask;
 use common::types::AcquireClone;
 use common::runner_config::RemoteRunnerConfig;
-use tasks::tasks::remote::RemoteTest;
+use tasks::tasks::ocr::VisionOCR;
 use tasks::tasks::RemoteBackgroundTask;
+use tasks::tasks::whisper::Whisper;
 
 macro_rules! impl_remote_task {
     (
@@ -65,13 +67,12 @@ macro_rules! impl_remote_task {
                 }
             }
             
-            pub async fn remote_handler(&self, request: Request, db: &mut impl AcquireClone, tasks: &Table, runner_config: &RemoteRunnerConfig) -> Result<Response, RemoteTaskError> {
+            pub async fn remote_handler(&self, request: Request, db: impl AcquireClone + Send + 'static, tasks: &Table, runner_config: &RemoteRunnerConfig) -> Result<Response, ErrorResponse> {
                 match self {
                     $(
                         Self::$task(task) => {
-                            let config: <$task as RemoteBackgroundTask>::RunnerConfig = tasks.get($task::NAME).map(|v| v.clone().try_into()).transpose()?.unwrap_or_default();
-                            let data = task.remote_handler(request, db, &config, &runner_config).await.map_err(|e| RemoteTaskError::TaskError(e.into()))?;
-                            Ok(data)
+                            let config: <$task as RemoteBackgroundTask>::RunnerConfig = tasks.get($task::NAME).map(|v| v.clone().try_into()).transpose().map_err(|e| RemoteTaskError::InvalidTaskConfig(e))?.unwrap_or_default();
+                            task.remote_handler(request, db, &config, &runner_config).await
                         }
                     )*
                     _ => unreachable!()
@@ -82,8 +83,8 @@ macro_rules! impl_remote_task {
 }
 
 impl_remote_task!(
-    [RemoteTest,],
-    1
+    [VisionOCR, Whisper,],
+    2
 );
 
 
@@ -97,4 +98,11 @@ pub enum RemoteTaskError {
     InvalidTaskConfig(#[from] toml::de::Error),
     #[error("task error: {0}")]
     TaskError(#[from] anyhow::Error),
+}
+
+
+impl IntoResponse for RemoteTaskError {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("remote task error: {:?}", self)).into_response()
+    }
 }

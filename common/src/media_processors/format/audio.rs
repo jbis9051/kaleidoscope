@@ -6,6 +6,19 @@ use crate::scan_config::AppConfig;
 
 pub struct Audio;
 
+impl Audio {
+    pub fn duration<T: AsRef<Path>>(path: T) -> Result<f64, AudioError> {
+        ffmpeg_next::init().unwrap();
+        let context = ffmpeg_next::format::input(&path)?;
+        let stream = context
+            .streams()
+            .best(ffmpeg_next::media::Type::Audio)
+            .ok_or(AudioError::FfmpegError(ffmpeg_next::Error::StreamNotFound))?;
+
+        Ok(stream.duration() as f64 * f64::from(stream.time_base()))
+    }
+}
+
 impl Format for Audio {
     type Error = AudioError;
     const FORMAT_TYPE: FormatType = FormatType::Audio;
@@ -14,15 +27,8 @@ impl Format for Audio {
 
     fn get_metadata(path: &Path, _: &AppConfig) -> Result<MediaMetadata, Self::Error> {
         let file_meta = path.metadata()?;
-
-        ffmpeg_next::init().unwrap();
-        let context = ffmpeg_next::format::input(&path)?;
-        let stream = context
-            .streams()
-            .best(ffmpeg_next::media::Type::Audio)
-            .ok_or(AudioError::FfmpegError(ffmpeg_next::Error::StreamNotFound))?;
-
-        let seconds = stream.duration() as f64 * f64::from(stream.time_base());
+        
+        let seconds = Self::duration(path)?;
         let milliseconds = (seconds * 1000.0).round() as u64;
 
 

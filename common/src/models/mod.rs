@@ -34,14 +34,55 @@ pub mod date {
         D: serde::Deserializer<'de>,
     {
         // Deserialize the option
-        let milli_timestamp = i64::deserialize(deserializer)?;
+        let seconds = i64::deserialize(deserializer)?;
 
         // Convert the timestamp in milliseconds to DateTime<Utc>
-        Ok(DateTime::from_timestamp_millis(milli_timestamp)
+        Ok(DateTime::from_timestamp(seconds, 0)
             .ok_or_else(|| serde::de::Error::custom("Invalid timestamp"))?
             .naive_utc())
     }
 }
+
+
+
+pub mod option_date {
+    use serde::{self, Deserialize, Serializer};
+    use sqlx::types::chrono::{DateTime, NaiveDateTime};
+
+    // The signature of a serialize_with function must follow the pattern:
+    //
+    //    fn serialize<S>(&T, S) -> Result<S::Ok, S::Error>
+    //    where
+    //        S: Serializer
+    //
+    // although it may also be generic over the input types T.
+    pub fn serialize<S>(date: &Option<NaiveDateTime>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if let Some(date) = date {
+            super::date::serialize(date, serializer)
+        } else {
+            serializer.serialize_none()
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<NaiveDateTime>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let seconds = Option::<i64>::deserialize(deserializer)?;
+        
+        if let Some(seconds) = seconds {
+            Ok(Some(DateTime::from_timestamp(seconds, 0)
+                .ok_or_else(|| serde::de::Error::custom("Invalid timestamp"))?
+                .naive_utc()))
+        } else {
+            Ok(None)
+        }
+    }
+}
+
 
 pub fn system_time_to_naive_datetime(sys_time: SystemTime) -> NaiveDateTime {
     let duration_since_epoch = sys_time

@@ -1,5 +1,5 @@
 use std::ffi::{c_char, c_float, CStr, CString};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[repr(C)]
 struct OCRResultFFI {
@@ -32,7 +32,7 @@ impl OCRResultFFI {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct OCRResult {
     pub text: String,
     pub origin_x: f32,
