@@ -5,7 +5,7 @@ use axum::middleware::Next;
 use axum::response::{ErrorResponse, IntoResponse, Response};
 use axum::routing::{get, post};
 use once_cell::sync::Lazy;
-use sqlx::{Row, SqlitePool};
+use sqlx::{SqlitePool};
 use sqlx::types::Uuid;
 use subtle::ConstantTimeEq;
 use common::env::EnvVar;
@@ -26,10 +26,19 @@ static CONFIG: Lazy<RemoteRunnerConfig> = Lazy::new(|| {
     if !path.exists() {
         panic!("config file does not exist: {}", config_path);
     }
-   
+
     let mut config = RemoteRunnerConfig::from_path(&config_path);
     config.canonicalize();
     config
+});
+
+static PASS: Lazy<Option<Vec<u8>>> = Lazy::new(|| {
+    if let Some(pass) = CONFIG.password.as_ref() {
+        let correct = format!("Bearer {}", pass);
+        // we could use a proper password hash but there's no real reason to
+        return Some(blake3::hash(correct.as_bytes()).as_bytes().to_vec());
+    }
+    return None
 });
 
 #[tokio::main]
@@ -39,6 +48,9 @@ async fn main() {
     }
 
     println!("Config: {:?}", &CONFIG);
+
+    // execute the lazy function
+    let _ = *PASS;
 
     let pool = SqlitePool::connect(&format!("sqlite://{}", CONFIG.db_path)).await.unwrap();
 
@@ -50,20 +62,16 @@ async fn main() {
             .expect("Failed to migrate database");
         println!("Migration complete");
     }
-
-    //let remote_task = RemoteTask::new("test", &mut &pool, &CONFIG.tasks, &CONFIG).await.expect("dsafasdfa");
-    //remote_task.remote_handler(Request::new(Default::default()), pool, &CONFIG.tasks, &CONFIG).await.expect("foo");
-
     // we need to cancel all jobs
-    
+
     let cancelled = Job::cancel_all(&pool, "server restarted").await.expect("Failed to cancel all jobs");
 
     if cancelled > 0 {
         println!("Cancelled {} jobs", cancelled);
     }
-    
+
     println!("Remote Runner Listening on: {}", &CONFIG.listen_addr);
-    
+
     let app = Router::new()
         .route("/status", get(status))
         .route("/task/{task_name}", post(task_run))
@@ -77,14 +85,12 @@ async fn main() {
 }
 
 async fn auth_middleware(headers: HeaderMap, request: Request, next: Next) -> Result<Response, (StatusCode, String)> {
-    if let Some(password) = &CONFIG.password {
-        let correct = format!("Bearer {}", password);
-        let correct = correct.into_bytes();
+    if let Some(password) = &*PASS {
         let authorization = headers.get("authorization").ok_or((StatusCode::FORBIDDEN, "missing 'authorization' header".to_string()))?;
-        let authorization = authorization.as_bytes();
-
+        let authorization = blake3::hash(authorization.as_bytes());
+        let attempt = authorization.as_bytes();
         // timing safe comparison
-        let res = correct.ct_eq(authorization);
+        let res = password.ct_eq(attempt);
 
         if res.unwrap_u8() != 1 {
             return Err((StatusCode::FORBIDDEN, "bad authentication (invalid password)".to_string()))
@@ -112,12 +118,12 @@ async fn status(Extension(pool): Extension<DbPool>) -> Json<RemoteTaskStatus> {
 
 async fn job_status(Extension(pool): Extension<DbPool>, Path(job_uuid): Path<Uuid>) -> Result<Json<Job>, (StatusCode, String)> {
     let job = Job::try_from_uuid(&pool, &job_uuid).await.unwrap().ok_or((StatusCode::NOT_FOUND, "job not found with that uuid".to_string()))?;
-    
+
     // once the client has checked the job status, we delete the job from the database
     if job.status != JobStatus::Running {
         job.delete(&pool).await.unwrap();
     }
-    
+
     Ok(Json(job))
 }
 
@@ -125,7 +131,7 @@ async fn task_run(
     Extension(pool): Extension<DbPool>,
     Path(task_name): Path<String>,
     request: Request,
-) -> Result<Response, ErrorResponse> { 
+) -> Result<Response, ErrorResponse> {
     let running = Job::get_by_status(&pool, &JobStatus::Running)
         .await
         .unwrap();
@@ -134,7 +140,7 @@ async fn task_run(
     }
 
     let _ = CONFIG.tasks.get(&task_name).ok_or((StatusCode::BAD_REQUEST, "task unsupported".to_string()))?;
-    
+
     let remote_task = RemoteTask::new(&task_name, &mut &pool, &CONFIG.tasks, &CONFIG).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     remote_task.remote_handler(request, pool, &CONFIG.tasks, &CONFIG).await
 }
