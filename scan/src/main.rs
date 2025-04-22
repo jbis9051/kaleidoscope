@@ -10,11 +10,47 @@ use log::{debug, error, info, log, warn};
 use sqlx::{Connection, SqliteConnection};
 use std::env;
 use std::path::Path;
+use clap::Parser;
 use walkdir::WalkDir;
 use common::{debug_sql, question_marks, update_set};
 use common::media_processors::format::{match_format, FormatType};
+use common::types::DbPool;
 use tasks::ops::{add_outdated_queues, add_to_compatible_queues};
 use tasks::tasks::Task;
+
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about = None)]
+pub struct CliArgs {
+    #[arg(index = 1)]
+    config: String,
+    #[arg(long, default_value = "false")]
+    scan: bool,
+}
+
+
+async fn verify_only(mut db: SqliteConnection, config: AppConfig) {
+    info!("--- verify only ---");
+    info!("--- starting verification ---");
+    let mut media = Media::all(&mut db).await.unwrap();
+    info!("--- found {} medias ---", media.len());
+
+    for m in media.iter_mut() {
+        let media_path = m.path.clone();
+        let path = Path::new(&media_path);
+
+        if !config.path_matches(&path) {
+            warn!("media path not in scan paths: {:?}", m.path);
+        }
+
+        if !path.exists() {
+            warn!("missing media: {:?}", m.path);
+        }
+    }
+
+    info!("--- verification complete --- ");
+
+}
 
 #[tokio::main]
 async fn main() {
@@ -33,18 +69,19 @@ async fn main() {
         .filter_module("scan", filter)
         .init();
 
-    let args: Vec<String> = env::args().collect();
-    if args.len() != 2 {
-        eprintln!("usage: {} <config file>", args[0]);
-        std::process::exit(1);
-    }
-    let config_file = &args[1];
-    let mut config: AppConfig = AppConfig::from_path(config_file);
+   let args = CliArgs::parse();
+    let mut config: AppConfig = AppConfig::from_path(args.config);
     let mut db = SqliteConnection::connect(&format!("sqlite:{}", config.db_path))
         .await
         .unwrap();
 
     config.canonicalize();
+
+    if !args.scan {
+        verify_only(db, config).await;
+        return;
+    }
+
 
     info!("--- starting scan ---");
 
@@ -150,21 +187,22 @@ async fn main() {
 
     info!("--- verification complete, cleaning up data ---");
 
-    let files = std::fs::read_dir(&config.data_dir).unwrap();
-    let uuids: HashSet<String> = media.iter().map(|m| m.uuid.to_string()).collect();
-    
-    for file in files {
-        let file = file.unwrap();
-        let path = file.path();
-        if path.extension().unwrap_or_default() == "jpg" {
-            let name = path.file_stem().unwrap().to_string_lossy();
-            let uuid = &name[0..36];
-            if !uuids.contains(uuid) {
-                warn!("removing orphaned file: {:?}", path);
-                std::fs::remove_file(path).unwrap();
-            }
-        }
-    }
+    // TODO: fix this at some point
+    // let files = std::fs::read_dir(&config.data_dir).unwrap();
+    // let uuids: HashSet<String> = media.iter().map(|m| m.uuid.to_string()).collect();
+    //
+    // for file in files {
+    //     let file = file.unwrap();
+    //     let path = file.path();
+    //     if path.extension().unwrap_or_default() == "jpg" {
+    //         let name = path.file_stem().unwrap().to_string_lossy();
+    //         let uuid = &name[0..36];
+    //         if !uuids.contains(uuid) {
+    //             warn!("removing orphaned file: {:?}", path);
+    //             std::fs::remove_file(path).unwrap();
+    //         }
+    //     }
+    // }
 
     info!("--- cleanup complete ---");
 

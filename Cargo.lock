@@ -2961,6 +2961,7 @@ name = "scan"
 version = "0.1.0"
 dependencies = [
  "blake3",
+ "clap",
  "common",
  "env_logger",
  "log",
