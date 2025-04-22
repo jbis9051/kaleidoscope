@@ -144,12 +144,14 @@ export default class Filter {
         return value[1];
     }
 
-    set(key: string, op: string, value: Value) {
+    set(key: string, op: string, value: Value | null) {
         if (!this.filter[key]) {
             this.filter[key] = [];
         }
         this.filter[key] = this.filter[key].filter(([op_, _]) => op_ !== op);
-        this.filter[key].push([op, value]);
+        if(value !== null){
+            this.filter[key].push([op, value]);
+        }
         return this;
     }
 

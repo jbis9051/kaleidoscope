@@ -13,14 +13,20 @@
     z-index: 1;
 }
 
-.recenter {
+.buttonOverlay {
     position: absolute;
     top: 10px;
-    right: 10px;
+    right: 0;
     z-index: 2;
+    display: flex;
+}
+
+.buttonOverlay div {
     background: white;
     color: black;
     padding: 5px 5px;
     border: 2px solid gray;
     font-size: 15px;
+    margin-right: 10px;
+    cursor: pointer;
 }

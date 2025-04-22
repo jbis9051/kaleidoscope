@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useRef, useState} from "react";
-import Leaflet from 'leaflet';
+import Leaflet, {LatLngBounds, type LeafletEventHandlerFnMap} from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {MapContainer, Marker, Popup, TileLayer, Tooltip, useMap, useMapEvent} from "react-leaflet";
 import {Media} from "@/api/api";
@@ -19,6 +19,13 @@ export interface MapProps extends React.HTMLAttributes<HTMLDivElement> {
     select?: (media: Media) => void,
     centerOnMedia?: boolean
     setRecenterFunction?: (fn: () => void) => void
+    setMapState?: (mapState: MapState) => void
+}
+
+
+export interface MapState {
+    bounds: LatLngBounds,
+    zoom: number
 }
 
 function ChangeView({ center, zoom, centerOnMedia, bounds, setRecenterFunction }: { center: [number, number], zoom: number, centerOnMedia: boolean, bounds: [number, number][] | undefined, setRecenterFunction?: (fn: () => void) => void }) {
@@ -53,7 +60,7 @@ function ChangeView({ center, zoom, centerOnMedia, bounds, setRecenterFunction }
     return null;
 }
 
-function ZoomListener(){
+function LocationListener({setMapState}: Partial<MapProps>){
     const [zoom, setZoom] = useState<number | null>(null);
 
     useMapEvent('zoomend', (event) => {
@@ -61,11 +68,28 @@ function ZoomListener(){
         console.log('Zoom level changed:', event.target.getZoom());
     });
 
+    const events: Array<keyof LeafletEventHandlerFnMap> = ["moveend", "zoom", "load", "click", "resize"];
+
+    events.forEach(e => {
+        useMapEvent(e, (event: any) => {
+            console.log(event)
+            if(setMapState){
+                setMapState({
+                    bounds: event.target.getBounds(),
+                    zoom: event.target.getZoom()
+                })
+            }
+        });
+    });
+
+
+
     return null;
 };
 
 
-export default function Map({scrollWheelZoom, center, zoom, markers, media, mediaSize, select, centerOnMedia, setRecenterFunction, ...props}: MapProps) {
+
+export default function Map({scrollWheelZoom, center, zoom, markers, media, mediaSize, select, centerOnMedia, setRecenterFunction, setMapState, ...props}: MapProps) {
     const [centerState, setCenterState] = useState(center);
     const [zoomState, setZoomState] = useState(zoom);
 
@@ -162,6 +186,7 @@ export default function Map({scrollWheelZoom, center, zoom, markers, media, medi
                     url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>'
                 />
+                <LocationListener setMapState={setMapState}/>
                 <ChangeView
                     center={centerState}
                     zoom={zoomState}
@@ -169,7 +194,6 @@ export default function Map({scrollWheelZoom, center, zoom, markers, media, medi
                     bounds={bounds}
                     setRecenterFunction={setRecenterFunction}
                 />
-                <ZoomListener/>
                 {...children}
             </>
         </MapContainer>

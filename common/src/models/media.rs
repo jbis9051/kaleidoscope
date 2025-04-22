@@ -91,7 +91,6 @@ impl Media {
         let mut query = sqlx::QueryBuilder::new("SELECT * FROM media ");
 
         media_query.sqlize(&mut query)?;
-
         let query = query.build();
 
         Ok(query

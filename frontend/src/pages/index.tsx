@@ -291,6 +291,7 @@ export default function Index() {
                                     selectMedia(null);
                                 }
                             }}/>
+
                         <FilterPanel
                             api={api}
                             filter={galleryState.filter}

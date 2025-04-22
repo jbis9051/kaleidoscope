@@ -132,8 +132,11 @@ query_dsl! {
         latitude(float, Latitude, []),
         transcript(string, Transcript, [MediaExtra,]),
         vision_ocr(string, VisionOcr, [MediaExtra,]),
+        full_search(string, FullSearch, [MediaExtra,]),
     }
 }
+
+const FULL_SEARCH_QUERIES: [&'static str; 3] = ["media.name", "media_extra.whisper_transcript", "media_extra.vision_ocr_result"];
 
 #[derive(PartialEq, Debug, Hash, Eq)]
 pub enum JoinableTable {
@@ -331,6 +334,17 @@ impl MediaQuery {
                     query.push(" AND media_extra.vision_ocr_result ")
                         .push(op.to_sql_string())
                         .push_bind(search.clone());
+                }
+                MediaQueryType::FullSearch(op, search) => {
+                    query.push(" AND (1=2");
+                    for term in FULL_SEARCH_QUERIES {
+                        query.push(" OR ");
+                        query.push(term);
+                        query.push(" ");
+                        query.push(op.to_sql_string());
+                        query.push_bind(search.clone());
+                    }
+                    query.push(" )");
                 }
                 MediaQueryType::OrderBy(_, col) => {
                     Media::safe_column(col).expect("unknown column for order by, this should have been caught in validation");
