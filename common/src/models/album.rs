@@ -80,22 +80,9 @@ impl Album {
             .get(0))
     }
 
-    pub async fn count_media(&self, db: &DbPool, media_query: &MediaQuery) -> Result<u32, MediaError> {
-        let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media \
-            INNER JOIN album_media ON media.id = album_media.media_id ");
-        
-        media_query.add_tables(&mut query);
-        
-        query.push(" WHERE album_media.album_id = ");
-        
-        query
-            .push_bind(self.id);
-        
-        media_query.add_queries(&mut query)?;
-        
-        let query = query.build();
-
-        Ok(query
+    pub async fn count_media(&self, db: &DbPool) -> Result<u32, MediaError> {
+        Ok(sqlx::query("SELECT COUNT(*) FROM media INNER JOIN album_media ON media.id = album_media.media_id WHERE album_media.album_id = ?")
+            .bind(self.id)
             .fetch_one(db)
             .await?
             .get(0))

@@ -130,7 +130,7 @@ export default class Filter {
         return new Filter();
     }
 
-    get(key: string, op: string): Value | null {
+    get<T=Value>(key: string, op: string): T | null {
         const values = this.filter[key];
         if (!values) {
             return null;

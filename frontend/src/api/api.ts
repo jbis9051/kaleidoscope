@@ -60,7 +60,7 @@ export interface MediaViewIndexResponse {
 
 export interface AlbumResponse {
     album: Album;
-    media: MediaIndexResponse;
+    count: number;
 }
 
 
@@ -180,12 +180,8 @@ export class Api {
         return indexes.map(([album, media_count]) => ({...album, media_count}));
     }
 
-    album(uuid: string, mediaQuery: MediaQuery): Promise<AlbumResponse> {
-        return fetch(`${this.url}/album/${uuid}?query=${encodeURI(mediaQuery)}`).then(response => response.json())
-    }
-
-    album_timeline<T extends TimelineInterval>(uuid: string, mediaQuery: MediaQuery, interval: T): Promise<TimelineIntervalData<T>[]> {
-        return fetch(`${this.url}/album/${uuid}/timeline?query=${encodeURI(mediaQuery)}&interval=${interval}`).then(response => response.json())
+    album(uuid: string): Promise<AlbumResponse> {
+        return fetch(`${this.url}/album/${uuid}`).then(response => response.json())
     }
 
     album_create(name: string): Promise<Album> {

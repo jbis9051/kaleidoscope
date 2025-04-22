@@ -88,7 +88,7 @@ impl Media {
     }
 
     pub async fn get_all(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Self>, MediaError> {
-        let mut query = sqlx::QueryBuilder::new("SELECT * FROM media ");
+        let mut query = sqlx::QueryBuilder::new("SELECT media.* FROM media ");
 
         media_query.sqlize(&mut query)?;
         let query = query.build();

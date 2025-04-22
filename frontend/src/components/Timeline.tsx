@@ -13,7 +13,6 @@ export interface TimelineProps {
     api: Api,
     setGalleryState: (newState: Partial<QueryState>) => void
     mediaRange: [number, number] | null
-    selectedAlbum: string | null,
     limit: number,
 }
 
@@ -22,7 +21,6 @@ export default function Timeline({
                                      api,
                                      setGalleryState,
                                      mediaRange,
-                                     selectedAlbum,
                                      limit
                                  }: TimelineProps) {
     const timeline = useRef<HTMLDivElement>(null);
@@ -36,16 +34,10 @@ export default function Timeline({
     const [interval, setInterval] = useState<TimelineInterval>(getInterval(filter));
 
     useEffect(() => {
-        if (selectedAlbum === null) {
-            api.media_timeline(filter.toFilterString(), interval).then(data => {
-                setData(dataFiller(data, interval, filter));
-            });
-        } else {
-            api.album_timeline(selectedAlbum, filter.toFilterString(), interval).then(data => {
-                setData(dataFiller(data, interval, filter));
-            });
-        }
-    }, [interval, filter, api, selectedAlbum]);
+        api.media_timeline(filter.toFilterString(), interval).then(data => {
+            setData(dataFiller(data, interval, filter));
+        });
+    }, [interval, filter, api]);
 
     useEffect(() => {
         setInterval(getInterval(filter));
@@ -166,13 +158,7 @@ export default function Timeline({
                 throw new Error("Not implemented");
         }
 
-        let count = 0;
-
-        if (selectedAlbum === null) {
-            await api.media_index(outRange.toFilterString()).then(res => count = res.count);
-        } else {
-            await api.album(selectedAlbum, outRange.toFilterString()).then(res => count = res.media.count);
-        }
+        let count = await api.media_index(outRange.toFilterString()).then(res => res.count);
 
         const page = Math.floor(count / limit);
 

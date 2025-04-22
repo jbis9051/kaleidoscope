@@ -23,7 +23,6 @@ import Preview from "@/components/Preview";
 
 export interface MediaViewFilter extends MediaView {
     filter: Filter | null;
-    album: string | null;
 }
 
 interface ViewQuery {
@@ -43,9 +42,10 @@ export default function Index() {
         orderby: 'created_at',
         asc: true,
         limit: 100,
-        selectedAlbum: null,
         filter: Filter.empty()
     });
+
+    const selectedAlbum = galleryState.filter.get<string>("album_uuid", "=");
 
     const [media, setMedia] = useState<Media[] | null>(null);
     const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
@@ -133,7 +133,7 @@ export default function Index() {
         }
         loadGallery();
 
-        if (galleryState.selectedAlbum && viewType === ViewType.FileBrowser) { // browser doesn't support albums
+        if (selectedAlbum && viewType === ViewType.FileBrowser) { // browser doesn't support albums
             setViewType(ViewType.Gallery);
             setGalleryState({filter: Filter.empty()});
         }
@@ -145,17 +145,10 @@ export default function Index() {
     }
 
     function loadGallery() {
-        if (!galleryState.selectedAlbum) {
-            return api.media_index(stateToMediaQuery(galleryState)).then((photos) => {
-                setMedia(photos.media)
-                setCount(photos.count)
-            });
-        } else {
-            return api.album(galleryState.selectedAlbum, stateToMediaQuery(galleryState)).then((album) => {
-                setMedia(album.media.media)
-                setCount(album.media.count)
-            });
-        }
+        return api.media_index(stateToMediaQuery(galleryState)).then((photos) => {
+            setMedia(photos.media)
+            setCount(photos.count)
+        });
     }
 
     function loadAlbums() {
@@ -193,13 +186,15 @@ export default function Index() {
     }
 
     function deleteAlbum() {
-        if (!galleryState.selectedAlbum) {
+        if (!selectedAlbum) {
             return;
         }
-        const name = albums?.find(a => a.uuid === galleryState.selectedAlbum)?.name;
+        const name = albums?.find(a => a.uuid === selectedAlbum)?.name;
         if (confirm(`Are you sure you want to delete ${name}?`)) {
-            api.album_delete(galleryState.selectedAlbum).then(() => {
-                setGalleryState({selectedAlbum: null});
+            api.album_delete(selectedAlbum).then(() => {
+                const newFilter = galleryState.filter.clone();
+                newFilter.set("album_uuid", "=", null);
+                setGalleryState({filter: newFilter});
                 loadAlbums();
             });
         }
@@ -234,22 +229,19 @@ export default function Index() {
                         albums={albums || []}
                         mediaViews={mediaViews || []}
                         lastImportId={lastImportId}
-                        selectedAlbum={galleryState.selectedAlbum}
+                        selectedAlbum={selectedAlbum}
                         setSelectedAlbum={(album) => {
                             if (!album) {
                                 let filter = Filter.empty();
-                                if (viewType === ViewType.MapViewer) {
-                                    const gps = galleryState.filter.get('has_gps', "=");
-                                    filter = filter.set('has_gps', "=", gps);
-                                }
                                 setGalleryState({
-                                    selectedAlbum: null,
                                     page: 0,
                                     filter,
                                 });
                                 return;
                             }
-                            setGalleryState({selectedAlbum: album.uuid});
+                            const newFilter = galleryState.filter.clone();
+                            newFilter.set("album_uuid", "=", album.uuid);
+                            setGalleryState({filter: newFilter});
                         }}
                         selectMediaView={(view) => {
                             if (!view.filter) {
@@ -258,7 +250,7 @@ export default function Index() {
                                 }
                                 return;
                             }
-                            setGalleryState({filter: view.filter.clone(), selectedAlbum: view.album});
+                            setGalleryState({filter: view.filter.clone()});
                         }}
                         createAlbum={createAlbum}
                         deleteAlbum={deleteAlbum}
@@ -282,10 +274,10 @@ export default function Index() {
                             setSize={setSize}
                             viewType={viewType}
                             setViewType={setViewType}
-                            removeEnabled={!!(selectedMedia.length > 0 && galleryState.selectedAlbum)}
+                            removeEnabled={!!(selectedMedia.length > 0 && selectedAlbum)}
                             onRemove={async () => {
-                                if (selectedMedia.length > 0 && galleryState.selectedAlbum) {
-                                    await api.album_remove_media(galleryState.selectedAlbum, selectedMedia.map(m => m.uuid));
+                                if (selectedMedia.length > 0 && selectedAlbum) {
+                                    await api.album_remove_media(selectedAlbum, selectedMedia.map(m => m.uuid));
                                     loadGallery();
                                     loadAlbums();
                                     selectMedia(null);
@@ -315,8 +307,7 @@ export default function Index() {
                                 const name = prompt('Filter Name');
                                 if (name) {
                                     const viewQuery = JSON.stringify({
-                                        filter: galleryState.filter.toFilterString(),
-                                        album: galleryState.selectedAlbum
+                                        filter: galleryState.filter.toFilterString()
                                     });
                                     await api.media_view_create(name, viewQuery).then(() => {
                                         loadMediaViews()
@@ -327,7 +318,6 @@ export default function Index() {
                         {initialLoaded &&
                             <Timeline
                                 filter={galleryState.filter}
-                                selectedAlbum={galleryState.selectedAlbum}
                                 api={api}
                                 setGalleryState={setGalleryState}
                                 mediaRange={oldest && newest ? [oldest.created_at, newest.created_at] : null}

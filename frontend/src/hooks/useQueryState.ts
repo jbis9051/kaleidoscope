@@ -7,7 +7,6 @@ export interface QueryState {
     orderby: OrderByColumns;
     asc: boolean;
     limit: number;
-    selectedAlbum: string | null;
     filter: Filter;
 }
 
@@ -16,8 +15,6 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
 
     // parse the URL query string into a state object
     function queryToState(query: URLSearchParams): QueryState {
-        const selectedAlbum = query.get('album');
-
         const page = query.get('page');
         const asc = query.get('asc');
         const limit = query.get('limit');
@@ -31,7 +28,6 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
             orderby: orderby || defaultState.orderby,
             asc: asc ? asc === 'true' : defaultState.asc,
             limit: limit ? parseInt(limit, 10) : defaultState.limit,
-            selectedAlbum: selectedAlbum || defaultState.selectedAlbum,
             filter: filter ? Filter.fromString(filter) : defaultState.filter,
         }
     }
@@ -44,10 +40,6 @@ export function useQueryState(defaultState: QueryState): [QueryState, (newState:
         query.set('order_by', state.orderby);
         query.set('asc', state.asc.toString());
         query.set('limit', state.limit.toString());
-
-        if (state.selectedAlbum) {
-            query.set('album', state.selectedAlbum);
-        }
 
         if (state.filter) {
             query.set('filter', state.filter.toFilterString());

@@ -83,7 +83,6 @@ async fn main() {
         .route("/album", get(album_index).post(album_create))
         .route("/album/{uuid}", get(album).delete(album_delete))
         .route("/album/{uuid}/media", post(album_add_media).delete(album_delete_media))
-        .route("/album/{uuid}/timeline", get(album_timeline))
         .route("/media_view", get(media_view_index).post(media_view_create).delete(media_view_delete))
         .route("/directory_tree", get(directory_tree))
         .route("/info", get(info))
@@ -205,7 +204,7 @@ async fn album_index(Extension(conn): Extension<DbPool>) -> Json<Vec<(Album, u32
     let albums = Album::get_all(&conn).await.unwrap();
     let mut out = Vec::with_capacity(albums.len());
     for album in albums.into_iter() {
-        let count = album.count_media(&conn, &MediaQuery::new()).await.unwrap();
+        let count = album.count_media(&conn).await.unwrap();
         out.push((album, count));
     }
     Json(out)
@@ -219,20 +218,13 @@ struct AlbumParams {
 #[derive(Debug, Serialize)]
 struct AlbumResponse {
     album: Album,
-    media: MediaIndexResponse
+    count: u32,
 }
 
-async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>, query: Query<MediaQueryQuery>) -> Result<Json<AlbumResponse>, (StatusCode, String)> {
-    let query = &query.query;
-
-    if let Err(err) = query.validate() {
-        return Err((StatusCode::BAD_REQUEST, format!("invalid query: {}", err)));
-    }
-
+async fn album(Extension(conn): Extension<DbPool>, path: Path<AlbumParams>) -> Result<Json<AlbumResponse>, (StatusCode, String)> {
     let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
-    let media = album.get_media(&conn, &query).await.unwrap();
-    let count = album.count_media(&conn, &query.to_count_query()).await.unwrap();
-    Ok(Json(AlbumResponse { album, media: MediaIndexResponse { media, count } }))
+    let count = album.count_media(&conn).await.unwrap();
+    Ok(Json(AlbumResponse { album,  count  }))
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -398,38 +390,23 @@ async fn media_timeline(Extension(conn): Extension<DbPool>, query: Query<Timelin
     
     let media_query = media_query.to_count_query();
 
-    timeline(&conn, &media_query, interval, None).await
+    timeline(&conn, &media_query, interval).await
 }
 
-async fn album_timeline(Extension(conn): Extension<DbPool>, query: Query<TimelineQuery>, path: Path<AlbumParams>) -> Result<Json<Vec<Value>>, (StatusCode, String)> {
-    let media_query = &query.query;
-    let interval = &query.interval;
-
-    if let Err(err) = media_query.validate() {
-        return Err((StatusCode::BAD_REQUEST, format!("invalid query: {}", err)));
-    }
-
-    let media_query = media_query.to_count_query();
-
-    let album = Album::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Album not found".to_string()))?;
-
-    timeline(&conn, &media_query, interval, Some(album.id)).await
-}
-
-async fn timeline(conn: &DbPool, media_query: &MediaQuery, interval: &str, album_id: Option<i32>) -> Result<Json<Vec<Value>>, (StatusCode, String)> {
+async fn timeline(conn: &DbPool, media_query: &MediaQuery, interval: &str) -> Result<Json<Vec<Value>>, (StatusCode, String)> {
     let media_query = media_query.to_count_query();
 
     match interval {
         "month" => {
-            let timeline = Timeline::timeline_months(&conn, &media_query, album_id).await.unwrap();
+            let timeline = Timeline::timeline_months(&conn, &media_query).await.unwrap();
             Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
         }
         "day" => {
-            let timeline = Timeline::timeline_days(&conn, &media_query, album_id).await.unwrap();
+            let timeline = Timeline::timeline_days(&conn, &media_query).await.unwrap();
             Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
         }
         "hour" => {
-            let timeline = Timeline::timeline_hours(&conn, &media_query, album_id).await.unwrap();
+            let timeline = Timeline::timeline_hours(&conn, &media_query).await.unwrap();
             Ok(Json(timeline.into_iter().map(|t| serde_json::to_value(t).unwrap()).collect()))
         }
         _ => {

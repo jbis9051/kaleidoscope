@@ -10,7 +10,10 @@ use serde::de::{self, Visitor};
 use std::fmt;
 use chrono::{NaiveDate, NaiveTime, TimeZone};
 use toml::Table;
+use uuid::Uuid;
 use crate::media_query::macros::DSLType;
+
+// NOTE! make sure longer ops come first
 
 dsl_types! {
         bool(DSLBool, bool) {
@@ -59,12 +62,28 @@ dsl_types! {
                 Ok(NaiveDate::parse_from_str(x, "%Y-%m-%d").map_err(|_| "invalid date format".to_string())?)
             }
         };
+        uuid(DSLUuid, Uuid) {
+            Equal = "=",
+            NotEqual = "!=",
+            |x| {
+                Ok(x.parse().map_err(|_| format!("invalid uuid format: {}", x))?)
+            }
+        };
 }
 
 impl DSLBool {
     pub fn to_sql_string(&self) -> &'static str {
         match self {
             DSLBool::Equal => "=",
+        }
+    }
+}
+
+impl DSLUuid {
+    pub fn to_sql_string(&self) -> &'static str {
+        match self {
+            DSLUuid::Equal => "=",
+            DSLUuid::NotEqual => "!=",
         }
     }
 }
@@ -133,6 +152,7 @@ query_dsl! {
         transcript(string, Transcript, [MediaExtra,]),
         vision_ocr(string, VisionOcr, [MediaExtra,]),
         full_search(string, FullSearch, [MediaExtra,]),
+        album_uuid(uuid, AlbumUuid, [AlbumAll,]),
     }
 }
 
@@ -140,13 +160,15 @@ const FULL_SEARCH_QUERIES: [&'static str; 3] = ["media.name", "media_extra.whisp
 
 #[derive(PartialEq, Debug, Hash, Eq)]
 pub enum JoinableTable {
-    MediaExtra
+    MediaExtra,
+    AlbumAll
 }
 
 impl JoinableTable {
     pub fn join_statement(&self) -> &'static str {
         match self {
-            JoinableTable::MediaExtra => " INNER JOIN media_extra ON media.id = media_extra.media_id "
+            JoinableTable::MediaExtra => " INNER JOIN media_extra ON media.id = media_extra.media_id ",
+            JoinableTable::AlbumAll => " INNER JOIN album_media ON media.id = album_media.media_id INNER JOIN album ON album_media.album_id = album.id "
         }
     }
 }
@@ -334,6 +356,11 @@ impl MediaQuery {
                     query.push(" AND media_extra.vision_ocr_result ")
                         .push(op.to_sql_string())
                         .push_bind(search.clone());
+                }
+                MediaQueryType::AlbumUuid(op, album_uuid) => {
+                    query.push(" AND album.uuid ")
+                    .push(op.to_sql_string())
+                    .push_bind(album_uuid.clone());
                 }
                 MediaQueryType::FullSearch(op, search) => {
                     query.push(" AND (1=2");
