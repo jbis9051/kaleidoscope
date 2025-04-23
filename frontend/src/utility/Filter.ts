@@ -22,7 +22,7 @@ export default class Filter {
                 throw new Error(`invalid filter '${filter}'`);
             }
 
-            const match = rest.match(/((?:[><!]=?)|%|=)(.+)/);
+            const match = rest.match(/([><]=|![%=]|[><%=])(.+)/);
             if (!match || match.length !== 3) {
                 throw new Error(`invalid filter '${filter}'`);
             }

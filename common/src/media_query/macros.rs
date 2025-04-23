@@ -62,6 +62,7 @@ macro_rules! dsl_types {
     };
 }
 
+// TODO this should return Vec<(String, String, String)> for <variant> <op> <value>, because this is improperly ambiguous currently: variant:!"%foo" == variant:!%"foo"
 pub fn parse_filter(query_string: &str) -> Result<Vec<String>, String> {
     let chars = query_string.chars().collect::<Vec<_>>();
 

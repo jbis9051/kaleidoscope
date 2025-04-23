@@ -22,33 +22,44 @@ interface FileViewerProps {
     select: (media: Media) => void;
     setLayout: (layout: Media[][] | null) => void;
 }
-export default function FileViewer({api, filter, setGalleryState, setViewType, media, open, select, selected, setLayout}: FileViewerProps) {
+
+export default function FileViewer({
+                                       api,
+                                       filter,
+                                       setGalleryState,
+                                       setViewType,
+                                       media,
+                                       open,
+                                       select,
+                                       selected,
+                                       setLayout
+                                   }: FileViewerProps) {
     const [directoryTree, setDirectoryTree] = useState<DirectoryTree | null>(null);
 
     const [currentPath, setCurrentPath] = useState<DirectoryNode[]>([]);
 
     const [loaded, setLoaded] = useState(false);
 
-    function filterValid(tree: DirectoryTree){
+    function filterValid(tree: DirectoryTree) {
         const path = filter.get("path", "%");
         const not_path = filter.get("path", "!%");
         // check if filter is a valid path
-        if(!path || !not_path){
+        if (!path || !not_path) {
             return false;
         }
         // filter.path must be in format /dir1/dir2/%, filter.not_path must be in format /dir1/dir2/%/%
-        if(!path.endsWith("/%") || !not_path.endsWith("/%/%")){
+        if (!path.endsWith("/%") || !not_path.endsWith("/%/%")) {
             return false;
         }
         // filter.path must be a prefix of filter.not_path
-        if(!not_path.startsWith(path)){
+        if (!not_path.startsWith(path)) {
             return false;
         }
 
         // filter.path must be a valid path in the tree
 
         // filter.path must start with the root
-        if(!path.startsWith(tree.root.name)){
+        if (!path.startsWith(tree.root.name)) {
             return false;
         }
 
@@ -59,10 +70,10 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
 
         let out = [curr];
 
-        while(clean.length > 1){ // last element is %
+        while (clean.length > 1) { // last element is %
             const next = clean.shift();
             const child = curr.children.find(c => c.name === next);
-            if(!child){
+            if (!child) {
                 return false;
             }
             curr = child;
@@ -80,7 +91,7 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
             let curr = tree.root;
 
             while (curr.children.length === 1 && curr.items === 0) {
-                if(curr != tree.root){
+                if (curr != tree.root) {
                     tree.root.name = tree.root.name + "/" + curr.name;
                     tree.root.children = curr.children;
                 }
@@ -88,19 +99,19 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
             }
 
             setDirectoryTree(tree);
-            setCurrentPath(filterValid(tree)  || [tree.root]);
+            setCurrentPath(filterValid(tree) || [tree.root]);
         });
     }, []);
 
     useEffect(() => {
         // handle external changes to the filter
         // we only update when the filter is a valid path and it is different from the current path
-        if(!directoryTree){
+        if (!directoryTree) {
             return;
         }
         let path = filterValid(directoryTree);
-        if(path){
-            if(currentPath.map(node => node.name).join('/') !== path.map(node => node.name).join('/')){
+        if (path) {
+            if (currentPath.map(node => node.name).join('/') !== path.map(node => node.name).join('/')) {
                 setCurrentPath(path);
             }
         } else {
@@ -109,7 +120,7 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
     }, [filter]);
 
     useEffect(() => {
-        if(!directoryTree){
+        if (!directoryTree) {
             return;
         }
 
@@ -126,7 +137,6 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
         }
 
         const newFilter = filter.clone();
-
         newFilter.set("path", "%", path);
         newFilter.set("path", "!%", not_path);
 
@@ -142,7 +152,7 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
 
     const divs = [];
 
-    if(directoryTree){
+    if (directoryTree) {
         let path = [];
 
         while (currentPath.length > path.length) {
@@ -153,7 +163,7 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
 
             divs.push(
                 <div key={current.name} className={styles.dirContainer} onClick={(e) => {
-                    if(e.target === e.currentTarget){
+                    if (e.target === e.currentTarget) {
                         setLoaded(false);
                         setCurrentPath(currPath)
                     }
@@ -161,8 +171,9 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
                     {current.children.map(child => (
                         <div key={child.name} onClick={() => {
                             setLoaded(false);
-                            setCurrentPath([...currPath, child])}
-                        }  className={`${styles.dir} ${currentPath.includes(child) && styles.selected}`}>
+                            setCurrentPath([...currPath, child])
+                        }
+                        } className={`${styles.dir} ${currentPath.includes(child) && styles.selected}`}>
                             <FontAwesomeIcon className={styles.folderIcon} icon={faFolder}/>
                             <div className={styles.fileName}>{child.name} ({child.items} media)</div>
                         </div>
@@ -184,7 +195,8 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
                                  onMouseUp={() => select(m)}
                             >
                                 <div className={styles.imageWrapper}>
-                                    <MediaDisplay media={m} preferThumbnail={true} forceThumbnail={true} imgProps={{ draggable: false, className: styles.image}}/>
+                                    <MediaDisplay media={m} preferThumbnail={true} forceThumbnail={true}
+                                                  imgProps={{draggable: false, className: styles.image}}/>
                                 </div>
                                 <div className={styles.fileName}>{m.name}</div>
                             </div>
@@ -198,7 +210,7 @@ export default function FileViewer({api, filter, setGalleryState, setViewType, m
 
     return (
         <div className={styles.wrapper}>
-        <div className={styles.pathHeader}>
+            <div className={styles.pathHeader}>
                 {currentPath.map((node, i) => (
                     <span key={node.name} onClick={() => setCurrentPath(currentPath.slice(0, i + 1))}>
                             <span className={styles.pathPart}>{node.name}</span>
