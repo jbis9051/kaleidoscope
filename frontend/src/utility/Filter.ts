@@ -29,7 +29,7 @@ export default class Filter {
 
             const [op, value] = match.splice(1);
 
-            f.set(key, op, value);
+            f.add(key, op, value);
         }
 
         return f;
@@ -144,6 +144,17 @@ export default class Filter {
         return value[1];
     }
 
+    getAll<T=Value>(key: string, op: string): T[] {
+        const values = this.filter[key];
+        if (!values) {
+            return [];
+        }
+
+        return values
+            .filter(([op_, _]) => op_ === op)
+            .map(([op, val]) => val);
+    }
+
     set(key: string, op: string, value: Value | null) {
         if (!this.filter[key]) {
             this.filter[key] = [];
@@ -160,6 +171,17 @@ export default class Filter {
             this.filter[key] = [];
         }
         this.filter[key].push([op, value]);
+        return this;
+    }
+
+    remove(key: string, op: string, value: Value) {
+        if (!this.filter[key]) {
+            return this;
+        }
+        this.filter[key] = this.filter[key].filter(([_op, val]) => !(_op === op && val === value));
+        if(this.filter[key].length === 0){
+            delete this.filter[key]
+        }
         return this;
     }
 

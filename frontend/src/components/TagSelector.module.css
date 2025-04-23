@@ -1,0 +1,62 @@
+.tagSelector {
+    flex: 1;
+    border-bottom: 5px solid #1d1d1d;
+    display: flex;
+    flex-direction: column;
+}
+
+.tagHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tagTitle {
+    display: block;
+    padding-left: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+}
+
+.tagControls {
+    height: 25px;
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+}
+
+.tagContainer {
+    flex: 1;
+    position: relative;
+    width: 100%;
+}
+
+.tags {
+    position: absolute;
+    overflow: auto;
+    width: 100%;
+
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.tag {
+    text-wrap: nowrap;
+    display: inline-block;
+    padding: 5px 10px;
+    font-size: 11px;
+    background: #272727;
+    border: 1px solid #242424;
+    border-radius: 10px;
+    margin: 4px 5px;
+}
+
+.tag.selected {
+    background: #3e3e3e;
+    border: 1px solid blue;
+}
+
+.count {
+    margin-left: 5px;
+}

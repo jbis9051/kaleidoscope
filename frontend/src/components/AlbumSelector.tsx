@@ -47,7 +47,6 @@ export default function AlbumSelector({
                 view_query: "",
                 created_at: 0,
                 filter: Filter.empty().set('import_id', '=', lastImportId),
-                album: null
             },
             ...mediaViews
         ]

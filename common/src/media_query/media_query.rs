@@ -153,6 +153,7 @@ query_dsl! {
         vision_ocr(string, VisionOcr, [MediaExtra,]),
         full_search(string, FullSearch, [MediaExtra,]),
         album_uuid(uuid, AlbumUuid, [AlbumAll,]),
+        tag(string, Tag, [MediaTag,]),
     }
 }
 
@@ -161,14 +162,16 @@ const FULL_SEARCH_QUERIES: [&'static str; 3] = ["media.name", "media_extra.whisp
 #[derive(PartialEq, Debug, Hash, Eq)]
 pub enum JoinableTable {
     MediaExtra,
-    AlbumAll
+    AlbumAll,
+    MediaTag,
 }
 
 impl JoinableTable {
     pub fn join_statement(&self) -> &'static str {
         match self {
             JoinableTable::MediaExtra => " INNER JOIN media_extra ON media.id = media_extra.media_id ",
-            JoinableTable::AlbumAll => " INNER JOIN album_media ON media.id = album_media.media_id INNER JOIN album ON album_media.album_id = album.id "
+            JoinableTable::AlbumAll => " INNER JOIN album_media ON media.id = album_media.media_id INNER JOIN album ON album_media.album_id = album.id ",
+            JoinableTable::MediaTag => " INNER JOIN media_tag ON media.id = media_tag.media_id "
         }
     }
 }
@@ -182,7 +185,7 @@ impl MediaQuery {
 
     pub fn to_count_query(&self) -> Self {
         Self {
-            filters: self.filters.iter().filter(|f|{
+            filters: self.filters.iter().filter(|f| {
                 match f {
                     MediaQueryType::OrderBy(..) => false,
                     MediaQueryType::Asc(..) => false,
@@ -239,12 +242,12 @@ impl MediaQuery {
                             if op != &DSLString::Equal {
                                 return Err(MediaQueryError::InvalidOperator(filter.clone()));
                             }
-                        },
+                        }
                         MediaQueryType::Asc(op, _) => {
                             if op != &DSLBool::Equal {
                                 return Err(MediaQueryError::InvalidOperator(filter.clone()));
                             }
-                        },
+                        }
                         MediaQueryType::Limit(op, _) | MediaQueryType::Page(op, _) => {
                             if op != &DSLInteger::Equal {
                                 return Err(MediaQueryError::InvalidOperator(filter.clone()));
@@ -252,9 +255,8 @@ impl MediaQuery {
                         }
                         _ => unreachable!(),
                     }
-
-                },
-                _=> {
+                }
+                _ => {
                     if let Some(final_filter) = final_filter {
                         return Err(MediaQueryError::InvalidFilterOrder(filter.clone(), final_filter.clone()));
                     }
@@ -267,9 +269,8 @@ impl MediaQuery {
         }
 
         Ok(())
-
     }
-    
+
     // joins all necessary tables for this query
     pub fn add_tables(&self, query: &mut QueryBuilder<Sqlite>) {
         let mut tables = HashSet::new();
@@ -277,22 +278,42 @@ impl MediaQuery {
             tables.extend(filter.tables());
         }
         for table in tables {
-           query.push(table.join_statement());
+            query.push(table.join_statement());
         }
     }
-    
+
     pub fn sqlize(&self, query: &mut QueryBuilder<Sqlite>) -> Result<(), MediaQueryError> {
         self.add_tables(query);
         self.add_queries(query)?;
         Ok(())
     }
-    
-    
-    pub fn add_queries(&self, query: &mut QueryBuilder<Sqlite>) -> Result<(), MediaQueryError>{
+
+
+    pub fn add_queries(&self, query: &mut QueryBuilder<Sqlite>) -> Result<(), MediaQueryError> {
         self.validate()?;
-        
+
         if !query.sql().contains("WHERE") {
             query.push(" WHERE 1=1 ");
+        }
+
+        let tags: Vec<(&DSLString, &String)> = self.filters
+            .iter()
+            .filter_map(|f| {
+                if let MediaQueryType::Tag(op, tag) = f {
+                    return Some((op, tag));
+                }
+                None
+            }).collect();
+        
+        if !tags.is_empty() {
+            query.push(" AND (1=2");
+            for (op, search) in tags {
+                query.push(" OR media_tag.tag ");
+                query.push(" ");
+                query.push(op.to_sql_string());
+                query.push_bind(search.clone());
+            }
+            query.push(" )");
         }
 
         for filter in &self.filters {
@@ -359,8 +380,8 @@ impl MediaQuery {
                 }
                 MediaQueryType::AlbumUuid(op, album_uuid) => {
                     query.push(" AND album.uuid ")
-                    .push(op.to_sql_string())
-                    .push_bind(album_uuid.clone());
+                        .push(op.to_sql_string())
+                        .push_bind(album_uuid.clone());
                 }
                 MediaQueryType::FullSearch(op, search) => {
                     query.push(" AND (1=2");
@@ -401,9 +422,12 @@ impl MediaQuery {
                         .push(" OFFSET ")
                         .push_bind(page * limit);
                 }
+                MediaQueryType::Tag(_, _) => {
+                    // this is handled elsewhere
+                }
             }
         }
-        
+
         Ok(())
     }
 }

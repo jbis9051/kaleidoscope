@@ -144,15 +144,26 @@ export interface VisionOCRResult {
     size_height: number;
 }
 
-export interface MediaDirectResponseWithoutExtra {
-    media: Media,
+export interface MediaDirectResponseWithoutExtra extends MediaDirectResponse{
     extra: null;
 }
 
 export interface MediaDirectResponse {
     media: Media,
+    tags: MediaTag[],
     extra: MediaExtra | null;
 }
+
+export interface MediaTag {
+    id: number,
+    media_id: number
+    tag: string,
+}
+
+export interface MediaTagIndex extends MediaTag {
+    media_count: number;
+}
+
 
 export class Api {
     url: string;
@@ -254,5 +265,40 @@ export class Api {
 
     queue_status(): Promise<QueueStatus> {
         return fetch(`${this.url}/queue-status`).then(response => response.json())
+    }
+
+    async tag_index(): Promise<MediaTagIndex[]> {
+        const indexes: [MediaTag, number][] = await fetch(`${this.url}/tag`).then(response => response.json());
+        return indexes.map(([media_tag, media_count]) => ({...media_tag, media_count}));
+    }
+
+    add_tag(media_uuid: string, tag: string): Promise<void> {
+        return fetch(`${this.url}/tag/${tag}/media`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(media_uuid)
+        }).then(response => response.json())
+    }
+
+    remove_tag(media_uuid: string, tag: string): Promise<boolean> {
+        return fetch(`${this.url}/tag/${tag}/media`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(media_uuid)
+        }).then(response => response.json())
+    }
+
+    delete_tag(tag: string): Promise<number> {
+        return fetch(`${this.url}/tag/${tag}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(tag)
+        }).then(response => response.json())
     }
 }

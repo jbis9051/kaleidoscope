@@ -1,7 +1,7 @@
 use crate::question_marks;
 use sqlx::sqlite::SqliteRow;
 use sqlx::types::chrono::NaiveDateTime;
-use sqlx::{Execute, Row, SqliteExecutor};
+use sqlx::{Acquire, Execute, Row, SqliteExecutor};
 use std::borrow::Borrow;
 use serde::Serialize;
 use uuid::{Uuid};
@@ -10,7 +10,8 @@ use crate::models::{date, MediaError};
 use crate::{sqlize, update_set};
 use crate::media_processors::format::{FormatType, MediaType};
 use crate::models::media_extra::MediaExtra;
-use crate::types::{DbPool, SqliteAcquire};
+use crate::models::media_tag::MediaTag;
+use crate::types::{AcquireClone, DbPool, SqliteAcquire};
 
 
 #[derive(Debug, Serialize)]
@@ -88,7 +89,7 @@ impl Media {
     }
 
     pub async fn get_all(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Self>, MediaError> {
-        let mut query = sqlx::QueryBuilder::new("SELECT media.* FROM media ");
+        let mut query = sqlx::QueryBuilder::new("SELECT DISTINCT media.* FROM media ");
 
         media_query.sqlize(&mut query)?;
         let query = query.build();
@@ -102,7 +103,7 @@ impl Media {
     }
 
     pub async fn count(db: &DbPool, media_query: &MediaQuery) -> Result<u32, MediaError> {
-        let mut query = sqlx::QueryBuilder::new("SELECT COUNT(*) FROM media ");
+        let mut query = sqlx::QueryBuilder::new("SELECT COUNT(DISTINCT media.id) FROM media ");
 
         media_query.sqlize(&mut query)?;
 
@@ -176,6 +177,37 @@ impl Media {
             .fetch_optional(&mut *conn)
             .await?
             .map(|row| row.borrow().into()))
+    }
+
+    pub async fn add_tag(&self, db: &mut impl AcquireClone, tag: String) -> Result<MediaTag, sqlx::Error> {
+        let mut tag = MediaTag {
+            id: 0,
+            media_id: self.id,
+            tag,
+        };
+        tag.create(db.acquire_clone()).await?;
+        Ok(tag)
+    }
+
+    pub async fn tags(&self, db: impl SqliteAcquire<'_>) -> Result<Vec<MediaTag>, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        Ok(sqlx::query("SELECT * FROM media_tag WHERE media_id = $1 ORDER BY media_tag.id")
+            .bind(self.id)
+            .fetch_all(&mut *conn)
+            .await?
+            .into_iter()
+            .map(|row| row.borrow().into())
+            .collect())
+    }
+
+    pub async fn remove_tag(&self, db: impl SqliteAcquire<'_>, tag: &str) -> Result<bool, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        let res = sqlx::query("DELETE FROM media_tag WHERE media_id = $1 AND tag = $2;")
+            .bind(self.id)
+            .bind(tag)
+            .execute(&mut *conn)
+            .await?;
+        Ok(res.rows_affected() > 0)
     }
 }
 

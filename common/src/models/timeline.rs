@@ -93,7 +93,7 @@ impl Timeline {
         let mut query =  sqlx::QueryBuilder::new(format!(
             "SELECT
                     {} AS interval,
-                    COUNT(*) AS count
+                    COUNT(DISTINCT media.id) AS count
                  FROM media ", interval_query));
 
         media_query.sqlize(&mut query).expect("bad query");

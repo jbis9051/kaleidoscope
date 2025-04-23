@@ -1,7 +1,17 @@
 import styles from "./index.module.css";
 import {useEffect, useRef, useState} from "react";
 import {API_URL} from "@/global";
-import {AlbumIndex, Api, Media, MediaExtra, MediaQuery, MediaType, MediaView} from "@/api/api";
+import {
+    AlbumIndex,
+    Api,
+    Media,
+    MediaDirectResponse,
+    MediaExtra,
+    MediaQuery,
+    MediaTagIndex,
+    MediaType,
+    MediaView
+} from "@/api/api";
 import Gallery from "@/components/Gallery";
 import MetadataTable from "@/components/MetadataTable";
 import mediaToMetadata from "@/utility/mediaMetadata";
@@ -12,7 +22,7 @@ import {useMediaSelector} from "@/hooks/useMediaSelector";
 import FileViewer from "@/components/FileViewer";
 import MediaDisplay from "@/components/MediaDisplay";
 import {FontAwesomeIcon} from "@fortawesome/react-fontawesome";
-import {faDownload, faFloppyDisk} from "@fortawesome/free-solid-svg-icons";
+import {faDownload, faFloppyDisk, faPlus, faXmark} from "@fortawesome/free-solid-svg-icons";
 import Map from "@/components/Map/Map";
 import MapViewer from "@/components/MapViewer";
 import Filter from "@/utility/Filter";
@@ -20,6 +30,7 @@ import FilterPanel from "@/components/FilterPanel";
 import Timeline from "@/components/Timeline";
 import Transcript from "@/components/Transcript";
 import Preview from "@/components/Preview";
+import TagSelector from "@/components/TagSelector";
 
 export interface MediaViewFilter extends MediaView {
     filter: Filter | null;
@@ -49,6 +60,7 @@ export default function Index() {
 
     const [media, setMedia] = useState<Media[] | null>(null);
     const [albums, setAlbums] = useState<AlbumIndex[] | null>(null);
+    const [tags, setTags] = useState<MediaTagIndex[] | null>(null);
     const [mediaViews, setMediaViews] = useState<MediaViewFilter[] | null>(null);
     const [lastImportId, setLastImportId] = useState<number | null>(null);
 
@@ -61,7 +73,7 @@ export default function Index() {
 
     const [layout, setLayout] = useState<Media[][] | null>(null);
 
-    const [selectedMediaExtra, setSelectedMediaExtra] = useState<MediaExtra | null>(null);
+    const [selectedMediaInfo, setSelectedMediaInfo] = useState<MediaDirectResponse | null>(null);
 
 
     const {
@@ -79,7 +91,7 @@ export default function Index() {
 
         if (selectMediaTarget) {
             api.media(selectMediaTarget.uuid, true).then((response) => {
-                setSelectedMediaExtra(response.extra);
+                setSelectedMediaInfo(response);
             });
         }
 
@@ -90,6 +102,7 @@ export default function Index() {
         setGalleryState(queryToState(initialQuery));
         loadAlbums();
         loadMediaViews();
+        loadTags();
         setInitialLoaded(true);
     }, []);
 
@@ -157,6 +170,24 @@ export default function Index() {
         });
     }
 
+    function tagChangeUpdate(){
+        loadTags();
+        loadGallery();
+        if(selectMediaTarget){
+            api.media(selectMediaTarget.uuid, true).then((response) => {
+                setSelectedMediaInfo(response);
+            });
+        }
+    }
+
+
+    function loadTags() {
+        api.tag_index().then((tags) => {
+            setTags(tags);
+        });
+    }
+
+
     function loadMediaViews() {
         api.media_view_index().then((mediaViews) => {
             setLastImportId(mediaViews.last_import_id);
@@ -218,7 +249,8 @@ export default function Index() {
                     setPreview(null);
                 }
             }}>
-                <Preview preview={preview} previewRef={previewRef} selectedMediaExtra={selectedMediaExtra} onExit={() => setPreview(null)}/>
+                <Preview preview={preview} previewRef={previewRef} selectedMediaExtra={selectedMediaInfo?.extra || null}
+                         onExit={() => setPreview(null)}/>
             </div>}
             <div className={styles.statusBar}>
                 <span className={styles.title}>Kaleidoscope</span>
@@ -261,6 +293,17 @@ export default function Index() {
                             loadAlbums();
                         }}
                         mediaViewMatchesCurrentURL={mediaViewMatchesCurrentURL}/>
+                    <TagSelector
+                        deleteTag={(tag) => {
+                            if (confirm(`Are you sure you would like to remove '${tag}' from all media?`)) {
+                                api.delete_tag(tag).then(() => {
+                                    tagChangeUpdate();
+                                })
+                            }
+                        }}
+                        tags={tags || []} filter={galleryState.filter}
+                        setFilter={filter => setGalleryState({filter})}
+                    />
                 </div>
                 <div className={styles.mainSection}>
                     <div className={styles.mainTop}>
@@ -389,7 +432,36 @@ export default function Index() {
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>
-                                        <MetadataTable metadata={mediaToMetadata(m, selectedMediaExtra)}/>
+                                        <MetadataTable metadata={mediaToMetadata(m, selectedMediaInfo?.extra || null)}/>
+                                        <div className={styles.tags}>
+                                            {selectedMediaInfo?.tags.map(tag =>
+                                                <div
+                                                    key={tag.id}
+                                                    className={styles.tag}>{tag.tag} <FontAwesomeIcon
+                                                    className={styles.tagRemove} icon={faXmark}
+                                                    onClick={() => {
+                                                        const con = confirm(`Are you sure you would like to remove tag '${tag.tag}'?`);
+                                                        if (con && selectMediaTarget) {
+                                                            api.remove_tag(selectMediaTarget.uuid, tag.tag).then(() => {
+                                                               tagChangeUpdate();
+                                                            })
+                                                        }
+                                                    }}/></div>
+                                            )}
+                                            <FontAwesomeIcon
+                                                icon={faPlus}
+                                                className={styles.tagAdd}
+                                                onClick={() => {
+                                                    const tagName = prompt("What is the name of the tag?");
+                                                    if (tagName && selectMediaTarget) {
+                                                        api.add_tag(selectMediaTarget.uuid, tagName).then(() => {
+                                                            tagChangeUpdate();
+                                                        })
+                                                    }
+                                                }}
+
+                                            ></FontAwesomeIcon>
+                                        </div>
                                         {m.latitude && m.longitude &&
                                             <Map
                                                 center={[m.latitude, m.longitude]}

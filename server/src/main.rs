@@ -8,7 +8,7 @@ use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{head, post};
+use axum::routing::{delete, head, post};
 use axum_extra::headers::Range;
 use axum_extra::TypedHeader;
 use axum_range::{KnownSize, RangeBody, Ranged};
@@ -32,6 +32,7 @@ use common::media_processors::format::MediaType;
 use common::media_query::{MediaQuery, MediaQueryType};
 use common::models::kv::Kv;
 use common::models::media_extra::MediaExtra;
+use common::models::media_tag::MediaTag;
 use common::models::media_view::MediaView;
 use common::models::timeline::Timeline;
 use common::scan_config::AppConfig;
@@ -80,6 +81,9 @@ async fn main() {
         .route("/media/{uuid}/raw", get(media_raw))
         .route("/media/{uuid}/full", get(media_full))
         .route("/media/{uuid}/thumb", get(media_thumb))
+        .route("/tag", get(tag_index))
+        .route("/tag/{tag_name}/media", post(add_tag).delete(remove_tag))
+        .route("/tag/{tag_name}", delete(delete_tag))
         .route("/album", get(album_index).post(album_create))
         .route("/album/{uuid}", get(album).delete(album_delete))
         .route("/album/{uuid}/media", post(album_add_media).delete(album_delete_media))
@@ -130,12 +134,13 @@ struct MediaDirectQuery {
 #[derive(Debug, Serialize)]
 pub struct MediaDirectResponse {
     media: Media,
+    tags: Vec<MediaTag>,
     extra: Option<MediaExtra>,
 }
 
 async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>, query: Query<MediaDirectQuery>) -> Result<Json<MediaDirectResponse>, (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
-    
+    let tags = media.tags(&conn).await.unwrap();
     let extra = if query.extra.unwrap_or(false) {
         Some(media.extra(&conn).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "problem with media_extra query".to_string()))?)
     } else {
@@ -145,6 +150,7 @@ async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>, quer
     Ok(Json(MediaDirectResponse{
         media,
         extra,
+        tags
     }))
 }
 
@@ -446,4 +452,38 @@ async fn queue_status() -> Json<QueueStatus> {
             Json(status)
         }
     }
+}
+
+async fn tag_index(Extension(conn): Extension<DbPool>) -> Json<Vec<(MediaTag, u32)>> {
+    let index = MediaTag::count_index(&conn).await.unwrap();
+    Json(index)
+}
+
+async fn add_tag(Extension(conn): Extension<DbPool>, tag: Path<String>, media_uuid: Json<Uuid>) -> Result<Json<MediaTag>, (StatusCode, String)> {
+    // check that tag isn't empty
+    if tag.len() == 0 {
+        return Err((StatusCode::BAD_REQUEST, "empty tag".to_string()));
+    }
+    if !tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        return Err((StatusCode::BAD_REQUEST, "invalid tag, only 0-9 a-z A-z _ accepted".to_string()));
+    }
+
+    let media = Media::from_uuid(&conn, &media_uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "media not found".to_string()))?;
+    let tags = media.tags(&conn).await.unwrap();
+    if tags.iter().any(|t| t.tag == *tag) {
+        return Err((StatusCode::BAD_REQUEST, "duplicate tag".to_string()));
+    }
+    let tag= media.add_tag(&mut &conn, tag.0).await.unwrap();
+    Ok(Json(tag))
+}
+
+async fn remove_tag(Extension(conn): Extension<DbPool>, tag: Path<String>, media_uuid: Json<Uuid>) -> Result<Json<bool>, (StatusCode, String)> {
+    let media = Media::from_uuid(&conn, &media_uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "media not found".to_string()))?;
+    let removed = media.remove_tag(&conn, &tag.0).await.unwrap();
+    Ok(Json(removed))
+}
+
+async fn delete_tag(Extension(conn): Extension<DbPool>, tag: Path<String>) -> Result<Json<u64>, (StatusCode, String)> {
+    let res = sqlx::query("DELETE FROM media_tag WHERE tag = ?").bind(&*tag).execute(&conn).await.unwrap();
+    Ok(Json(res.rows_affected()))
 }
