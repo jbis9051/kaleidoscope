@@ -1,3 +1,5 @@
+use crate::tasks::TaskError;
+
 #[macro_export]
 macro_rules! impl_task {
     (
@@ -85,10 +87,10 @@ macro_rules! impl_task {
                 }
             }
             
-            pub async fn remotable(&self) -> bool {
-                match self {
+            pub fn remotable(task: &str) -> bool {
+                match task {
                     $(
-                        Task::$remote_task(_) => true,
+                        <$remote_task as BackgroundTask>::NAME => true,
                     )*
                     _ => false,
                 }
@@ -140,6 +142,31 @@ macro_rules! impl_task {
                     self.run_remote_and_store(db, media, remote_configs).await
                 } else {
                     self.run_and_store(db, media).await
+                }
+            }
+
+             pub async fn new_remote(task: &str, db: &mut impl AcquireClone, tasks: &Table, runner_config: &RemoteRunnerConfig) -> Result<Self, TaskError> {
+                match task {
+                    $(
+                        $remote_task::NAME => {
+                            let config: <$remote_task as RemoteBackgroundTask>::RunnerConfig = tasks.get($remote_task::NAME).map(|v| v.clone().try_into()).transpose()?.unwrap_or_default();
+                            let task = $remote_task::new_remote(db, &config, &runner_config).await.map_err(|e| TaskError::TaskError(e.into()))?;
+                            Ok(Self::$remote_task(task))
+                        }
+                    )*
+                    _ => Err(TaskError::TaskNotFound(task.to_string())),
+                }
+            }
+
+            pub async fn remote_handler(&self, request: Request, db: impl AcquireClone + Send + 'static, tasks: &Table, runner_config: &RemoteRunnerConfig) -> Result<Response, ErrorResponse> {
+                match self {
+                    $(
+                        Self::$remote_task(task) => {
+                            let config: <$remote_task as RemoteBackgroundTask>::RunnerConfig = tasks.get($remote_task::NAME).map(|v| v.clone().try_into()).transpose().map_err(|e| TaskError::InvalidTaskConfig(e))?.unwrap_or_default();
+                            task.remote_handler(request, db, &config, &runner_config).await
+                        }
+                    )*
+                    _ => unreachable!()
                 }
             }
         }

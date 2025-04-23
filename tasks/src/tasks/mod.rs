@@ -8,7 +8,8 @@ use common::types::{AcquireClone};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use axum::extract::Request;
-use axum::response::{ErrorResponse, Response};
+use axum::http::StatusCode;
+use axum::response::{ErrorResponse, IntoResponse, Response};
 use serde::de::DeserializeOwned;
 use toml::Table;
 use common::runner_config::RemoteRunnerConfig;
@@ -95,4 +96,10 @@ pub enum TaskError {
     TaskError(#[from] anyhow::Error),
     #[error("Infallible task failed")]
     Infallible
+}
+
+impl IntoResponse for TaskError {
+    fn into_response(self) -> Response {
+        (StatusCode::INTERNAL_SERVER_ERROR, format!("remote task error: {:?}", self)).into_response()
+    }
 }

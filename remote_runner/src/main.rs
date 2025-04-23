@@ -12,8 +12,8 @@ use common::env::EnvVar;
 use common::remote_models::job::{Job, JobStatus};
 use common::types::DbPool;
 use common::runner_config::RemoteRunnerConfig;
-use remote_runner::RemoteTask;
 use tasks::remote_utils::RemoteTaskStatus;
+use tasks::tasks::Task;
 
 static ENV: Lazy<EnvVar> = Lazy::new(|| {
     let env = EnvVar::from_env();
@@ -140,7 +140,11 @@ async fn task_run(
     }
 
     let _ = CONFIG.tasks.get(&task_name).ok_or((StatusCode::BAD_REQUEST, "task unsupported".to_string()))?;
-
-    let remote_task = RemoteTask::new(&task_name, &mut &pool, &CONFIG.tasks, &CONFIG).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    
+    if !Task::remotable(&task_name) {
+        panic!("task is enabled for remote but isn't remotable");
+    }
+    
+    let remote_task = Task::new_remote(&task_name, &mut &pool, &CONFIG.tasks, &CONFIG).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     remote_task.remote_handler(request, pool, &CONFIG.tasks, &CONFIG).await
 }
