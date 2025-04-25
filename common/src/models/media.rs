@@ -3,12 +3,14 @@ use sqlx::sqlite::SqliteRow;
 use sqlx::types::chrono::NaiveDateTime;
 use sqlx::{Acquire, Execute, Row, SqliteExecutor};
 use std::borrow::Borrow;
+use chrono::Utc;
 use serde::Serialize;
 use uuid::{Uuid};
 use crate::media_query::MediaQuery;
 use crate::models::{date, MediaError};
 use crate::{sqlize, update_set};
 use crate::media_processors::format::{FormatType, MediaType};
+use crate::models::custom_metadata::CustomMetadata;
 use crate::models::media_extra::MediaExtra;
 use crate::models::media_tag::MediaTag;
 use crate::types::{AcquireClone, DbPool, SqliteAcquire};
@@ -88,14 +90,15 @@ impl Media {
         }
     }
 
-    pub async fn get_all(db: &DbPool, media_query: &MediaQuery) -> Result<Vec<Self>, MediaError> {
+    pub async fn get_all(db: impl SqliteAcquire<'_>, media_query: &MediaQuery) -> Result<Vec<Self>, MediaError> {
+        let mut conn = db.acquire().await?;
         let mut query = sqlx::QueryBuilder::new("SELECT DISTINCT media.* FROM media ");
 
         media_query.sqlize(&mut query)?;
         let query = query.build();
 
         Ok(query
-            .fetch_all(db)
+            .fetch_all(&mut *conn)
             .await?
             .iter()
             .map(|row| row.into())
@@ -205,6 +208,64 @@ impl Media {
         let res = sqlx::query("DELETE FROM media_tag WHERE media_id = $1 AND tag = $2;")
             .bind(self.id)
             .bind(tag)
+            .execute(&mut *conn)
+            .await?;
+        Ok(res.rows_affected() > 0)
+    }
+
+
+    pub async fn add_custom(&self, db: &mut impl AcquireClone, key: String, value: String, version: i32) -> Result<CustomMetadata, sqlx::Error> {
+        let mut custom = CustomMetadata {
+            id: 0,
+            media_id: self.id,
+            version,
+            key,
+            value,
+            created_at: Utc::now().naive_utc(),
+        };
+        custom.create(db.acquire_clone()).await?;
+        Ok(custom)
+    }
+
+    pub async fn customs(&self, db: impl SqliteAcquire<'_>) -> Result<Vec<CustomMetadata>, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        Ok(sqlx::query("SELECT * FROM custom_metadata WHERE media_id = $1 ORDER BY custom_metadata.id")
+            .bind(self.id)
+            .fetch_all(&mut *conn)
+            .await?
+            .into_iter()
+            .map(|row| row.borrow().into())
+            .collect())
+    }
+
+    pub async fn latest_custom(&self, db: impl SqliteAcquire<'_>, key: &str) -> Result<Option<CustomMetadata>, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        Ok(sqlx::query("SELECT * FROM custom_metadata WHERE media_id = $1 AND custom_metadata.key = $2 ORDER BY custom_metadata.version DESC")
+            .bind(self.id)
+            .bind(key)
+            .fetch_optional(&mut *conn)
+            .await?
+            .map(|row| row.borrow().into()))
+    }
+
+
+    pub async fn custom(&self, db: impl SqliteAcquire<'_>, key: &str, version: i32) -> Result<Option<CustomMetadata>, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        Ok(sqlx::query("SELECT * FROM custom_metadata WHERE media_id = $1 AND custom_metadata.key = $2 AND custom_metadata.version = $3")
+            .bind(self.id)
+            .bind(key)
+            .bind(version)
+            .fetch_optional(&mut *conn)
+            .await?
+            .map(|row| row.borrow().into()))
+    }
+
+    pub async fn remove_custom(&self, db: impl SqliteAcquire<'_>, key: &str, version: i32) -> Result<bool, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        let res = sqlx::query("DELETE FROM custom_metadata WHERE media_id = $1 AND key = $2 AND version = $3;")
+            .bind(self.id)
+            .bind(key)
+            .bind(version)
             .execute(&mut *conn)
             .await?;
         Ok(res.rows_affected() > 0)

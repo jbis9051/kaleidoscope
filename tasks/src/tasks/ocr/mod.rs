@@ -1,12 +1,12 @@
 pub use crate::run_python::run_python;
 use crate::tasks::thumbnail::ThumbnailGenerator;
-use crate::tasks::{BackgroundTask, RemoteBackgroundTask};
+use crate::tasks::{BackgroundTask, RemoteBackgroundTask, RemoteTask, Task};
 use axum::extract::{Request};
 use axum::response::{ErrorResponse, IntoResponse, Response};
 use axum::{Json, RequestExt};
 use common::media_processors::format::{AnyFormat, MediaType, MetadataError};
 use common::models::media::Media;
-use common::runner_config::RemoteRunnerConfig;
+use common::runner_config::RemoteRunnerGlobalConfig;
 use common::scan_config::AppConfig;
 use common::types::AcquireClone;
 use reqwest::StatusCode;
@@ -34,7 +34,7 @@ pub struct VisionOCR {
 impl VisionOCR {
     pub fn run_on_path(
         image_path: &str,
-    ) -> Result<<VisionOCR as BackgroundTask>::Data, <VisionOCR as BackgroundTask>::Error> {
+    ) -> Result<<VisionOCR as BackgroundTask>::Data, <VisionOCR as Task>::Error> {
         Ok(vision_ocr(image_path))
     }
 
@@ -42,7 +42,7 @@ impl VisionOCR {
         db: &mut impl AcquireClone,
         media: &mut Media,
         output: <VisionOCR as BackgroundTask>::Data,
-    ) -> Result<(), <VisionOCR as BackgroundTask>::Error> {
+    ) -> Result<(), <VisionOCR as Task>::Error> {
         let extra = media.extra(db.acquire_clone()).await?;
 
         let create = extra.is_none();
@@ -64,12 +64,21 @@ impl VisionOCR {
     }
 }
 
-impl BackgroundTask for VisionOCR {
+impl Task for VisionOCR {
     type Error = VisionOCRError;
     const NAME: &'static str = "vision_ocr";
-
-    type Data = Vec<OCRResult>;
     type Config = ();
+}
+
+impl RemoteTask for VisionOCR {
+    type ClientTaskConfig = StandardClientConfig;
+
+    type RunnerTaskConfig = bool;
+}
+
+
+impl BackgroundTask for VisionOCR {
+    type Data = Vec<OCRResult>;
 
     async fn new(
         db: &mut impl AcquireClone,
@@ -152,13 +161,11 @@ impl BackgroundTask for VisionOCR {
 }
 
 impl RemoteBackgroundTask for VisionOCR {
-    type RemoteClientConfig = StandardClientConfig;
-    type RunnerConfig = bool;
 
     async fn new_remote(
         db: &mut impl AcquireClone,
-        runner_config: &Self::RunnerConfig,
-        remote_server_config: &RemoteRunnerConfig,
+        runner_config: &Self::RunnerTaskConfig,
+        remote_server_config: &RemoteRunnerGlobalConfig,
     ) -> Result<Self, Self::Error> {
         Ok(Self {
             app_config: Default::default(), // create a default app_config that we won't use
@@ -169,8 +176,8 @@ impl RemoteBackgroundTask for VisionOCR {
         &self,
         request: Request,
         db: impl AcquireClone,
-        runner_config: &Self::RunnerConfig,
-        remote_server_config: &RemoteRunnerConfig,
+        runner_config: &Self::RunnerTaskConfig,
+        remote_server_config: &RemoteRunnerGlobalConfig,
     ) -> Result<Response, ErrorResponse> {
         let mut multipart = MultipartHelper::try_from_request(request).await?;
 
@@ -194,13 +201,13 @@ impl RemoteBackgroundTask for VisionOCR {
         &self,
         db: &mut impl AcquireClone,
         media: &Media,
-        remote_config: &Self::RemoteClientConfig,
+        remote_config: &Self::ClientTaskConfig,
     ) -> Result<Self::Data, Self::Error> {
         let full_path = ThumbnailGenerator::full_path(media, &self.app_config);
         if !full_path.exists() {
             return Err(VisionOCRError::NoThumbnailFound);
         }
-        let client = RemoteRequester::new(Self::NAME.to_string(), remote_config.remote.url.clone(), remote_config.remote.password.clone());
+        let client = RemoteRequester::new(Self::NAME.to_string(), remote_config.remote.url.clone(), remote_config.remote.password.clone(), true);
         let res = client.one_shot_file("image".to_string(), &full_path, None).await?;
         if let OneShotResponse::Response(res) = res {
             let data = res.json().await?;
@@ -213,7 +220,7 @@ impl RemoteBackgroundTask for VisionOCR {
         &self,
         db: &mut impl AcquireClone,
         media: &mut Media,
-        remote_config: &Self::RemoteClientConfig,
+        remote_config: &Self::ClientTaskConfig,
     ) -> Result<(), Self::Error> {
         let data = self.run_remote(db, media, remote_config).await?;
         Self::store(db, media, data).await

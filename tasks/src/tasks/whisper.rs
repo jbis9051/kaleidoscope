@@ -1,13 +1,13 @@
 use crate::remote_utils::multipart_helper::MultipartHelper;
 use crate::remote_utils::{internal, StandardClientConfig};
 use crate::run_python::run_python;
-use crate::tasks::{BackgroundTask, RemoteBackgroundTask, MODEL_DIR};
+use crate::tasks::{BackgroundTask, RemoteBackgroundTask, RemoteTask, Task, MODEL_DIR};
 use axum::extract::Request;
 use axum::response::{ErrorResponse, IntoResponse, Response};
 use axum::Json;
 use common::media_processors::format::{AnyFormat, MetadataError};
 use common::models::media::Media;
-use common::runner_config::RemoteRunnerConfig;
+use common::runner_config::RemoteRunnerGlobalConfig;
 use common::scan_config::AppConfig;
 use common::types::AcquireClone;
 use serde::{Deserialize, Serialize};
@@ -169,12 +169,19 @@ impl Whisper {
     }
 }
 
-impl BackgroundTask for Whisper {
+impl Task for Whisper {
     type Error = WhisperError;
     const NAME: &'static str = "transcribe_whisper";
-
-    type Data = WhisperOutput;
     type Config = WhisperConfig;
+}
+
+impl RemoteTask for Whisper {
+    type RunnerTaskConfig = WhisperConfig;
+    type ClientTaskConfig = StandardClientConfig;
+}
+
+impl BackgroundTask for Whisper {
+    type Data = WhisperOutput;
 
     async fn new(
         db: &mut impl AcquireClone,
@@ -269,13 +276,10 @@ impl BackgroundTask for Whisper {
 }
 
 impl RemoteBackgroundTask for Whisper {
-    type RemoteClientConfig = StandardClientConfig;
-    type RunnerConfig = WhisperConfig;
-
     async fn new_remote(
         db: &mut impl AcquireClone,
-        runner_config: &Self::RunnerConfig,
-        remote_server_config: &RemoteRunnerConfig,
+        runner_config: &Self::RunnerTaskConfig,
+        remote_server_config: &RemoteRunnerGlobalConfig,
     ) -> Result<Self, Self::Error> {
         Ok(Self {
             config: runner_config.clone(),
@@ -288,8 +292,8 @@ impl RemoteBackgroundTask for Whisper {
         &self,
         request: Request,
         db: impl AcquireClone + Send + 'static,
-        runner_config: &Self::RunnerConfig,
-        remote_server_config: &RemoteRunnerConfig,
+        runner_config: &Self::RunnerTaskConfig,
+        remote_server_config: &RemoteRunnerGlobalConfig,
     ) -> Result<Response, ErrorResponse> {
         let mut multipart = MultipartHelper::try_from_request(request).await?;
         let media_uuid = Uuid::from_str(&multipart.text("media_uuid").await?).map_err(|_| (StatusCode::BAD_REQUEST, "bad media_uuid"))?;
@@ -325,7 +329,7 @@ impl RemoteBackgroundTask for Whisper {
         &self,
         db: &mut impl AcquireClone,
         media: &Media,
-        remote_config: &Self::RemoteClientConfig,
+        remote_config: &Self::ClientTaskConfig,
     ) -> Result<Self::Data, Self::Error> {
         let format = AnyFormat::try_new(PathBuf::from(&media.path))
             .expect("media format is not, you should have checked it was compatible");
@@ -341,7 +345,7 @@ impl RemoteBackgroundTask for Whisper {
             return Err(WhisperError::ConversionError(output));
         }
 
-        let client = RemoteRequester::new(Self::NAME.to_string(), remote_config.remote.url.clone(), remote_config.remote.password.clone());
+        let client = RemoteRequester::new(Self::NAME.to_string(), remote_config.remote.url.clone(), remote_config.remote.password.clone(), true);
         let res = client.one_shot_file("audio".to_string(), &to_path, Some(media.uuid)).await?;
         match res {
             OneShotResponse::Job(job) => {
@@ -359,7 +363,7 @@ impl RemoteBackgroundTask for Whisper {
         &self,
         db: &mut impl AcquireClone,
         media: &mut Media,
-        remote_config: &Self::RemoteClientConfig,
+        remote_config: &Self::ClientTaskConfig,
     ) -> Result<(), Self::Error> {
         let out = self.run_remote(db, media, remote_config).await?;
         Self::store(out, db, media).await

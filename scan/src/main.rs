@@ -16,7 +16,7 @@ use common::{debug_sql, question_marks, update_set};
 use common::media_processors::format::{match_format, FormatType};
 use common::types::DbPool;
 use tasks::ops::{add_outdated_queues, add_to_compatible_queues};
-use tasks::tasks::Task;
+use tasks::tasks::AnyTask;
 
 
 #[derive(Parser, Debug)]
@@ -158,7 +158,7 @@ async fn main() {
 
     let media = Media::all(&mut db).await.unwrap();
 
-    let report = add_outdated_queues(&mut db, &media, &Task::TASK_NAMES, &config.tasks, &config).await.unwrap();
+    let report = add_outdated_queues(&mut db, &media, &AnyTask::TASK_NAMES, &config.tasks, &config).await.unwrap();
     
     let report = report.iter().map(|(t, c)| format!("{}[{}]", t, c)).collect::<Vec<String>>().join("|");
     

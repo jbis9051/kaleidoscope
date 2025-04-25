@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 use common::models::queue::Queue;
-use crate::tasks::{BackgroundTask, Task, TaskError};
+use crate::tasks::{BackgroundTask, AnyTask, TaskError};
 use common::models::media::Media;
 use common::scan_config::AppConfig;
 use common::types::AcquireClone;
@@ -68,7 +68,7 @@ pub async fn run_queue(
     }
 
     for task in tasks {
-        let task = Task::new(task, db, config, app_config).await?;
+        let task = AnyTask::new(task, db, config, app_config).await?;
         while let Some(queue) = Queue::get_next(db.acquire_clone(), task.name()).await? {
             queue.delete(db.acquire_clone()).await?;
 
@@ -122,7 +122,7 @@ pub async fn add_to_compatible_queues(
     let mut added: Vec<&'static str> = Vec::new();
 
     for task in tasks {
-        if Task::compatible(task, media).await {
+        if AnyTask::compatible(task, media).await {
             Queue::delete_by_media_id(db.acquire_clone(), task, media.id)
                 .await
                 .map_err(|e| (added.clone(), e.into()))?;
@@ -136,7 +136,7 @@ pub async fn add_to_compatible_queues(
                 .create(db.acquire_clone())
                 .await
                 .map_err(|e| (added.clone(), e.into()))?;
-            added.push(Task::name_from_str(task).map_err(|e| (added.clone(), e.into()))?);
+            added.push(AnyTask::name_from_str(task).map_err(|e| (added.clone(), e.into()))?);
         }
     }
 
@@ -155,11 +155,11 @@ pub async fn add_outdated_queues(
 
     for task_name in tasks {
         let mut count = 0;
-        let task = Task::new(task_name, db, config, app_config)
+        let task = AnyTask::new(task_name, db, config, app_config)
             .await
             .map_err(|e| (added.clone(), e.into()))?;
         for media in medias {
-            if Task::compatible(task_name, media).await
+            if AnyTask::compatible(task_name, media).await
                 && task
                     .outdated(db, media)
                     .await
@@ -181,7 +181,7 @@ pub async fn add_outdated_queues(
                 count += 1;
             }
         }
-        added.push((Task::name_from_str(task_name).map_err(|e| (added.clone(), e.into()))?, count));
+        added.push((AnyTask::name_from_str(task_name).map_err(|e| (added.clone(), e.into()))?, count));
     }
 
     Ok(added)

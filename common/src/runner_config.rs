@@ -3,7 +3,7 @@ use std::path::{Path};
 use toml::Table;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct RemoteRunnerConfig {
+pub struct RemoteRunnerGlobalConfig {
     pub db_path: String,
     pub data_dir: String,
 
@@ -19,7 +19,7 @@ pub struct RemoteRunnerConfig {
 
 }
 
-impl RemoteRunnerConfig {
+impl RemoteRunnerGlobalConfig {
     pub fn canonicalize(&mut self) {
         self.db_path = std::fs::canonicalize(&self.db_path).unwrap().to_str().unwrap().to_string();
     }

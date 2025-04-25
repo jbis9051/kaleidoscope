@@ -13,21 +13,24 @@ pub struct RemoteRequester {
     task_name: String,
     url: String,
     password: Option<String>,
+    background: bool,
 }
 
 impl RemoteRequester {
-    pub fn new(task_name: String, url: String, password: Option<String>) -> Self {
+    pub fn new(task_name: String, url: String, password: Option<String>, background: bool) -> Self {
         if let Some(password) = password {
             Self {
                 task_name,
                 url,
                 password: Some(format!("Bearer {}", password).to_string()),
+                background,
             }
         } else {
             Self {
                 task_name,
                 url,
                 password: None,
+                background,
             }
         }
     }
@@ -49,8 +52,9 @@ impl RemoteRequester {
     }
 
     pub async fn request_multipart(&self, form: Form) -> Result<Response, RequestError> {
+        let path = if self.background { "background" } else { "custom" };
         let res = self
-            .post(&format!("/task/{}", &self.task_name))
+            .post(&format!("/task/{}/{}", &self.task_name, path))
             .multipart(form)
             .send()
             .await?;

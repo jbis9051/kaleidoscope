@@ -11,15 +11,15 @@ use subtle::ConstantTimeEq;
 use common::env::EnvVar;
 use common::remote_models::job::{Job, JobStatus};
 use common::types::DbPool;
-use common::runner_config::RemoteRunnerConfig;
+use common::runner_config::RemoteRunnerGlobalConfig;
 use tasks::remote_utils::RemoteTaskStatus;
-use tasks::tasks::Task;
+use tasks::tasks::AnyTask;
 
 static ENV: Lazy<EnvVar> = Lazy::new(|| {
     let env = EnvVar::from_env();
     env
 });
-static CONFIG: Lazy<RemoteRunnerConfig> = Lazy::new(|| {
+static CONFIG: Lazy<RemoteRunnerGlobalConfig> = Lazy::new(|| {
     let config_path = std::env::args().nth(1).expect("No config file provided");
 
     let path = std::path::Path::new(&config_path);
@@ -27,7 +27,7 @@ static CONFIG: Lazy<RemoteRunnerConfig> = Lazy::new(|| {
         panic!("config file does not exist: {}", config_path);
     }
 
-    let mut config = RemoteRunnerConfig::from_path(&config_path);
+    let mut config = RemoteRunnerGlobalConfig::from_path(&config_path);
     config.canonicalize();
     config
 });
@@ -74,7 +74,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/status", get(status))
-        .route("/task/{task_name}", post(task_run))
+        .route("/task/{task_name}/background", post(task_bg_run))
+        .route("/task/{task_name}/custom", post(task_custom_run))
         .route("/job/{job_uuid}", get(job_status))
         .layer(Extension(pool))
         .layer(middleware::from_fn(auth_middleware));
@@ -127,7 +128,31 @@ async fn job_status(Extension(pool): Extension<DbPool>, Path(job_uuid): Path<Uui
     Ok(Json(job))
 }
 
-async fn task_run(
+async fn task_bg_run(
+    Extension(pool): Extension<DbPool>,
+    Path(task_name): Path<String>,
+    request: Request,
+) -> Result<Response, ErrorResponse> {
+    let running = Job::get_by_status(&pool, &JobStatus::Running)
+        .await
+        .unwrap();
+    if running.len() > 0 {
+        return Err((StatusCode::CONFLICT, format!("runner is busy with job(s): {:?}", running)).into());
+    }
+
+    // TODO: CONFIG.tasks should be split for background and custom
+    let _ = CONFIG.tasks.get(&task_name).ok_or((StatusCode::BAD_REQUEST, "task unsupported".to_string()))?;
+    
+    if !AnyTask::background_remotable(&task_name) {
+        panic!("task is enabled for background remote but isn't background remotable");
+    }
+    
+    let remote_task = AnyTask::new_remote(&task_name, &mut &pool, &CONFIG.tasks, &CONFIG).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    remote_task.remote_handler(request, pool, &CONFIG.tasks, &CONFIG).await
+}
+
+
+async fn task_custom_run(
     Extension(pool): Extension<DbPool>,
     Path(task_name): Path<String>,
     request: Request,
@@ -140,11 +165,11 @@ async fn task_run(
     }
 
     let _ = CONFIG.tasks.get(&task_name).ok_or((StatusCode::BAD_REQUEST, "task unsupported".to_string()))?;
-    
-    if !Task::remotable(&task_name) {
-        panic!("task is enabled for remote but isn't remotable");
+
+    // TODO: CONFIG.tasks should be split for background and custom
+    if !AnyTask::custom_remotable(&task_name) {
+        panic!("task is enabled for custom remote but isn't custom remotable");
     }
-    
-    let remote_task = Task::new_remote(&task_name, &mut &pool, &CONFIG.tasks, &CONFIG).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    remote_task.remote_handler(request, pool, &CONFIG.tasks, &CONFIG).await
+
+    AnyTask::remote_custom_handler(&task_name, request, pool, &CONFIG.tasks, &CONFIG).await
 }

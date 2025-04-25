@@ -12,7 +12,7 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 use std::sync::Arc;
 use tasks::ops::RunProgress;
-use tasks::tasks::Task;
+use tasks::tasks::AnyTask;
 use tokio::fs::File;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncSeekExt, AsyncWriteExt, BufReader, Take};
 use tokio::net::{UnixListener, UnixStream};
@@ -325,7 +325,7 @@ pub async fn handle_file_request(
 pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
     let (progress_tx, mut progress_rx) = mpsc::channel(10);
 
-    let tasks = Task::TASK_NAMES;
+    let tasks = AnyTask::TASK_NAMES;
 
     let handle = tokio::spawn(async move {
         tasks::ops::run_queue(&mut &pool, &tasks, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx)).await

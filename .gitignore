@@ -12,3 +12,4 @@ scan/src/lib.rs
 scan/tests
 tasks/tests
 .venv
+custom_task_scripts

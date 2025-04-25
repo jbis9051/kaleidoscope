@@ -5,7 +5,7 @@ use common::models::media::Media;
 use common::scan_config::AppConfig;
 use common::types::{AcquireClone};
 use log::debug;
-use crate::tasks::{BackgroundTask};
+use crate::tasks::{BackgroundTask, Task};
 
 const THUMBNAIL_DIR: &str = "thumbnails";
 
@@ -40,11 +40,14 @@ impl ThumbnailGenerator {
     }
 }
 
-impl BackgroundTask for ThumbnailGenerator {
+impl Task for ThumbnailGenerator {
     type Error = MetadataError;
     const NAME: &'static str = "thumbnail";
-    type Data = (RgbImage, RgbImage, i32);
     type Config = ThumbnailGenerationConfig;
+}
+
+impl BackgroundTask for ThumbnailGenerator {
+    type Data = (RgbImage, RgbImage, i32);
 
     async fn new(db: &mut impl AcquireClone, config: &Self::Config, app_config: &AppConfig) -> Result<Self, Self::Error> {
         let thumb_dir = PathBuf::from(&app_config.data_dir).join(THUMBNAIL_DIR);

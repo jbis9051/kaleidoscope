@@ -9,7 +9,7 @@ use common::models::media::Media;
 use common::models::system_time_to_naive_datetime;
 use common::scan_config::AppConfig;
 use tasks::ops::add_to_compatible_queues;
-use tasks::tasks::{BackgroundTask, Task};
+use tasks::tasks::{BackgroundTask, AnyTask, Task};
 use tasks::tasks::thumbnail::ThumbnailGenerator;
 
 pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, media_map: &mut HashMap<String, Media>, db: &mut SqliteConnection) -> Result<(), AddMediaError> {
@@ -71,7 +71,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, media_ma
     media.create(&mut *db).await.unwrap();
     media_map.insert(path_str.to_string(), media.clone());
 
-    add_to_compatible_queues(&mut *db, &media, &Task::TASK_NAMES).await.unwrap();
+    add_to_compatible_queues(&mut *db, &media, &AnyTask::TASK_NAMES).await.unwrap();
 
     Ok(())
 }

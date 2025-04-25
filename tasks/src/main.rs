@@ -8,7 +8,7 @@ use tokio::sync::mpsc;
 use common::types::AcquireClone;
 use common::models::queue::Queue;
 use tasks::ops::{add_to_compatible_queues, run_queue, RunProgress};
-use tasks::tasks::Task;
+use tasks::tasks::AnyTask;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -92,7 +92,7 @@ async fn main() {
                     return;
                 }
 
-                let queue = run_queue(&mut db, &Task::TASK_NAMES, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx))
+                let queue = run_queue(&mut db, &AnyTask::TASK_NAMES, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx))
                     .await
                     .expect("error running queue");
                 join.await.expect("error joining progress handler");
@@ -147,7 +147,7 @@ async fn main() {
             match op {
                 Operation::Queue => {
                     // add media to all compatible queues
-                    let tasks = add_to_compatible_queues(&mut db, &media, &Task::TASK_NAMES)
+                    let tasks = add_to_compatible_queues(&mut db, &media, &AnyTask::TASK_NAMES)
                         .await
                         .expect("error adding to compatible queues");
                     println!("added media to queues: {:?}", tasks);
@@ -167,7 +167,7 @@ async fn main() {
                 .expect("media not found");
             match op {
                 Operation::Queue => {
-                    if !Task::compatible(&task, &media).await {
+                    if !AnyTask::compatible(&task, &media).await {
                         // media is not compatible, should we force?
                         if !confirm(&format!("media is not compatible with '{}'. Force?", task)) {
                             println!("aborting");
@@ -187,7 +187,7 @@ async fn main() {
                 Operation::Run => {
                     // run the specified task for the specified media
                     
-                    if !Task::compatible(&task, &media).await {
+                    if !AnyTask::compatible(&task, &media).await {
                         // media is not compatible, should we force?
                         if !confirm(&format!("media is not compatible with '{}'. Force?", task)) {
                             println!("aborting");
@@ -195,7 +195,7 @@ async fn main() {
                         }
                     }
                     
-                    let task = Task::new(&task, &mut db, &app_config.tasks, &app_config).await.expect("error getting task");
+                    let task = AnyTask::new(&task, &mut db, &app_config.tasks, &app_config).await.expect("error getting task");
 
                     let queue = Queue::from_media_id(&mut db, &task.name(), media.id)
                         .await

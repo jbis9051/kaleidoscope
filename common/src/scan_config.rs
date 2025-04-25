@@ -26,12 +26,22 @@ pub struct AppConfig {
     pub scripts_dir: String,
 
     #[serde(default)]
-    pub remote: Table
+    pub remote: Table,
+
+    #[serde(default)]
+    pub custom: HashMap<String, CustomConfig>
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct FormatConfig {
     pub pdf: PdfConfig,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+pub struct CustomConfig {
+    pub path: String,
+    pub version: i32,
+    pub query: String,
 }
 
 impl AppConfig {
