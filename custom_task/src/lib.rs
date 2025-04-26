@@ -37,7 +37,7 @@ macro_rules! python_func {
 python_func!(
     @raw
     async fn execute_task(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32| task_name: String, task_args_str: String) -> String {
-        AnyTask::run_custom(&task_name, db, &app_config.tasks, app_config, &task_args_str).await
+        AnyTask::run_custom_anywhere(&task_name, db, &app_config.remote, app_config, &task_args_str).await
     }
 );
 

@@ -52,12 +52,11 @@ pub trait CustomRemoteTask: CustomTask + RemoteTask {
     async fn remote_custom_handler(request: Request, db: impl AcquireClone + Send + 'static, runner_config: &Self::RunnerTaskConfig, remote_server_config: &RemoteRunnerGlobalConfig) -> Result<Response, ErrorResponse>;
     
     async fn run_custom_remote(
-        &self,
         db: &mut impl AcquireClone,
         client_config: &Self::ClientTaskConfig,
         app_config: &AppConfig,
         args: Self::Args,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<Self::Output, Self::Error>;
 }
 
 pub trait BackgroundTask: Task + Sized {
@@ -112,7 +111,7 @@ impl_task!(
     3,
     @background_remote [VisionOCR, Whisper,],
     @custom [VLLM,],
-    @custom_remote []
+    @custom_remote [VLLM,]
 );
 
 #[derive(Debug, thiserror::Error)]

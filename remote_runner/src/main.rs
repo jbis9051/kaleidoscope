@@ -97,6 +97,7 @@ async fn auth_middleware(headers: HeaderMap, request: Request, next: Next) -> Re
             return Err((StatusCode::FORBIDDEN, "bad authentication (invalid password)".to_string()))
         }
     }
+    println!("got request to '{}'", request.uri().path());
     Ok(next.run(request).await.into_response())
 }
 

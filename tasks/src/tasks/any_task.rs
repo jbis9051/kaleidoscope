@@ -215,9 +215,9 @@ macro_rules! impl_task {
             pub async fn run_custom_remote(task: &str, db: &mut impl AcquireClone, remote_configs: &Table, app_config: &AppConfig, args_str: &str) -> Result<String, TaskError> {
                 match task {
                     $(<$custom_remote_task as Task>::NAME => { 
-                        let config: <$custom_remote_task as RemoteTask>::ClientTaskConfig = remote_configs.get($custom_remote_task::NAME).map(|v| v.clone().try_into()).transpose()?.unwrap_or_default();
+                        let config: <$custom_remote_task as RemoteTask>::ClientTaskConfig = remote_configs.get($custom_remote_task::NAME).map(|v| v.clone().try_into()).transpose()?.expect("no remote config found");
                         let args: <$custom_remote_task as CustomTask>::Args = serde_json::from_str(&args_str).unwrap();
-                        let res = <$custom_remote_task as CustomTask>::run_custom_remote(db, &config, app_config, args).await.map_err(|e| TaskError::TaskError(e.into()));
+                        let res = <$custom_remote_task as CustomRemoteTask>::run_custom_remote(db, &config, app_config, args).await.map_err(|e| TaskError::TaskError(e.into()))?;
                         Ok(serde_json::to_string(&res).expect("failed to serialize custom task response"))
                     })*
                     _ => unreachable!()
@@ -228,7 +228,7 @@ macro_rules! impl_task {
                 match task {
                     $(<$custom_remote_task as Task>::NAME => { 
                             let config: <$custom_remote_task as RemoteTask>::RunnerTaskConfig = tasks.get($custom_remote_task::NAME).map(|v| v.clone().try_into()).transpose().map_err(|e| TaskError::InvalidTaskConfig(e))?.unwrap_or_default();
-                            task.remote_custom_handler(request, db, &config, &runner_config).await
+                            <$custom_remote_task as CustomRemoteTask>::remote_custom_handler(request, db, &config, &runner_config).await
                         }
                     )*
                     _ => unreachable!()
