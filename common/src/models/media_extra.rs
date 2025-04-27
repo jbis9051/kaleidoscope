@@ -8,7 +8,7 @@ use crate::{sqlize, update_set};
 use crate::types::{DbPool, SqliteAcquire};
 
 
-#[derive(Debug, Serialize, Clone, Default)]
+#[derive(Debug, Serialize, Clone)]
 pub struct MediaExtra {
     pub id: i32,
     pub media_id: i32,
@@ -18,6 +18,21 @@ pub struct MediaExtra {
     pub whisper_transcript: Option<String>,
     pub vision_ocr_version: i32,
     pub vision_ocr_result: Option<String>,
+}
+
+impl Default for MediaExtra {
+    fn default() -> Self {
+        Self {
+            id: -1,
+            media_id: -1,
+            whisper_version: -1,
+            whisper_language: None,
+            whisper_confidence: None,
+            whisper_transcript: None,
+            vision_ocr_version: -1,
+            vision_ocr_result: None,
+        }
+    }
 }
 
 sqlize!(MediaExtra, "media_extra", id, [

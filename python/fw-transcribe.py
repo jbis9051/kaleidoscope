@@ -41,7 +41,7 @@ def valid_transcript(segments):
                 return False
     return True
 
-
+segments = list(segments)
 if not valid_transcript(segments):
     print("failure")
     exit(0)

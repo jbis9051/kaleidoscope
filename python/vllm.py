@@ -75,7 +75,7 @@ runs = int(sys.argv[4])
 model_path = "mlx-community/InternVL3-2B-4bit"
 
 load_start = time.time()
-model, processor = load(model_path, trust_remote_code=False, local_files_only=True, revision="foo")
+model, processor = load(model_path, trust_remote_code=False, local_files_only=True)
 config = load_config(model_path, trust_remote_code=False, local_files_only=True)
 
 # load

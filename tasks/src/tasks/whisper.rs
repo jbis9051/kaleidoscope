@@ -87,7 +87,7 @@ impl Whisper {
 
         let mut transcript = Vec::new();
 
-        for line in lines.iter().skip(2) {
+        for line in lines.iter().skip(3) {
             // <start>|<end>|<text>
             let parts = line.split('|').collect::<Vec<_>>();
             let start = parts[0]
@@ -120,7 +120,7 @@ impl Whisper {
 
         media_extra.media_id = media.id;
         media_extra.whisper_version = VERSION;
-        
+
         if let Some(output) = output {
             media_extra.whisper_language = Some(output.langauge);
             media_extra.whisper_confidence = Some(output.confidence);
