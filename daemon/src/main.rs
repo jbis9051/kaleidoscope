@@ -325,7 +325,7 @@ pub async fn handle_file_request(
 pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
     let (progress_tx, mut progress_rx) = mpsc::channel(10);
 
-    let tasks = AnyTask::TASK_NAMES;
+    let tasks = AnyTask::BACKGROUND_TASK_NAMES;
 
     let handle = tokio::spawn(async move {
         tasks::ops::run_queue(&mut &pool, &tasks, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx)).await

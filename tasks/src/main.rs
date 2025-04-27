@@ -92,7 +92,7 @@ async fn main() {
                     return;
                 }
 
-                let queue = run_queue(&mut db, &AnyTask::TASK_NAMES, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx))
+                let queue = run_queue(&mut db, &AnyTask::BACKGROUND_TASK_NAMES, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx))
                     .await
                     .expect("error running queue");
                 join.await.expect("error joining progress handler");
@@ -147,7 +147,7 @@ async fn main() {
             match op {
                 Operation::Queue => {
                     // add media to all compatible queues
-                    let tasks = add_to_compatible_queues(&mut db, &media, &AnyTask::TASK_NAMES)
+                    let tasks = add_to_compatible_queues(&mut db, &media, &AnyTask::BACKGROUND_TASK_NAMES)
                         .await
                         .expect("error adding to compatible queues");
                     println!("added media to queues: {:?}", tasks);

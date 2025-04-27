@@ -158,7 +158,7 @@ async fn main() {
 
     let media = Media::all(&mut db).await.unwrap();
 
-    let report = add_outdated_queues(&mut db, &media, &AnyTask::TASK_NAMES, &config.tasks, &config).await.unwrap();
+    let report = add_outdated_queues(&mut db, &media, &AnyTask::BACKGROUND_TASK_NAMES, &config.tasks, &config).await.unwrap();
     
     let report = report.iter().map(|(t, c)| format!("{}[{}]", t, c)).collect::<Vec<String>>().join("|");
     

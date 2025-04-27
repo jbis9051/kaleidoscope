@@ -17,8 +17,7 @@ macro_rules! impl_task {
 
         // TODO: this is some actual garbage fix it at some point
         impl AnyTask {
-            // TODO: Refactor this is just the @background
-            pub const TASK_NAMES: [&'static str; $size] = [$(<$background_task>::NAME,)*];
+            pub const BACKGROUND_TASK_NAMES: [&'static str; $size] = [$(<$background_task>::NAME,)*];
 
             pub fn name(&self) -> &'static str {
                 match self {

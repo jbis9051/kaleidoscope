@@ -71,7 +71,7 @@ pub async fn add_media(path: &Path, config: &AppConfig, import_id: i32, media_ma
     media.create(&mut *db).await.unwrap();
     media_map.insert(path_str.to_string(), media.clone());
 
-    add_to_compatible_queues(&mut *db, &media, &AnyTask::TASK_NAMES).await.unwrap();
+    add_to_compatible_queues(&mut *db, &media, &AnyTask::BACKGROUND_TASK_NAMES).await.unwrap();
 
     Ok(())
 }
