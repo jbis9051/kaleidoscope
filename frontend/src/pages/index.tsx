@@ -31,6 +31,7 @@ import Timeline from "@/components/Timeline";
 import Transcript from "@/components/Transcript";
 import Preview from "@/components/Preview";
 import TagSelector from "@/components/TagSelector";
+import Progress from "@/components/Progress";
 
 export interface MediaViewFilter extends MediaView {
     filter: Filter | null;
@@ -254,6 +255,7 @@ export default function Index() {
             </div>}
             <div className={styles.statusBar}>
                 <span className={styles.title}>Kaleidoscope</span>
+                <Progress api={api}/>
             </div>
             <div className={styles.mainFrame}>
                 <div className={styles.leftPanel}>

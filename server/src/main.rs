@@ -421,37 +421,11 @@ async fn timeline(conn: &DbPool, media_query: &MediaQuery, interval: &str) -> Re
     }
 }
 
-#[derive(Debug, Serialize)]
-#[serde(tag = "status")]
-pub enum QueueStatus {
-    Empty,
-    Progress(RunProgressSer),
-    Done {
-        succeeded: u32,
-        failed: u32,
-    }
-}
-
-async fn queue_status() -> Json<QueueStatus> {
+async fn queue_status() -> Json<QueueProgress> {
     let stream = UnixStream::connect(&CONFIG.socket_path).await.unwrap();
     let mut buf_stream = BufUnixStream::new(stream);
     let status = ipc::request_queue_progress(&mut buf_stream).await.map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("ipc error requesting queue progress: {:?}", e))).unwrap();
-
-    match status {
-        None => {
-            Json(QueueStatus::Empty)
-        }
-        Some(progress) => {
-            let status = match progress {
-                QueueProgress::Progress(p) => QueueStatus::Progress(p),
-                QueueProgress::Done(d) => {
-                    let (succeeded, failed) = d.expect("queue running failed terminally");
-                    QueueStatus::Done { succeeded, failed }
-                }
-            };
-            Json(status)
-        }
-    }
+    Json(status)
 }
 
 async fn tag_index(Extension(conn): Extension<DbPool>) -> Json<Vec<(MediaTag, u32)>> {

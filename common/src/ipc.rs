@@ -51,10 +51,14 @@ pub struct RunProgressSer {
 
 
 #[derive(Serialize, Deserialize, Clone)]
-#[serde(tag = "type")]
+#[serde(tag = "status")]
 pub enum QueueProgress {
+    Initial,
+    Starting {
+        total: u32
+    },
     Progress(RunProgressSer),
     Done(Result<(u32, u32), String>),
 }
 
-pub type IpcQueueProgressResponse = Option<QueueProgress>;
+pub type IpcQueueProgressResponse = QueueProgress;

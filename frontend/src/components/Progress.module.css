@@ -1,0 +1,59 @@
+.container {
+    margin-right: 20px;
+    padding: 5px 20px;
+    font-size: 12px;
+    border-radius: 5px;
+    background: #404040;
+    border: 1px solid #1b1b1b;
+    transition: background-color 50ms;
+    position: relative;
+}
+
+.container:hover {
+    background: #2f2f2f;
+}
+
+.progressIndicator {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 5px;
+    width: 300px;
+    border-radius: 6px;
+    background: #3f3f3f;
+    border: 1px solid black;
+    padding: 30px 20px;
+    z-index: 1;
+}
+
+.progressBarContainer {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+}
+
+.progressBar {
+    flex: 1;
+    height: 8px;
+    border-radius: 5px;
+    background: white;
+    border: 1px solid black;
+    position: relative;
+}
+
+.progress {
+    height: 100%;
+    position: absolute;
+    background: #2c65ca;
+    left: 0;
+    top: 0;
+    border-bottom-left-radius: 5px;
+    border-top-left-radius: 5px;
+}
+
+.progressText {
+    display: flex;
+    align-items: center;
+    margin-left: 5px;
+}

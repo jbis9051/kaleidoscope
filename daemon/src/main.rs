@@ -20,8 +20,8 @@ use tokio::process::Command;
 use tokio::sync::oneshot::Receiver;
 use tokio::sync::{mpsc, RwLock};
 
-static QUEUE_PROGRESS: Lazy<Arc<RwLock<Option<QueueProgress>>>> =
-    Lazy::new(|| Arc::new(RwLock::new(None)));
+static QUEUE_PROGRESS: Lazy<Arc<RwLock<QueueProgress>>> =
+    Lazy::new(|| Arc::new(RwLock::new(QueueProgress::Initial)));
 
 #[tokio::main]
 async fn main() {
@@ -326,6 +326,18 @@ pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
     let (progress_tx, mut progress_rx) = mpsc::channel(10);
 
     let tasks = AnyTask::BACKGROUND_TASK_NAMES;
+    
+    let mut total = 0;
+    for task in tasks {
+        total += Queue::count(&pool, task).await.expect("couldn't count queue");
+    }
+    
+    {
+        let mut lock = QUEUE_PROGRESS.write().await;
+        *lock = QueueProgress::Starting{
+            total,
+        };
+    }
 
     let handle = tokio::spawn(async move {
         tasks::ops::run_queue(&mut &pool, &tasks, &app_config.tasks, &app_config.remote, &app_config, Some(progress_tx)).await
@@ -334,7 +346,7 @@ pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
     while let Some(progress) = progress_rx.recv().await {
         let done = progress.done();
         let mut lock = QUEUE_PROGRESS.write().await;
-        *lock = Some(QueueProgress::Progress(progress.into()));
+        *lock = QueueProgress::Progress(progress.into());
         if done {
             break;
         }
@@ -343,5 +355,5 @@ pub async fn queue_runner(pool: SqlitePool, app_config: AppConfig) {
     let (success, failed) = handle.await.unwrap().unwrap();
 
     let mut lock = QUEUE_PROGRESS.write().await;
-    *lock = Some(QueueProgress::Done(Ok((success, failed))));
+    *lock = QueueProgress::Done(Ok((success, failed)));
 }
