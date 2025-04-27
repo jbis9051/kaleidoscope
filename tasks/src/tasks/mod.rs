@@ -1,8 +1,8 @@
 pub mod thumbnail;
 pub mod whisper;
 pub mod ocr;
-mod any_task;
 pub mod vllm;
+mod any_task;
 
 use common::models::media::Media;
 use common::types::{AcquireClone};
@@ -58,7 +58,7 @@ pub trait CustomRemoteTask: CustomTask + RemoteTask {
         args: Self::Args,
     ) -> Result<Self::Output, Self::Error>;
 }
-
+// TODO: remove self or make everything take self
 pub trait BackgroundTask: Task + Sized {
     type Data: Debug;
     async fn new(db: &mut impl AcquireClone, config: &Self::Config, app_config: &AppConfig) -> Result<Self, Self::Error>;

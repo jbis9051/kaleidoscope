@@ -33,7 +33,7 @@ const DOWNLOAD_ROOT: &str = "whisper_root";
 // the script to run
 const WHISPER_SCRIPT: &str = "fw-transcribe.py";
 
-const VERSION: i32 = 0;
+const VERSION: i32 = 1;
 
 #[derive(Default, Clone)]
 pub struct Whisper {
@@ -72,11 +72,16 @@ impl Debug for WhisperOutput {
 }
 
 impl Whisper {
-    pub fn parse(output: &str) -> Result<WhisperOutput, WhisperError> {
+    pub fn parse(output: &str) -> Result<Option<WhisperOutput>, WhisperError> {
         let lines = output.lines().collect::<Vec<_>>();
+        let status = lines[0].to_string();
 
-        let langauge = lines[0].to_string();
-        let confidence = lines[1]
+        if status != "success" {
+            return Ok(None);
+        }
+
+        let langauge = lines[1].to_string();
+        let confidence = lines[2]
             .parse::<f32>()
             .map_err(|_| WhisperError::OutputParseError)?;
 
@@ -95,15 +100,15 @@ impl Whisper {
             transcript.push((start, end, text));
         }
 
-        Ok(WhisperOutput {
+        Ok(Some(WhisperOutput {
             langauge,
             confidence,
             transcript,
-        })
+        }))
     }
 
     pub async fn store(
-        output: WhisperOutput,
+        output: <Whisper as BackgroundTask>::Data,
         db: &mut impl AcquireClone,
         media: &mut Media,
     ) -> Result<(), WhisperError> {
@@ -115,12 +120,19 @@ impl Whisper {
 
         media_extra.media_id = media.id;
         media_extra.whisper_version = VERSION;
-        media_extra.whisper_language = Some(output.langauge);
-        media_extra.whisper_confidence = Some(output.confidence);
-        media_extra.whisper_transcript = Some(
-            serde_json::to_string(&output.transcript)
-                .map_err(|_| WhisperError::OutputParseError)?,
-        );
+        
+        if let Some(output) = output {
+            media_extra.whisper_language = Some(output.langauge);
+            media_extra.whisper_confidence = Some(output.confidence);
+            media_extra.whisper_transcript = Some(
+                serde_json::to_string(&output.transcript)
+                    .map_err(|_| WhisperError::OutputParseError)?,
+            );
+        } else {
+            media_extra.whisper_language = None;
+            media_extra.whisper_confidence = None;
+            media_extra.whisper_transcript = None;
+        }
 
         if create {
             media_extra.create_no_bug(db.acquire_clone()).await?;
@@ -137,7 +149,7 @@ impl Whisper {
         scripts_dir: &str,
         data_dir: &str,
         python_path: &str,
-    ) -> Result<WhisperOutput, WhisperError> {
+    ) -> Result<Option<WhisperOutput>, WhisperError> {
         let script_path = Path::new(scripts_dir).join(WHISPER_SCRIPT);
         let download_root = Path::new(data_dir).join(DOWNLOAD_ROOT);
 
@@ -181,7 +193,7 @@ impl RemoteTask for Whisper {
 }
 
 impl BackgroundTask for Whisper {
-    type Data = WhisperOutput;
+    type Data = Option<WhisperOutput>;
 
     async fn new(
         db: &mut impl AcquireClone,

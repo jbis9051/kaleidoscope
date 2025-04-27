@@ -1,34 +1,20 @@
 use crate::remote_utils::multipart_helper::MultipartHelper;
+use crate::remote_utils::remote_requester::{RemoteRequester, RequestError};
 use crate::remote_utils::{internal, StandardClientConfig};
 use crate::run_python::run_python;
-use crate::tasks::{BackgroundTask, CustomRemoteTask, CustomTask, RemoteBackgroundTask, RemoteTask, Task, MODEL_DIR};
+use crate::tasks::{CustomRemoteTask, CustomTask, RemoteTask, Task};
 use axum::extract::Request;
 use axum::response::{ErrorResponse, IntoResponse, Response};
 use axum::Json;
-use common::media_processors::format::{AnyFormat, MetadataError};
-use common::models::media::Media;
+use common::remote_models::job::Job;
 use common::runner_config::RemoteRunnerGlobalConfig;
 use common::scan_config::AppConfig;
 use common::types::AcquireClone;
-use serde::{Deserialize, Serialize};
-use sqlx::types::uuid;
-use std::fmt::{Debug, Pointer};
-use std::ops::Add;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use chrono::{TimeDelta, Utc};
 use reqwest::multipart::Form;
 use reqwest::StatusCode;
+use std::fmt::{Debug};
+use std::path::Path;
 use tokio::fs;
-use uuid::Uuid;
-use common::media_processors::format::audio::Audio;
-use common::remote_models::job::{Job, JobStatus};
-use crate::remote_utils::job_util::{start_job};
-use crate::remote_utils::remote_requester::{OneShotResponse, RemoteRequester, RequestError};
-use crate::tasks::ocr::{OCRResult, VisionOCRError};
-use crate::tasks::thumbnail::ThumbnailGenerator;
-use crate::tasks::whisper::WhisperError;
-
 // the script to run
 const VLLM_SCRIPT: &str = "vllm.py";
 
