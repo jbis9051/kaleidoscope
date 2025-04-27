@@ -1,14 +1,17 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::time::Instant;
 use clap::{Parser, ValueEnum};
+use log::{error, info};
 use common::models::media::Media;
-use common::scan_config::AppConfig;
+use common::scan_config::{AppConfig, CustomConfig};
 use sqlx::{Connection, Pool, SqliteConnection};
 use tokio::sync::mpsc;
+use common::env::setup_log;
 use common::types::AcquireClone;
 use common::models::queue::Queue;
-use tasks::ops::{add_to_compatible_queues, run_queue, RunProgress};
-use tasks::tasks::AnyTask;
+use tasks::ops::{add_to_compatible_queues, run_custom, run_custom_tasks, run_queue, RunProgress};
+use tasks::tasks::{AnyTask, TaskError};
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -23,6 +26,8 @@ pub struct CliArgs {
     op: Operation,
     #[arg(short, long, default_value = "false")]
     store: bool,
+    #[arg(short, long, default_value = "false")]
+    custom: bool,
 }
 
 #[derive(Debug, Clone, ValueEnum)]
@@ -36,16 +41,16 @@ pub enum Operation {
 
 async fn progress_handler(mut recv: mpsc::Receiver<RunProgress>, mut db: impl AcquireClone){
     while let Some(progress) = recv.recv().await {
-        let media = Media::from_id(db.acquire_clone(), &progress.queue.media_id)
+        let media = Media::from_id(db.acquire_clone(), &progress.media_id)
             .await
             .expect("error getting media");
 
         match &progress.error {
             Some(e) => {
-                eprintln!("({}/{}) - task '{}' - media {}: failed {:?}, took: {:?}", progress.index+1, progress.total, progress.queue.task, media.path, e, progress.time);
+                error!("({}/{}) - task '{}' - media {}: failed {:?}, took: {:?}", progress.index+1, progress.total, progress.task, media.path, e, progress.time);
             }
             None => {
-                println!("({}/{}) - task '{}' - media {}: succeeded, took: {:?}", progress.index+1, progress.total, progress.queue.task, media.path, progress.time);
+                info!("({}/{}) - task '{}' - media {}: succeeded, took: {:?}", progress.index+1, progress.total, progress.task, media.path, progress.time);
             }
         }
 
@@ -57,16 +62,18 @@ async fn progress_handler(mut recv: mpsc::Receiver<RunProgress>, mut db: impl Ac
 
 #[tokio::main]
 async fn main() {
+    setup_log("tasks");
     let args: CliArgs = CliArgs::parse();
     let CliArgs {
         config: config_path,
         task: task_name,
         media,
         op,
-        store
+        store,
+        custom,
     } = args;
 
-    let app_config = AppConfig::from_path(&config_path);
+    let mut app_config = AppConfig::from_path(&config_path);
 
     let mut db = SqliteConnection::connect(&format!("sqlite:{}", app_config.db_path))
         .await
@@ -79,6 +86,75 @@ async fn main() {
     let (progress_tx, progress_rx) = mpsc::channel(10);
 
    let join = tokio::spawn(progress_handler(progress_rx, progress_db));
+
+    if custom {
+        if !matches!(op, Operation::Run) {
+            eprintln!("custom only supports run");
+            return;
+        }
+        match (task_name, media) {
+            (None, None) => {
+                if !store {
+                    eprintln!("store required");
+                    return;
+                }
+                // run all in app_config
+                let (succ, fail) = run_custom_tasks(&mut db, &app_config, Some(progress_tx)).await.expect("Failed to run custom tasks");
+                join.await.expect("error joining progress handler");
+                println!("{} tasks succeeded, {} failed", succ, fail);
+            },
+            (Some(task_name), None) => {
+                if !store {
+                    eprintln!("store required");
+                    return;
+                }
+                // run only task_name based on app_config
+                if app_config.custom.get(&task_name).is_none() {
+                    eprintln!("could not find task '{}' in AppConfig", task_name);
+                    return
+                }
+                let mut new_custom = HashMap::new();
+                new_custom.insert(task_name.clone(), app_config.custom[&task_name].clone());
+                app_config.custom = new_custom;
+                let (succ, fail) = run_custom_tasks(&mut db, &app_config, Some(progress_tx)).await.expect("Failed to run custom tasks");
+                join.await.expect("error joining progress handler");
+                println!("{} tasks succeeded, {} failed", succ, fail);
+            }
+            (Some(task_name), Some(media)) => {
+                if store {
+                    eprintln!("store not supported");
+                    return;
+                }
+                // run task_name but only with media
+                let config = match app_config.custom.get(&task_name) {
+                    None => {
+                        eprintln!("could not find config for task '{}' in AppConfig", task_name);
+                        return
+                    }
+                    Some(t) => t
+                };
+
+                let media_path = Path::new(&media);
+                let canoc = media_path.canonicalize().expect("error canonicalizing path");
+                let media = Media::from_path(&mut db, canoc.to_str().unwrap())
+                    .await
+                    .expect("error getting media")
+                    .expect("media not found");
+                match run_custom(&mut db, &media, &app_config, config).await {
+                    Ok(_) => {
+                        println!("ran task {} on media {}: succeeded", task_name, media.path);
+                    }
+                    Err(_) => {
+                        println!("ran task {} on media {}: failed", task_name, media.path);
+                    }
+                }
+            }
+            (None, Some(_)) => {
+                eprintln!("task must be provided");
+            }
+        }
+        return;
+    }
 
     match (task_name, media) {
         (None, None) => match op {

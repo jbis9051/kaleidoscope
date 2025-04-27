@@ -42,7 +42,9 @@ pub enum IpcFileResponse {
 pub struct RunProgressSer {
     pub index: u32,
     pub total: u32,
-    pub queue: Queue,
+    pub task: String,
+    pub media_id: i32,
+    pub queue_id: Option<i32>,
     pub error: Option<String>,
     pub time: u32, // time taken to run the task in seconds
 }

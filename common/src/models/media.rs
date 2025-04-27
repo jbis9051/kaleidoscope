@@ -214,7 +214,7 @@ impl Media {
     }
 
 
-    pub async fn add_custom(&self, db: &mut impl AcquireClone, key: String, value: String, version: i32) -> Result<CustomMetadata, sqlx::Error> {
+    pub async fn add_custom(&self, db: &mut impl AcquireClone, key: String, value: String, version: i32, include_search: bool) -> Result<CustomMetadata, sqlx::Error> {
         let mut custom = CustomMetadata {
             id: 0,
             media_id: self.id,
@@ -222,6 +222,7 @@ impl Media {
             key,
             value,
             created_at: Utc::now().naive_utc(),
+            include_search,
         };
         custom.create(db.acquire_clone()).await?;
         Ok(custom)
@@ -269,6 +270,37 @@ impl Media {
             .execute(&mut *conn)
             .await?;
         Ok(res.rows_affected() > 0)
+    }
+
+    pub async fn remove_outdated_custom(&self, db: impl SqliteAcquire<'_>, key: &str, latest_version: i32) -> Result<u64, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        let res = sqlx::query("DELETE FROM custom_metadata WHERE media_id = $1 AND key = $2 AND version < $3;")
+            .bind(self.id)
+            .bind(key)
+            .bind(latest_version)
+            .execute(&mut *conn)
+            .await?;
+        Ok(res.rows_affected())
+    }
+
+    pub async fn remove_custom_for_version(&self, db: impl SqliteAcquire<'_>, version: i32) -> Result<u64, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        let res = sqlx::query("DELETE FROM custom_metadata WHERE media_id = $1 AND version = $3;")
+            .bind(self.id)
+            .bind(version)
+            .execute(&mut *conn)
+            .await?;
+        Ok(res.rows_affected())
+    }
+
+    pub async fn remove_custom_task_media(&self, db: impl SqliteAcquire<'_>, task_name: &str) -> Result<u64, sqlx::Error> {
+        let mut conn = db.acquire().await?;
+        let res = sqlx::query("DELETE FROM custom_task_media WHERE media_id = $1 AND task_name = $2;")
+            .bind(self.id)
+            .bind(task_name)
+            .execute(&mut *conn)
+            .await?;
+        Ok(res.rows_affected())
     }
 }
 

@@ -1,31 +1,37 @@
-use std::collections::HashMap;
-use serde::Deserialize;
-use serde_json::{json, Value};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use std::borrow::Borrow;
+use common::media_query::MediaQuery;
 use common::models::media::Media;
 use common::scan_config::{AppConfig, CustomConfig};
 use common::types::AcquireClone;
-use tasks::run_python::run_python;
-use tasks::tasks::{AnyTask, TaskError};
+use serde::Deserialize;
+use serde_json::{json, Value};
+use sqlx::Acquire;
+use std::collections::HashMap;
+use log::{debug, info};
+use sqlx::types::chrono::Utc;
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
+use common::models::custom_task_media::CustomTaskMedia;
+use crate::tasks::{AnyTask, TaskError};
+use crate::tasks::thumbnail::ThumbnailGenerator;
 
 macro_rules! python_func {
     ($($async:tt)? fn $name:tt($db:tt: &mut impl AcquireClone, $media:tt: &Media, $app_config:tt: &AppConfig, $version:tt: i32| $($arg:tt:$typ:ty),*)->$out:ty $code:block) => {
         $($async)? fn $name($db: &mut impl AcquireClone, $media: &Media, $app_config: &AppConfig, $version: i32, args: Vec<Value>) -> Result<String, TaskError> {
-            let ($($arg),*): ($($typ),*) = serde_json::from_value(serde_json::Value::Array(args)).unwrap();
+            let ($($arg),*,): ($($typ),*,) = serde_json::from_value(serde_json::Value::Array(args)).unwrap();
             let code = async move $code;
             let output: Result<$out, TaskError> = code.await;
             let output = output?;
             return Ok(serde_json::to_string(&output).unwrap());
         }
     };
-    
+
     // TODO: remove this once we have a nice trait
     (
          @raw
     $($async:tt)? fn $name:tt($db:tt: &mut impl AcquireClone, $media:tt: &Media, $app_config:tt: &AppConfig, $version:tt: i32| $($arg:tt:$typ:ty),*)-> String $code:block) => {
         $($async)? fn $name($db: &mut impl AcquireClone, $media: &Media, $app_config: &AppConfig, $version: i32, args: Vec<Value>) -> Result<String, TaskError> {
-            let ($($arg),*): ($($typ),*) = serde_json::from_value(serde_json::Value::Array(args)).unwrap();
+            let ($($arg),*,): ($($typ),*,) = serde_json::from_value(serde_json::Value::Array(args)).unwrap();
             let code = async move $code;
             let output: Result<String, TaskError> = code.await;
             let output = output?;
@@ -59,11 +65,11 @@ python_func!(
 );
 
 python_func!(
-     async fn add_metadata(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32| key: String, value: String) -> bool {
+     async fn add_metadata(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32| key: String, value: String, include_search: bool) -> bool {
         if media.custom(db.acquire_clone(), &key, version).await.unwrap().is_some() {
             return Ok(false);
         }
-        media.add_custom(db, key, value, version).await.unwrap();
+        media.add_custom(db, key, value, version, include_search).await.unwrap();
         Ok(true)
     }
 );
@@ -80,11 +86,17 @@ python_func!(
      }
 );
 
-
 python_func!(
      async fn log(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32| values: Value) -> () {
-        println!("logged: {:?}", values);
+        info!("task log: {:?}", values);
         Ok(())
+     }
+);
+
+python_func!(
+     async fn get_thumb(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32|full: bool) -> String {
+        let path = if full { ThumbnailGenerator::full_path(&media, app_config) } else {ThumbnailGenerator::thumb_path(&media, app_config)};
+        Ok(path.to_str().unwrap().to_string())
      }
 );
 
@@ -103,62 +115,14 @@ pub async fn call_fn(
         "delete_metadata" => delete_metadata(db, media, app_config, version, fn_call.args).await,
         "get_metadata" => get_metadata(db, media, app_config, version, fn_call.args).await,
         "log" => log(db, media, app_config, version, fn_call.args).await,
+        "get_thumb" => get_thumb(db, media, app_config, version, fn_call.args).await,
         _ => panic!("function '{}' not found", fn_call.name),
     }
 }
 
-
-#[derive(Deserialize)]
-struct FnCall {
+#[derive(Deserialize, Debug)]
+pub(crate) struct FnCall {
     name: String,
     args: Vec<Value>,
     kwargs: HashMap<String, Value>,
-}
-
-pub async fn run_custom(
-    db: &mut impl AcquireClone,
-    media: &Media,
-    app_config: &AppConfig,
-    custom: &CustomConfig,
-    debug: bool
-) -> Result<(), TaskError> {
-    let mut child = Command::new(&app_config.python_path)
-        .arg(&custom.path)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .spawn()
-        .expect("unable to spawn custom command");
-    
-    let mut stdin = child.stdin.take().expect("Failed to open stdin");
-    
-    stdin.write_all(&serde_json::to_vec(&json!({
-        "media": media,
-        "version": custom.version,
-    })).unwrap()).await.expect("unable to write initial input");
-    stdin.write_all(b"\n").await.expect("unable to write initial input");
-    
-    let stdout = child.stdout.take().expect("Failed to open stdout");
-    let mut reader = BufReader::new(stdout).lines();
-    while let Some(line) = reader.next_line().await.unwrap() {
-        if debug {
-            println!("run_custom script outputted: {}", line);
-        }
-        let fn_call: FnCall = serde_json::from_str(&line).expect("unable to parse input");
-        let res = call_fn(db, media, app_config, custom.version, fn_call).await?;
-        if debug {
-            println!("run_custom responded: {}", res);
-        }
-        if res != "null" {
-            stdin.write_all(res.as_bytes()).await;
-            stdin.write_all(b"\n").await;
-        }
-    }
-    
-    let out = child.wait_with_output().await.expect("unable to wait for child process");
-    
-    if !out.status.success() {
-        return Err(TaskError::CustomTaskError((out.status,out.stderr)))
-    }
-    
-    Ok(())
 }

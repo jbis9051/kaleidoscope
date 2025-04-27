@@ -13,6 +13,7 @@ use std::path::Path;
 use clap::Parser;
 use walkdir::WalkDir;
 use common::{debug_sql, question_marks, update_set};
+use common::env::setup_log;
 use common::media_processors::format::{match_format, FormatType};
 use common::types::DbPool;
 use tasks::ops::{add_outdated_queues, add_to_compatible_queues};
@@ -54,22 +55,9 @@ async fn verify_only(mut db: SqliteConnection, config: AppConfig) {
 
 #[tokio::main]
 async fn main() {
-    let rust_log = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+    setup_log("scan");
 
-    let filter = match rust_log.as_str() {
-        "trace" => log::LevelFilter::Trace,
-        "debug" => log::LevelFilter::Debug,
-        "info" => log::LevelFilter::Info,
-        "warn" => log::LevelFilter::Warn,
-        "error" => log::LevelFilter::Error,
-        _ => log::LevelFilter::Info,
-    };
-
-    env_logger::Builder::new()
-        .filter_module("scan", filter)
-        .init();
-
-   let args = CliArgs::parse();
+    let args = CliArgs::parse();
     let mut config: AppConfig = AppConfig::from_path(args.config);
     let mut db = SqliteConnection::connect(&format!("sqlite:{}", config.db_path))
         .await

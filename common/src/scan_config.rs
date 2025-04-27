@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use toml::map::Map;
 use toml::Table;
 use crate::media_processors::format::pdf::PdfConfig;
+use crate::media_query::MediaQuery;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct AppConfig {
@@ -41,7 +42,7 @@ pub struct FormatConfig {
 pub struct CustomConfig {
     pub path: String,
     pub version: i32,
-    pub query: String,
+    pub query: MediaQuery,
 }
 
 impl AppConfig {

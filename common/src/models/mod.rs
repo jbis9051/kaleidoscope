@@ -11,6 +11,7 @@ pub mod queue;
 pub mod media_extra;
 pub mod media_tag;
 pub mod custom_metadata;
+pub mod custom_task_media;
 
 pub mod date {
     use serde::{self, Deserialize, Serializer};

@@ -5,7 +5,6 @@ members = [
     "scan",
     "daemon",
     "tasks", 
-    "remote_runner",
-    "custom_task"
+    "remote_runner"
 ]
 resolver = "2"

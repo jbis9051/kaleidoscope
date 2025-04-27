@@ -636,12 +636,14 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "env_logger",
  "ffmpeg-next",
  "image 0.25.2",
  "imagepipe",
  "iso6709parse",
  "kamadak-exif",
  "libheif-rs",
+ "log",
  "nom-exif",
  "once_cell",
  "pdfium-render",
@@ -828,18 +830,6 @@ checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
 dependencies = [
  "generic-array",
  "typenum",
-]
-
-[[package]]
-name = "custom_task"
-version = "0.1.0"
-dependencies = [
- "common",
- "serde",
- "serde_json",
- "sqlx",
- "tasks",
- "tokio",
 ]
 
 [[package]]

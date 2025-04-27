@@ -1,3 +1,4 @@
+use std::env;
 use crate::scan_config::AppConfig;
 
 pub struct EnvVar {
@@ -22,4 +23,21 @@ impl EnvVar {
             migrate,
         }
     }
+}
+
+pub fn setup_log(module: &str){
+    let rust_log = env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string());
+
+    let filter = match rust_log.as_str() {
+        "trace" => log::LevelFilter::Trace,
+        "debug" => log::LevelFilter::Debug,
+        "info" => log::LevelFilter::Info,
+        "warn" => log::LevelFilter::Warn,
+        "error" => log::LevelFilter::Error,
+        _ => log::LevelFilter::Info,
+    };
+
+    env_logger::Builder::new()
+        .filter_module(module, filter)
+        .init();
 }

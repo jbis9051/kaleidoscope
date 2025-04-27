@@ -148,7 +148,7 @@ macro_rules! query_dsl {
             $($field:tt($dsl:tt, $variant:ident, [$($table:ident,)*]),)* 
         }
     ) => {
-        #[derive(Clone)]
+        #[derive(Clone, Default)]
         pub struct $name {
             filters: Vec<$enum_name>
         }

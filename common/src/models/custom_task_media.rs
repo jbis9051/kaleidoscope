@@ -10,23 +10,19 @@ use crate::types::{SqliteAcquire};
 
 
 #[derive(Serialize, Debug)]
-pub struct CustomMetadata {
+pub struct CustomTaskMedia {
     pub id: i32,
     pub media_id: i32,
+    pub task_name: String,
     pub version: i32,
-    pub key: String,
-    pub value: String,
-    pub include_search: bool,
     #[serde(with = "date")]
     pub created_at: NaiveDateTime,
 }
 
 
-sqlize!(CustomMetadata, "custom_metadata", id, [
+sqlize!(CustomTaskMedia, "custom_task_media", id, [
     media_id,
     version,
-    key,
-    value,
-    include_search,
+    task_name,
     created_at
 ]);

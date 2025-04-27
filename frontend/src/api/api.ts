@@ -110,12 +110,9 @@ export interface QueueStatusProgress {
     status: 'Progress';
     index: number;
     total: number;
-    queue: {
-        id: number;
-        media_id: number;
-        task: string;
-        created_at: number;
-    };
+    task: string,
+    media_id: number,
+    queue_id: number,
     error: null | string;
     time: number // in seconds
 }
