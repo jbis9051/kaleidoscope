@@ -151,7 +151,7 @@ query_dsl! {
         latitude(float, Latitude, []),
         transcript(string, Transcript, [MediaExtra,]),
         vision_ocr(string, VisionOcr, [MediaExtra,]),
-        full_search(string, FullSearch, [MediaExtra,]),
+        full_search(string, FullSearch, [MediaExtra, CustomMetadata,]),
         album_uuid(uuid, AlbumUuid, [AlbumAll,]),
         tag(string, Tag, [MediaTag,]),
     }
@@ -164,14 +164,16 @@ pub enum JoinableTable {
     MediaExtra,
     AlbumAll,
     MediaTag,
+    CustomMetadata,
 }
 
 impl JoinableTable {
     pub fn join_statement(&self) -> &'static str {
         match self {
-            JoinableTable::MediaExtra => " INNER JOIN media_extra ON media.id = media_extra.media_id ",
-            JoinableTable::AlbumAll => " INNER JOIN album_media ON media.id = album_media.media_id INNER JOIN album ON album_media.album_id = album.id ",
-            JoinableTable::MediaTag => " INNER JOIN media_tag ON media.id = media_tag.media_id "
+            JoinableTable::MediaExtra => " LEFT JOIN media_extra ON media.id = media_extra.media_id ",
+            JoinableTable::AlbumAll => " LEFT JOIN album_media ON media.id = album_media.media_id INNER JOIN album ON album_media.album_id = album.id ",
+            JoinableTable::MediaTag => " LEFT JOIN media_tag ON media.id = media_tag.media_id ",
+            JoinableTable::CustomMetadata => " LEFT JOIN custom_metadata ON media.id = custom_metadata.media_id ",
         }
     }
 }
@@ -392,7 +394,11 @@ impl MediaQuery {
                         query.push(op.to_sql_string());
                         query.push_bind(search.clone());
                     }
-                    query.push(" )");
+                    query.push(" OR (custom_metadata.value ");
+                    query.push(op.to_sql_string());
+                    query.push_bind(search.clone());
+                    query.push(" AND custom_metadata.include_search = TRUE) ");
+                    query.push(" ) ");
                 }
                 MediaQueryType::OrderBy(_, col) => {
                     Media::safe_column(col).expect("unknown column for order by, this should have been caught in validation");

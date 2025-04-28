@@ -140,12 +140,13 @@ async fn main() {
                     .await
                     .expect("error getting media")
                     .expect("media not found");
+                let start = Instant::now();
                 match run_custom(&mut db, &media, &app_config, config).await {
                     Ok(_) => {
-                        println!("ran task {} on media {}: succeeded", task_name, media.path);
+                        println!("ran task {} on media {}, took {:?}: succeeded", task_name, media.path, start.elapsed());
                     }
                     Err(_) => {
-                        println!("ran task {} on media {}: failed", task_name, media.path);
+                        println!("ran task {} on media {}, took {:?}: failed", task_name, media.path, start.elapsed());
                     }
                 }
             }
