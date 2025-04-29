@@ -269,9 +269,15 @@ async fn get_medias(db: impl SqliteAcquire<'_>, task_name: &str, custom: &Custom
     media_query
         .sqlize(&mut query)
         .expect("unable to add queries");
-    query.push(" AND (custom_task_media.task_name = ");
+    query.push(" \
+    GROUP BY media.id, custom_task_media.task_name \
+    HAVING \
+        custom_task_media.task_name IS NULL \
+        OR custom_task_media.task_name != ");
     query.push_bind(task_name);
-    query.push(" OR custom_task_media.task_name IS NULL) GROUP BY media.id HAVING (max_version IS NULL OR max_version < ");
+    query.push(" OR (custom_task_media.task_name = ");
+    query.push_bind(task_name);
+    query.push("AND max_version < ");
     query.push_bind(custom.version);
     query.push(" )");
     let query = query.build();
