@@ -6,6 +6,7 @@ pub mod pdf;
 pub mod audio;
 
 use std::cmp::max;
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::Duration;
@@ -39,6 +40,19 @@ pub enum MediaType {
     Pdf,
     Audio,
     Other
+}
+
+impl Display for MediaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            MediaType::Photo => "photo".to_string(),
+            MediaType::Video => "video".to_string(),
+            MediaType::Pdf => "pdf".to_string(),
+            MediaType::Audio => "audio".to_string(),
+            MediaType::Other => "other".to_string()
+        };
+        write!(f, "{}", str)
+    }
 }
 
 pub trait Format {
