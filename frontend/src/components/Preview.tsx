@@ -12,27 +12,37 @@ interface PreviewProps {
     onExit: () => void
 }
 
+function OCRText({ ocr }: { ocr: VisionOCRResult }) {
+    const { fontSize, ref } = useFitText({ minFontSize: 0, maxFontSize: 1000 });
+
+    return (
+        <div
+            ref={ref}
+            className={styles.visionOCRResult}
+            style={{
+                left: `${ocr.origin_x * 100}%`,
+                bottom: `${ocr.origin_y * 100}%`,
+                width: `${ocr.size_width * 100}%`,
+                height: `${ocr.size_height * 100}%`,
+                fontSize,
+            }}
+        >
+            {ocr.text}
+        </div>
+    );
+}
+
 export default function Preview({preview, previewRef, selectedMediaExtra, onExit}: PreviewProps) {
     const vision_ocr = selectedMediaExtra?.vision_ocr_result ? JSON.parse(selectedMediaExtra.vision_ocr_result) as VisionOCRResult[] : [];
-
-    const fitText = vision_ocr.map(() => useFitText({minFontSize: 0, maxFontSize: 1000}))
 
     return (
         <div className={styles.previewWrapper}>
             <div className={styles.previewMedia}>
                 <div className={styles.previewMediaWrapper}
                      style={preview.media_type === MediaType.Pdf ? {height: "100%"} : {}}>
-                    {vision_ocr && vision_ocr.map((ocr, index) =>
-                        <div key={index} ref={fitText[index].ref} className={`${styles.visionOCRResult}`} style={{
-                        left: `${ocr.origin_x*100}%`,
-                        bottom: `${ocr.origin_y*100}%`,
-                        width: `${ocr.size_width*100}%`,
-                        height: `${ocr.size_height*100}%`,
-                        fontSize: fitText[index].fontSize,
-                        }}>
-                            {ocr.text}
-                        </div>)
-                    }
+                    {vision_ocr.map((ocr, index) => (
+                        <OCRText key={index} ocr={ocr} />
+                    ))}
                     <MediaDisplay media={preview} preferThumbnail={false}
                                   mediaRef={previewRef}
                                   objectProps={{className: styles.pdfObject}}

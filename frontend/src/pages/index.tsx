@@ -434,7 +434,7 @@ export default function Index() {
                                 </div>
                                 <div className={styles.previewInfoWrapper}>
                                     <div className={styles.previewInfo}>
-                                        <MetadataTable metadata={mediaToMetadata(m, selectedMediaInfo?.extra || null)}/>
+                                        <MetadataTable metadata={mediaToMetadata(m, selectedMediaInfo)}/>
                                         <div className={styles.tags}>
                                             {selectedMediaInfo?.tags.map(tag =>
                                                 <div

@@ -63,14 +63,15 @@ from mlx_vlm import apply_chat_template, load
 from mlx_vlm.utils import load_config
 from mlx_vlm import load, generate
 
-if len(sys.argv) != 5:
-    print("Usage: python vllm <prompt> <image_path> <max_tokens> <runs>")
+if len(sys.argv) != 6:
+    print("Usage: python vllm <prompt> <image_path> <max_tokens> <runs> <temperature>")
     sys.exit(1)
 
 prompt = sys.argv[1]
 image_path = sys.argv[2]
 max_tokens = int(sys.argv[3])
 runs = int(sys.argv[4])
+temperature = float(sys.argv[5])
 
 model_path = "mlx-community/InternVL3-2B-4bit"
 
@@ -92,7 +93,7 @@ formatted_prompt = apply_chat_template(
 for i in range(runs):
     # Generate output
     start = time.time()
-    output = generate(model, processor, formatted_prompt, image, verbose=False, temperature=0.5, max_tokens=max_tokens)
+    output = generate(model, processor, formatted_prompt, image, verbose=False, temperature=temperature, max_tokens=max_tokens)
     end = time.time()
     print(i)
     print(end-start)

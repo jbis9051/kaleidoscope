@@ -31,8 +31,8 @@ impl Task for VLLM {
 impl VLLM {
     pub fn vllm(scripts_dir: &str, python_path: &str, args: &<VLLM as CustomTask>::Args) -> Result<<VLLM as CustomTask>::Output, VLLMError> {
         let script_path = Path::new(scripts_dir).join(VLLM_SCRIPT);
-        let (prompt, image_path, max_tokens, runs) = args;
-        let output = run_python(python_path, script_path.to_str().unwrap(), &[&prompt, &image_path, max_tokens.to_string().as_str(), runs.to_string().as_str()])?;
+        let (prompt, image_path, max_tokens, runs, temperature) = args;
+        let output = run_python(python_path, script_path.to_str().unwrap(), &[&prompt, &image_path, max_tokens.to_string().as_str(), runs.to_string().as_str(), temperature.to_string().as_str()])?;
         if !output.status.success() {
             let output = String::from_utf8(output.stderr)
                 .map_err(|_| VLLMError::OutputParseError)?;
@@ -63,8 +63,8 @@ impl VLLM {
 }
 
 impl CustomTask for VLLM {
-    // <prompt> <image_path> <max_tokens> <runs>
-    type Args = (String, String, u32, u8);
+    // <prompt> <image_path> <max_tokens> <runs> <temperature>
+    type Args = (String, String, u32, u8, f32);
     type Output = Vec<String>;
 
     async fn run_custom(db: &mut impl AcquireClone, config: &Self::Config, app_config: &AppConfig, args: Self::Args) -> Result<Self::Output, Self::Error> {

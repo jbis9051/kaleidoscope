@@ -214,6 +214,7 @@ pub async fn run_custom(
 ) -> Result<(), TaskError> {
     let mut child = Command::new(&app_config.python_path)
         .arg(&custom.path)
+        .env("KALEIDOSCOPE_PYTHON_DIR", &app_config.scripts_dir)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()

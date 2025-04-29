@@ -59,6 +59,16 @@ python_func!(
 );
 
 python_func!(
+    async fn has_tag(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32 | tag_name: String) -> bool {
+        let tags = media.tags(db.acquire_clone()).await.unwrap();
+        if tags.iter().any(|t| t.tag == tag_name) {
+            return Ok(true);
+        }
+        Ok(false)
+    }
+);
+
+python_func!(
      async fn remove_tag(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32 | tag_name: String) -> bool {
         Ok(media.remove_tag(db.acquire_clone(), &tag_name).await.unwrap())
     }
@@ -75,7 +85,7 @@ python_func!(
 );
 
 python_func!(
-     async fn delete_metadata(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32| key: String, value: String) -> bool {
+     async fn delete_metadata(db: &mut impl AcquireClone, media: &Media, app_config: &AppConfig, version: i32| key: String) -> bool {
         Ok(media.remove_custom(db.acquire_clone(), &key, version).await.unwrap())
      }
 );
@@ -111,6 +121,7 @@ pub async fn call_fn(
         "execute_task" => execute_task(db, media, app_config, version, fn_call.args).await,
         "add_tag" => add_tag(db, media, app_config, version, fn_call.args).await,
         "remove_tag" => remove_tag(db, media, app_config, version, fn_call.args).await,
+        "has_tag" => has_tag(db, media, app_config, version, fn_call.args).await,
         "add_metadata" => add_metadata(db, media, app_config, version, fn_call.args).await,
         "delete_metadata" => delete_metadata(db, media, app_config, version, fn_call.args).await,
         "get_metadata" => get_metadata(db, media, app_config, version, fn_call.args).await,

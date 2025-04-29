@@ -154,6 +154,7 @@ query_dsl! {
         full_search(string, FullSearch, [MediaExtra, CustomMetadata,]),
         album_uuid(uuid, AlbumUuid, [AlbumAll,]),
         tag(string, Tag, [MediaTag,]),
+        has_thumbnail(bool, HasThumbnail, []),
     }
 }
 
@@ -384,6 +385,11 @@ impl MediaQuery {
                     query.push(" AND album.uuid ")
                         .push(op.to_sql_string())
                         .push_bind(album_uuid.clone());
+                }
+                MediaQueryType::HasThumbnail(op, thumbnail) => {
+                    query.push(" AND media.has_thumbnail ")
+                    .push(op.to_sql_string())
+                    .push_bind(thumbnail.clone());
                 }
                 MediaQueryType::FullSearch(op, search) => {
                     query.push(" AND (1=2");

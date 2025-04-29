@@ -160,6 +160,17 @@ export interface MediaDirectResponse {
     media: Media,
     tags: MediaTag[],
     extra: MediaExtra | null;
+    customs: CustomMetadata[]
+}
+
+export interface CustomMetadata {
+    id: number,
+    media_id: number,
+    version: number,
+    key: string,
+    value: string,
+    include_search: boolean,
+    created_at: number
 }
 
 export interface MediaTag {

@@ -27,6 +27,8 @@ def add_tag(tag_name: str) -> bool:
     return _call_fn(True, tag_name)
 def remove_tag(tag_name: str) -> bool:
     return _call_fn(True, tag_name)
+def has_tag(tag_name: str) -> bool:
+    return _call_fn(True, tag_name)
 def add_metadata(key: str, value: str, include_search: bool) -> bool:
     return _call_fn(True, key, value, include_search)
 def delete_metadata(key: str) -> bool:

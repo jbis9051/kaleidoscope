@@ -1,4 +1,4 @@
-import {Media, MediaExtra} from "@/api/api";
+import {Media, MediaDirectResponse, MediaExtra} from "@/api/api";
 
 export function timestampToDate(timestamp: number) {
     // timestamp is in seconds
@@ -43,7 +43,13 @@ export function capitalize(s: string) {
 }
 
 
-export default function mediaToMetadata(media: Media, extra: MediaExtra | null): Record<string, string> {
+export default function mediaToMetadata(media: Media, extra_metadata: MediaDirectResponse | null): Record<string, string> {
+    const customs: {[key: string]: string} = {};
+
+    extra_metadata?.customs.forEach((custom) => {
+        customs[custom.key] = custom.value;
+    });
+
     return {
         "ID": media.id.toString(),
         "Name": media.name,
@@ -58,7 +64,8 @@ export default function mediaToMetadata(media: Media, extra: MediaExtra | null):
         "Duration": media.duration ? durationHumanReadable(media.duration) : "N/A",
         "Screenshot": media.is_screenshot ? "Yes" : "No",
         "GPS": (media.longitude && media.latitude) ? GPSFormat(media.longitude, media.latitude) : "N/A",
-        "Has Whisper Transcription": (extra && extra.whisper_transcript) ? "Yes" : "No",
-        "Has Vision OCR": (extra && extra.vision_ocr_result) ? "Yes" : "No",
+        "Has Whisper Transcription": (extra_metadata?.extra && extra_metadata.extra.whisper_transcript) ? "Yes" : "No",
+        "Has Vision OCR": (extra_metadata?.extra && extra_metadata.extra.vision_ocr_result) ? "Yes" : "No",
+        ...customs
     }
 }

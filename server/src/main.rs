@@ -30,6 +30,7 @@ use common::env::EnvVar;
 use common::ipc::{IpcQueueProgressResponse, QueueProgress, RunProgressSer};
 use common::media_processors::format::MediaType;
 use common::media_query::{MediaQuery, MediaQueryType};
+use common::models::custom_metadata::CustomMetadata;
 use common::models::kv::Kv;
 use common::models::media_extra::MediaExtra;
 use common::models::media_tag::MediaTag;
@@ -136,21 +137,25 @@ pub struct MediaDirectResponse {
     media: Media,
     tags: Vec<MediaTag>,
     extra: Option<MediaExtra>,
+    customs: Vec<CustomMetadata>
 }
 
 async fn media(Extension(conn): Extension<DbPool>, path: Path<MediaParams>, query: Query<MediaDirectQuery>) -> Result<Json<MediaDirectResponse>, (StatusCode, String)> {
     let media = Media::from_uuid(&conn, &path.uuid).await.map_err(|_| (StatusCode::NOT_FOUND, "Media not found".to_string()))?;
     let tags = media.tags(&conn).await.unwrap();
-    let extra = if query.extra.unwrap_or(false) {
-        Some(media.extra(&conn).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "problem with media_extra query".to_string()))?)
+    let (extra,customs) = if query.extra.unwrap_or(false) {
+        let extra = media.extra(&conn).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "problem with media_extra query".to_string()))?;
+        let customs = media.customs(&conn).await.map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "problem with customs query".to_string()))?;
+        (extra, customs)
     } else {
-        None
-    }.flatten();
+        (None, Vec::new())
+    };
     
     Ok(Json(MediaDirectResponse{
         media,
         extra,
-        tags
+        tags,
+        customs
     }))
 }
 
