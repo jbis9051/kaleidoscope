@@ -158,7 +158,7 @@ export default function Timeline({
                 throw new Error("Not implemented");
         }
 
-        let count = await api.media_index(outRange.toFilterString()).then(res => res.count);
+        let count = await api.media_index(outRange.toMediaQuery("created_at", false, 1, 0)).then(res => res.count);
 
         const page = Math.floor(count / limit);
 
