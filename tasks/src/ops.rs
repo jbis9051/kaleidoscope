@@ -209,6 +209,7 @@ pub async fn add_outdated_queues(
 pub async fn run_custom(
     db: &mut impl AcquireClone,
     media: &Media,
+    custom_task_name: &str,
     app_config: &AppConfig,
     custom: &CustomConfig
 ) -> Result<(), TaskError> {
@@ -242,7 +243,7 @@ pub async fn run_custom(
     while let Some(line) = reader.next_line().await.unwrap() {
         debug!("run_custom script outputted: {}", line);
         let fn_call: FnCall = serde_json::from_str(&line).expect("unable to parse input");
-        let res = call_fn(db, media, app_config, custom.version, fn_call).await?;
+        let res = call_fn(db, media, app_config, custom.version, custom_task_name, fn_call).await?;
         debug!("run_custom responded: {}", res);
         if res != "null" {
             let _ = stdin.write_all(res.as_bytes()).await;
@@ -316,7 +317,7 @@ pub async fn run_custom_tasks(
     for ((task_name, config), medias) in app_config.custom.iter().zip(medias.iter()) {
         for media in medias {
             let start = Instant::now();
-            match run_custom(db, &media, &app_config, &config).await {
+            match run_custom(db, &media, task_name, &app_config, &config).await {
                 Ok(_) => {
                     media.remove_outdated_custom(db.acquire_clone(), task_name, config.version).await.expect("couldn't remove old custom metadata");
                     media.remove_custom_task_media(db.acquire_clone(), task_name).await.expect("couldn't complete marker");

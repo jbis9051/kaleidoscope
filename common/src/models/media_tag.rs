@@ -12,12 +12,15 @@ pub struct MediaTag {
     pub id: i32,
     pub media_id: i32,
     pub tag: String,
+    // this is the custom_task name used to add the tag
+    pub task: Option<String>, 
 }
 
 
 sqlize!(MediaTag, "media_tag", id, [
     media_id,
-    tag
+    tag,
+    task
 ]);
 
 impl MediaTag {

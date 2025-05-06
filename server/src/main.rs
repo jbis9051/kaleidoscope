@@ -452,7 +452,7 @@ async fn add_tag(Extension(conn): Extension<DbPool>, tag: Path<String>, media_uu
     if tags.iter().any(|t| t.tag == *tag) {
         return Err((StatusCode::BAD_REQUEST, "duplicate tag".to_string()));
     }
-    let tag= media.add_tag(&mut &conn, tag.0).await.unwrap();
+    let tag= media.add_tag(&mut &conn, tag.0, None).await.unwrap();
     Ok(Json(tag))
 }
 

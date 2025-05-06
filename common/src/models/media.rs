@@ -182,11 +182,12 @@ impl Media {
             .map(|row| row.borrow().into()))
     }
 
-    pub async fn add_tag(&self, db: &mut impl AcquireClone, tag: String) -> Result<MediaTag, sqlx::Error> {
+    pub async fn add_tag(&self, db: &mut impl AcquireClone, tag: String, task: Option<String>) -> Result<MediaTag, sqlx::Error> {
         let mut tag = MediaTag {
             id: 0,
             media_id: self.id,
             tag,
+            task
         };
         tag.create(db.acquire_clone()).await?;
         Ok(tag)
