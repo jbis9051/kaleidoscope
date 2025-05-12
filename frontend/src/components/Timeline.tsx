@@ -169,7 +169,7 @@ export default function Timeline({
 
     function updateInterval(plus: boolean) {
         const newInterval = intervalChange(interval, plus);
-        if (newInterval && safeInterval(filter, newInterval)) {
+        if (newInterval && safeInterval(filter, newInterval, data)) {
             setInterval(newInterval);
         }
     }
@@ -178,9 +178,9 @@ export default function Timeline({
         <div className={styles.container}>
             <div className={styles.timelineContainer}>
                 {!timeSelectionSorted && <div className={styles.control}>
-                    <div className={safeInterval(filter, intervalChange(interval, true)) ? '' : styles.disabled}
+                    <div className={safeInterval(filter, intervalChange(interval, true), data) ? '' : styles.disabled}
                          onClick={() => updateInterval(true)}><FontAwesomeIcon icon={faPlus}/></div>
-                    <div className={safeInterval(filter, intervalChange(interval, false)) ? '' : styles.disabled}
+                    <div className={safeInterval(filter, intervalChange(interval, false), data) ? '' : styles.disabled}
                          onClick={() => updateInterval(false)}><FontAwesomeIcon icon={faMinus}/></div>
                 </div>}
                 <div className={styles.timeline} ref={timeline} onMouseLeave={() => setTimeSelection(null)}>
@@ -392,9 +392,7 @@ function indexOfItemForRange(startDate: Date, endDate: Date, data: TimelineInter
     // we could do a binary search here, but im lazy
     for (let i = 0; i < data.length; i++) {
         const item = data[i];
-        const {year, month, day, hour} = {day: 1, hour: 0, ...item};
-
-        const date = new Date(Date.UTC(year, month - 1, day, hour));
+        const date = timelineIntervalToDate(item)
 
         if (date >= startDate && first === null) {
             first = i;
@@ -448,29 +446,48 @@ function intervalChange(current: TimelineInterval, increment: boolean): Timeline
     }
 }
 
-function safeInterval(filter: Filter, interval: TimelineInterval | null): boolean {
+function timelineIntervalToDate(item: TimelineIntervalData<TimelineInterval>){
+    const {year, month, day, hour} = {day: 1, hour: 0, ...item};
+    return new Date(Date.UTC(year, month - 1, day, hour));
+}
+
+function safeInterval(filter: Filter, interval: TimelineInterval | null, data: TimelineIntervalData<TimelineInterval>[]): boolean {
     if (interval === null) {
         return false;
     }
     const range = filter.getDateRange('created_at');
-    const [start, end] = range;
+    let [start, end] = range;
+
+    console.log(start, end);
 
     if (start === null || end === null) {
-        // if we don't have a range, we can't really determine if it's safe
-        // TODO: we could check the month query and see if it's within a reasonable range
-        return interval === "month";
+        // if we don't have a range, if its month, then sure otherwise check the data
+        if(interval === "month"){
+            // TODO: we could check the month query and see if it's within a reasonable range
+            return true;
+        }
+        if(data.length === 0){
+            return false;
+        }
+        start = timelineIntervalToDate(data[0]);
+        end = timelineIntervalToDate(data[data.length-1]);
     }
 
-    const diff = end.getTime() - start.getTime();
-
-    const maxItems = 1000;
+    let maxItems = 10000; // estimated 300 kb
 
     switch (interval) {
         case "month":
-            return diff <= maxItems * 30 * 24 * 60 * 60 * 1000;
+            maxItems = maxItems * 30 * 24 * 60 * 60 * 1000;
+            break;
         case "day":
-            return diff <= maxItems * 24 * 60 * 60 * 1000;
+            maxItems = maxItems * 24 * 60 * 60 * 1000;
+            break;
         case "hour":
-            return diff <= maxItems * 60 * 60 * 1000;
+            maxItems = maxItems * 60 * 60 * 1000;
+            break;
     }
+
+    const diff = end.getTime() - start.getTime();
+console.log(interval, diff, maxItems);
+    return diff <= maxItems;
 }
