@@ -12,7 +12,7 @@ impl Format for Raw {
     type Error = RawError;
     
     const FORMAT_TYPE: FormatType = FormatType::Raw;
-    const EXTENSIONS: &'static [&'static str] = &["raf"];
+    const EXTENSIONS: &'static [&'static str] = &["raf", "arw"];
     const METADATA_VERSION: i32 = 0;
     fn get_metadata(path: &Path, _: &AppConfig) -> Result<MediaMetadata, RawError> {
         let file_meta = path.metadata()?;
